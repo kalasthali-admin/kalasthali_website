@@ -1,0 +1,23 @@
+{
+    "name": "Kalasthali",
+    "short_name": "Kalasthali",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#FAF6ED",
+    "theme_color": "#FAF6ED",
+    "description": "Kalasthali — Handpainted clothing crafted with art and individuality.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "android-chrome-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "android-chrome-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

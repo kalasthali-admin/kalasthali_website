@@ -1,0 +1,91 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_web_plugins/flutter_web_plugins.dart';
+
+import 'core/supabase_config.dart';
+import 'pages/cart_page.dart';
+import 'pages/collection_page.dart';
+import 'pages/contact_page.dart';
+import 'pages/home_page.dart';
+import 'pages/about_page.dart';
+import 'pages/product_page.dart';
+import 'pages/settings_page.dart';
+
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb) {
+    await SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  }
+  setUrlStrategy(PathUrlStrategy());
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    publishableKey: SupabaseConfig.publishableKey,
+  );
+  runApp(const KalasthaliApp());
+}
+
+class KalasthaliApp extends StatelessWidget {
+  const KalasthaliApp({super.key});
+
+  static const String homeRoute = '/home';
+  static const String collectionRoute = '/collection';
+  static const String aboutRoute = '/about';
+  static const String contactRoute = '/contact';
+  static const String cartRoute = '/cart';
+  static const String productRoute = '/product';
+  static const String settingsRoute = '/settings';
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Kalasthali By Nisha',
+      debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        return child ?? const SizedBox.shrink();
+      },
+      initialRoute: homeRoute,
+      routes: {
+        homeRoute: (context) => const HomePage(),
+        collectionRoute: (context) => const CollectionPage(),
+        aboutRoute: (context) => const AboutPage(),
+        contactRoute: (context) => const ContactPage(),
+        cartRoute: (context) => const CartPage(),
+        productRoute: (context) => const ProductPage(),
+        settingsRoute: (context) => const SettingsPage(),
+      },
+      onGenerateRoute: (settings) {
+        if (settings.name == '/') {
+          return MaterialPageRoute<void>(
+            builder: (_) => const HomePage(),
+            settings: const RouteSettings(name: homeRoute),
+          );
+        }
+
+        return MaterialPageRoute<void>(
+          builder: (_) => const UnknownRoutePage(),
+          settings: settings,
+        );
+      },
+    );
+  }
+}
+
+class UnknownRoutePage extends StatelessWidget {
+  const UnknownRoutePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Page not found')),
+      body: const Center(child: Text('This page does not exist.')),
+    );
+  }
+}

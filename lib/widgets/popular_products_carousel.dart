@@ -1,0 +1,515 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../core/models/product.dart';
+import '../core/services/product_service.dart';
+
+class PopularProductsCarousel extends StatefulWidget {
+  const PopularProductsCarousel({super.key});
+
+  @override
+  State<PopularProductsCarousel> createState() =>
+      _PopularProductsCarouselState();
+}
+
+class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
+  late PageController _pageController;
+  int _currentPage = 0;
+  List<Product> _products = [];
+  bool _isLoading = true;
+  late ProductService _productService;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(viewportFraction: 1.0);
+    _productService = ProductService();
+    _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    try {
+      final products = await _productService.getPopularProducts();
+      setState(() {
+        _products = products;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      print('Error loading products: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _nextPage() {
+    if (_products.isNotEmpty) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _previousPage() {
+    if (_products.isNotEmpty) {
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 900;
+    final carouselWidth = isDesktop
+        ? 1000.0
+        : (screenWidth > 0
+              ? screenWidth - 32
+              : 360.0); // Full width minus padding on mobile
+
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_products.isEmpty) {
+      return const Center(child: Text('No popular products available'));
+    }
+
+    return Column(
+      children: [
+        Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: carouselWidth),
+            child: Row(
+              children: [
+                // Previous button (Desktop only)
+                if (isDesktop)
+                  SizedBox(
+                    width: 70,
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: _previousPage,
+                        child: Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black12, blurRadius: 8),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.chevron_left,
+                            color: Color(0xFF914B0D),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                // Carousel
+                Expanded(
+                  child: SizedBox(
+                    height: isDesktop ? 500 : 600,
+                    child: Stack(
+                      children: [
+                        PageView.builder(
+                          controller: _pageController,
+                          onPageChanged: (index) {
+                            setState(() {
+                              _currentPage = index % _products.length;
+                            });
+                          },
+                          itemBuilder: (context, index) {
+                            final product = _products[index % _products.length];
+                            return isDesktop
+                                ? _DesktopProductCard(product: product)
+                                : _MobileProductCard(product: product);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Next button (Desktop only)
+                if (isDesktop)
+                  SizedBox(
+                    width: 70,
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: _nextPage,
+                        child: Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black12, blurRadius: 8),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.chevron_right,
+                            color: Color(0xFF914B0D),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        // Dot indicators
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+            _products.length,
+            (index) => GestureDetector(
+              onTap: () {
+                _pageController.animateToPage(
+                  index,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                );
+              },
+              child: Container(
+                width: 12,
+                height: 12,
+                margin: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _currentPage == index
+                      ? const Color(0xFF914B0D)
+                      : Colors.grey.shade400,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DesktopProductCard extends StatelessWidget {
+  final Product product;
+
+  const _DesktopProductCard({required this.product});
+
+  @override
+  Widget build(BuildContext context) {
+    final productService = ProductService();
+    final imageUrl = productService.getProductImageUrl(product.code);
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0x80914B0D), width: 2),
+        color: Colors.transparent,
+      ),
+      child: Row(
+        children: [
+          // Image section
+          Expanded(
+            flex: 1,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: imageUrl.isEmpty
+                    ? const Center(
+                        child: Icon(
+                          Icons.broken_image,
+                          color: Colors.red,
+                          size: 48,
+                        ),
+                      )
+                    : Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.broken_image,
+                                  color: Colors.red,
+                                  size: 48,
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Failed to load image',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ),
+          // Content section
+          Expanded(
+            flex: 1,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    product.name,
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1F1E25),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    product.description,
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 16,
+                      height: 1.5,
+                      color: const Color(0xFF4B463E),
+                    ),
+                    maxLines: 5,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 24),
+                  Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: OutlinedButton(
+                          onPressed: () {
+                            // TODO: Implement View More navigation
+                          },
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(
+                              color: Color(0xFF914B0D),
+                              width: 2,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'View More',
+                            style: TextStyle(
+                              color: Color(0xFF914B0D),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            // TODO: Implement Add to Cart
+                          },
+                          icon: const Icon(Icons.shopping_cart),
+                          label: const Text('Add To Cart'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF914B0D),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobileProductCard extends StatelessWidget {
+  final Product product;
+
+  const _MobileProductCard({required this.product});
+
+  @override
+  Widget build(BuildContext context) {
+    final productService = ProductService();
+    final imageUrl = productService.getProductImageUrl(product.code);
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x80914B0D), width: 2),
+        color: Colors.transparent,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image section
+          Container(
+            height: 280,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
+              ),
+            ),
+            child: imageUrl.isEmpty
+                ? const Center(
+                    child: Icon(
+                      Icons.broken_image,
+                      color: Colors.red,
+                      size: 48,
+                    ),
+                  )
+                : Image.network(
+                    imageUrl,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return const Center(child: CircularProgressIndicator());
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.broken_image,
+                              color: Colors.red,
+                              size: 48,
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Failed to load image',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          // Content section
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.name,
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1F1E25),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Note: Pills/categories UI implementation skipped as per request
+                  const SizedBox(height: 8),
+                  Text(
+                    product.description,
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 16,
+                      height: 1.5,
+                      color: const Color(0xFF4B463E),
+                    ),
+                    maxLines: 5,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const Spacer(),
+                  Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: 40,
+                        child: OutlinedButton(
+                          onPressed: () {
+                            // TODO: Implement View More navigation
+                          },
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(
+                              color: Color(0xFF914B0D),
+                              width: 2,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text(
+                            'View More',
+                            style: TextStyle(
+                              color: Color(0xFF914B0D),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 40,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            // TODO: Implement Add to Cart
+                          },
+                          icon: const Icon(Icons.shopping_cart),
+                          label: const Text('Add To Cart'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF914B0D),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
