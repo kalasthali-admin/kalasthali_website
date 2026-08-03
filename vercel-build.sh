@@ -5,6 +5,10 @@ set -euo pipefail
 FLUTTER_VERSION="${FLUTTER_VERSION:-3.35.2}"
 FLUTTER_ROOT="$PWD/.vercel/flutter"
 
+# Configure git to trust the Flutter directory (required for running as root on Vercel)
+git config --global --add safe.directory "$FLUTTER_ROOT"
+git config --global --add safe.directory "$PWD"
+
 if [ ! -x "$FLUTTER_ROOT/bin/flutter" ]; then
   mkdir -p "$PWD/.vercel"
   curl -L "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" -o /tmp/flutter.tar.xz
