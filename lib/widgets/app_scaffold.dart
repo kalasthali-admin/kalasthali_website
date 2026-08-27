@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/services/cart_service.dart';
+
 const double _desktopHeaderBreakpoint = 850;
 
 class AppScaffold extends StatelessWidget {
@@ -114,10 +116,13 @@ class _DesktopNavigation extends StatelessWidget {
         const SizedBox(width: 12),
         Container(width: 2, height: 40, color: const Color(0xFFA69E91)),
         const SizedBox(width: 16),
-        _HeaderButton(
-          label: 'CART',
-          onTap: () => _goTo(context, '/cart'),
-          icon: Icons.shopping_bag_outlined,
+        AnimatedBuilder(
+          animation: CartService.instance,
+          builder: (context, _) => _HeaderButton(
+            label: 'CART (${CartService.instance.itemCount})',
+            onTap: () => _goTo(context, '/cart'),
+            icon: Icons.shopping_bag_outlined,
+          ),
         ),
       ],
     );

@@ -81,6 +81,14 @@ class KalasthaliApp extends StatelessWidget {
           );
         }
 
+        if (uri.path == productRoute) {
+          final code = uri.queryParameters['code'] ?? uri.query;
+          return MaterialPageRoute<void>(
+            builder: (_) => ProductPage(productCode: code),
+            settings: settings,
+          );
+        }
+
         return MaterialPageRoute<void>(
           builder: (_) => const UnknownRoutePage(),
           settings: settings,

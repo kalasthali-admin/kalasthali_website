@@ -161,10 +161,10 @@ class _CollectionPageState extends State<CollectionPage> {
                             physics: const NeverScrollableScrollPhysics(),
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: mobile ? 1 : 3,
-                                  crossAxisSpacing: 10,
-                                  mainAxisSpacing: 10,
-                                  childAspectRatio: mobile ? 1.45 : .64,
+                                  crossAxisCount: mobile ? 2 : 3,
+                                  crossAxisSpacing: mobile ? 28 : 10,
+                                  mainAxisSpacing: mobile ? 28 : 10,
+                                  childAspectRatio: mobile ? .58 : .64,
                                 ),
                             itemCount: filtered.length,
                             itemBuilder: (_, i) => _Card(product: filtered[i]),
@@ -217,44 +217,51 @@ class _Card extends StatelessWidget {
         ),
       );
 
-      final details = _CardDetails(product: product);
-      return Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: const Color(0xFFECE7DD),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFD7CBB9), width: 2),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x332D1E12),
-              blurRadius: 12,
-              offset: Offset(0, 5),
-            ),
-          ],
+      final details = _CardDetails(product: product, compact: !horizontal);
+      return GestureDetector(
+        onTap: () => Navigator.pushNamed(
+          context,
+          '/product?${Uri.encodeComponent(product.code)}',
         ),
-        child: horizontal
-            ? Row(
-                children: [
-                  SizedBox(width: 155, child: image),
-                  const SizedBox(width: 14),
-                  Expanded(child: details),
-                ],
-              )
-            : Column(
-                children: [
-                  Expanded(child: image),
-                  const SizedBox(height: 10),
-                  details,
-                ],
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFECE7DD),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFD7CBB9), width: 2),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x332D1E12),
+                blurRadius: 12,
+                offset: Offset(0, 5),
               ),
+            ],
+          ),
+          child: horizontal
+              ? Row(
+                  children: [
+                    SizedBox(width: 155, child: image),
+                    const SizedBox(width: 14),
+                    Expanded(child: details),
+                  ],
+                )
+              : Column(
+                  children: [
+                    Expanded(child: image),
+                    const SizedBox(height: 10),
+                    details,
+                  ],
+                ),
+        ),
       );
     },
   );
 }
 
 class _CardDetails extends StatelessWidget {
-  const _CardDetails({required this.product});
+  const _CardDetails({required this.product, required this.compact});
   final Product product;
+  final bool compact;
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -263,9 +270,10 @@ class _CardDetails extends StatelessWidget {
       Text(
         product.name,
         maxLines: 2,
-        overflow: TextOverflow.ellipsis,
+        overflow: TextOverflow.clip,
+        softWrap: true,
         style: GoogleFonts.dmSerifDisplay(
-          fontSize: 22,
+          fontSize: compact ? 14 : 22,
           fontWeight: FontWeight.bold,
           color: const Color(0xFF5B351A),
         ),
@@ -282,7 +290,7 @@ class _CardDetails extends StatelessWidget {
             ),
           ),
           FilledButton(
-            onPressed: () => CartService.instance.add(product.code),
+            onPressed: () => _addToCart(context, product.code),
             style: FilledButton.styleFrom(
               minimumSize: const Size(42, 42),
               padding: EdgeInsets.zero,
@@ -297,4 +305,12 @@ class _CardDetails extends StatelessWidget {
       ),
     ],
   );
+}
+
+Future<void> _addToCart(BuildContext context, String productCode) async {
+  await CartService.instance.add(productCode);
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(const SnackBar(content: Text('Added to cart')));
 }

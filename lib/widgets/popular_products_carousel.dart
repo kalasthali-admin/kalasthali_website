@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/models/product.dart';
+import '../core/services/cart_service.dart';
 import '../core/services/product_service.dart';
 
 class PopularProductsCarousel extends StatefulWidget {
@@ -295,9 +296,7 @@ class _DesktopProductCard extends StatelessWidget {
                         width: double.infinity,
                         height: 48,
                         child: OutlinedButton(
-                          onPressed: () {
-                            // TODO: Implement View More navigation
-                          },
+                          onPressed: () => _openProduct(context, product.code),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(
                               color: Color(0xFF914B0D),
@@ -322,9 +321,7 @@ class _DesktopProductCard extends StatelessWidget {
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton.icon(
-                          onPressed: () {
-                            // TODO: Implement Add to Cart
-                          },
+                          onPressed: () => _addToCart(context, product.code),
                           icon: const Icon(Icons.shopping_cart),
                           label: const Text('Add To Cart'),
                           style: ElevatedButton.styleFrom(
@@ -412,9 +409,7 @@ class _MobileProductCard extends StatelessWidget {
                         width: double.infinity,
                         height: 40,
                         child: OutlinedButton(
-                          onPressed: () {
-                            // TODO: Implement View More navigation
-                          },
+                          onPressed: () => _openProduct(context, product.code),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(
                               color: Color(0xFF914B0D),
@@ -438,9 +433,7 @@ class _MobileProductCard extends StatelessWidget {
                         width: double.infinity,
                         height: 40,
                         child: ElevatedButton.icon(
-                          onPressed: () {
-                            // TODO: Implement Add to Cart
-                          },
+                          onPressed: () => _addToCart(context, product.code),
                           icon: const Icon(Icons.shopping_cart),
                           label: const Text('Add To Cart'),
                           style: ElevatedButton.styleFrom(
@@ -492,6 +485,18 @@ class _ProductImage extends StatelessWidget {
       },
     );
   }
+}
+
+void _openProduct(BuildContext context, String productCode) {
+  Navigator.pushNamed(context, '/product?${Uri.encodeComponent(productCode)}');
+}
+
+Future<void> _addToCart(BuildContext context, String productCode) async {
+  await CartService.instance.add(productCode);
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(const SnackBar(content: Text('Added to cart')));
 }
 
 class _ProductImageError extends StatelessWidget {
