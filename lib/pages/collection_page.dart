@@ -69,82 +69,89 @@ class _CollectionPageState extends State<CollectionPage> {
                 mobile ? 20 : 44,
                 100,
               ),
-              child: Column(
-                children: [
-                  Text(
-                    'SHOP COLLECTION',
-                    style: GoogleFonts.dmSerifDisplay(
-                      fontSize: mobile ? 34 : 42,
-                      letterSpacing: mobile ? 2 : 8,
-                      color: const Color(0xFF513019),
-                    ),
-                  ),
-                  const SizedBox(height: 42),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 575),
-                    child: TextField(
-                      controller: search,
-                      decoration: InputDecoration(
-                        hintText: 'Search for a product',
-                        prefixIcon: const Icon(Icons.search, size: 31),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF694425),
-                            width: 2,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 900),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        'SHOP COLLECTION',
+                        style: GoogleFonts.dmSerifDisplay(
+                          fontSize: mobile ? 34 : 42,
+                          letterSpacing: mobile ? 2 : 8,
+                          color: const Color(0xFF513019),
+                        ),
+                      ),
+                      const SizedBox(height: 42),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 575),
+                        child: TextField(
+                          controller: search,
+                          decoration: InputDecoration(
+                            hintText: 'Search for a product',
+                            prefixIcon: const Icon(Icons.search, size: 31),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF694425),
+                                width: 2,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 12,
-                    children: categories
-                        .map(
-                          (c) => ChoiceChip(
-                            label: Text(
-                              c.replaceAll('-', ' ').toUpperCase(),
-                              style: const TextStyle(letterSpacing: 2),
-                            ),
-                            selected: category == c,
-                            onSelected: (_) => select(c),
-                            selectedColor: const Color(0xFFE2C7A0),
-                            backgroundColor: const Color(0xFFE9E2D6),
-                            side: const BorderSide(
-                              color: Color(0xFFA85C18),
-                              width: 1.5,
-                            ),
-                            shape: const StadiumBorder(),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 15,
-                              vertical: 9,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  SizedBox(height: mobile ? 120 : 110),
-                  if (filtered.isEmpty)
-                    const Text('No products found.')
-                  else
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 900),
-                      child: GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: mobile ? 2 : 3,
-                          crossAxisSpacing: mobile ? 26 : 30,
-                          mainAxisSpacing: mobile ? 28 : 30,
-                          childAspectRatio: mobile ? .57 : .64,
-                        ),
-                        itemCount: filtered.length,
-                        itemBuilder: (_, i) => _Card(product: filtered[i]),
+                      const SizedBox(height: 28),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 12,
+                        children: categories
+                            .map(
+                              (c) => ChoiceChip(
+                                label: Text(
+                                  c.replaceAll('-', ' ').toUpperCase(),
+                                  style: const TextStyle(letterSpacing: 2),
+                                ),
+                                selected: category == c,
+                                onSelected: (_) => select(c),
+                                selectedColor: const Color(0xFFE2C7A0),
+                                backgroundColor: const Color(0xFFE9E2D6),
+                                side: const BorderSide(
+                                  color: Color(0xFFA85C18),
+                                  width: 1.5,
+                                ),
+                                shape: const StadiumBorder(),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 15,
+                                  vertical: 9,
+                                ),
+                              ),
+                            )
+                            .toList(),
                       ),
-                    ),
-                ],
+                      SizedBox(height: mobile ? 120 : 110),
+                      if (filtered.isEmpty)
+                        const Text('No products found.')
+                      else
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 900),
+                          child: GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: mobile ? 2 : 3,
+                                  crossAxisSpacing: mobile ? 26 : 30,
+                                  mainAxisSpacing: mobile ? 28 : 30,
+                                  childAspectRatio: mobile ? .57 : .64,
+                                ),
+                            itemCount: filtered.length,
+                            itemBuilder: (_, i) => _Card(product: filtered[i]),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             );
           },

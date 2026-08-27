@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-FLUTTER_VERSION="${FLUTTER_VERSION:-3.35.2}"
+FLUTTER_VERSION="${FLUTTER_VERSION:-3.47.1}"
 FLUTTER_ROOT="$PWD/.vercel/flutter"
 
 # Configure git to trust the Flutter directory (required for running as root on Vercel)
