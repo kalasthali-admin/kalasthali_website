@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 
 import 'core/supabase_config.dart';
+import 'core/services/cart_service.dart';
 import 'pages/cart_page.dart';
 import 'pages/collection_page.dart';
 import 'pages/contact_page.dart';
@@ -29,6 +30,7 @@ Future<void> main() async {
     url: SupabaseConfig.url,
     publishableKey: SupabaseConfig.publishableKey,
   );
+  await CartService.instance.load();
   runApp(const KalasthaliApp());
 }
 

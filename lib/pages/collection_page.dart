@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/models/product.dart';
 import '../core/services/product_service.dart';
+import '../core/services/cart_service.dart';
 import '../widgets/app_scaffold.dart';
 
 class CollectionPage extends StatefulWidget {
@@ -55,7 +56,8 @@ class _CollectionPageState extends State<CollectionPage> {
             final filtered = snap.data!
                 .where(
                   (p) =>
-                      (category == null || _key(p.type) == _key(category!)) &&
+                      (category == null ||
+                          _matchesCategory(p.type, category!)) &&
                       (query.isEmpty ||
                           '${p.name} ${p.description} ${p.type}'
                               .toLowerCase()
@@ -88,9 +90,23 @@ class _CollectionPageState extends State<CollectionPage> {
                         constraints: const BoxConstraints(maxWidth: 575),
                         child: TextField(
                           controller: search,
+                          style: GoogleFonts.blinker(
+                            fontSize: mobile ? 14 : 17,
+                            color: const Color(0xFF1F1E25),
+                          ),
                           decoration: InputDecoration(
                             hintText: 'Search for a product',
-                            prefixIcon: const Icon(Icons.search, size: 31),
+                            hintStyle: GoogleFonts.blinker(
+                              fontSize: mobile ? 14 : 17,
+                              color: const Color(0xFF746D64),
+                            ),
+                            prefixIcon: Icon(
+                              Icons.search,
+                              size: mobile ? 25 : 31,
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                              vertical: mobile ? 12 : 16,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(
@@ -104,13 +120,18 @@ class _CollectionPageState extends State<CollectionPage> {
                       const SizedBox(height: 28),
                       Wrap(
                         alignment: WrapAlignment.center,
-                        spacing: 12,
+                        spacing: mobile ? 12 : 16,
+                        runSpacing: mobile ? 14 : 12,
                         children: categories
                             .map(
                               (c) => ChoiceChip(
                                 label: Text(
                                   c.replaceAll('-', ' ').toUpperCase(),
-                                  style: const TextStyle(letterSpacing: 2),
+                                  style: GoogleFonts.blinker(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: mobile ? 1.4 : 2,
+                                  ),
                                 ),
                                 selected: category == c,
                                 onSelected: (_) => select(c),
@@ -122,8 +143,8 @@ class _CollectionPageState extends State<CollectionPage> {
                                 ),
                                 shape: const StadiumBorder(),
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 15,
-                                  vertical: 9,
+                                  horizontal: 10,
+                                  vertical: 7,
                                 ),
                               ),
                             )
@@ -140,10 +161,10 @@ class _CollectionPageState extends State<CollectionPage> {
                             physics: const NeverScrollableScrollPhysics(),
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: mobile ? 2 : 3,
-                                  crossAxisSpacing: mobile ? 26 : 30,
-                                  mainAxisSpacing: mobile ? 28 : 30,
-                                  childAspectRatio: mobile ? .57 : .64,
+                                  crossAxisCount: mobile ? 1 : 3,
+                                  crossAxisSpacing: 10,
+                                  mainAxisSpacing: 10,
+                                  childAspectRatio: mobile ? 1.45 : .64,
                                 ),
                             itemCount: filtered.length,
                             itemBuilder: (_, i) => _Card(product: filtered[i]),
@@ -163,80 +184,117 @@ class _CollectionPageState extends State<CollectionPage> {
 
 String _key(String v) => v.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '');
 
+bool _matchesCategory(String productType, String category) {
+  final type = _key(productType);
+
+  return switch (category) {
+    'home-decor' => type == 'homedecor',
+    'sarees' => type == 'saree',
+    'dresses' => type != 'homedecor' && type != 'saree',
+    _ => false,
+  };
+}
+
 class _Card extends StatelessWidget {
   const _Card({required this.product});
   final Product product;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: const Color(0xFFECE7DD),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: const Color(0xFFD7CBB9), width: 2),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x332D1E12),
-          blurRadius: 12,
-          offset: Offset(0, 5),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(13),
-            child: FutureBuilder<String>(
-              future: ProductService().getProductImageUrlAsync(product.code),
-              builder: (_, s) => !s.hasData || s.data!.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : Image.network(
-                      s.data!,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const Icon(Icons.broken_image),
-                    ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          product.name,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.dmSerifDisplay(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: const Color(0xFF5B351A),
-          ),
-        ),
-        const SizedBox(height: 5),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                product.price?.startsWith('₹') == true
-                    ? product.price!
-                    : '₹${product.price ?? '-'}',
-                style: const TextStyle(fontSize: 24),
-              ),
-            ),
-            FilledButton(
-              onPressed: () {},
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(42, 42),
-                padding: EdgeInsets.zero,
-                backgroundColor: const Color(0xFFA35710),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(11),
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final horizontal = constraints.maxWidth >= 360;
+      final image = ClipRRect(
+        borderRadius: BorderRadius.circular(13),
+        child: FutureBuilder<String>(
+          future: ProductService().getProductImageUrlAsync(product.code),
+          builder: (_, s) => !s.hasData || s.data!.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : Image.network(
+                  s.data!,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const Icon(Icons.broken_image),
                 ),
-              ),
-              child: const Icon(Icons.add_shopping_cart_outlined),
+        ),
+      );
+
+      final details = _CardDetails(product: product);
+      return Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFECE7DD),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFD7CBB9), width: 2),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x332D1E12),
+              blurRadius: 12,
+              offset: Offset(0, 5),
             ),
           ],
         ),
-      ],
-    ),
+        child: horizontal
+            ? Row(
+                children: [
+                  SizedBox(width: 155, child: image),
+                  const SizedBox(width: 14),
+                  Expanded(child: details),
+                ],
+              )
+            : Column(
+                children: [
+                  Expanded(child: image),
+                  const SizedBox(height: 10),
+                  details,
+                ],
+              ),
+      );
+    },
+  );
+}
+
+class _CardDetails extends StatelessWidget {
+  const _CardDetails({required this.product});
+  final Product product;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Text(
+        product.name,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: GoogleFonts.dmSerifDisplay(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: const Color(0xFF5B351A),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              product.price?.startsWith('₹') == true
+                  ? product.price!
+                  : '₹${product.price ?? '-'}',
+              style: GoogleFonts.blinker(fontSize: 24),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => CartService.instance.add(product.code),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(42, 42),
+              padding: EdgeInsets.zero,
+              backgroundColor: const Color(0xFFA35710),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
+              ),
+            ),
+            child: const Icon(Icons.add_shopping_cart_outlined),
+          ),
+        ],
+      ),
+    ],
   );
 }

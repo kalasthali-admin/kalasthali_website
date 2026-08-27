@@ -115,9 +115,9 @@ class _DesktopNavigation extends StatelessWidget {
         Container(width: 2, height: 40, color: const Color(0xFFA69E91)),
         const SizedBox(width: 16),
         _HeaderButton(
-          label: 'LOG IN',
-          onTap: () => _showLoginSheet(context),
-          icon: Icons.account_circle,
+          label: 'CART',
+          onTap: () => _goTo(context, '/cart'),
+          icon: Icons.shopping_bag_outlined,
         ),
       ],
     );
@@ -193,7 +193,7 @@ class _NavigationDrawer extends StatelessWidget {
                 ),
               ),
             ),
-            for (final item in [..._primaryItems, _loginItem])
+            for (final item in [..._primaryItems, _cartItem])
               ListTile(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),
@@ -215,11 +215,6 @@ class _NavigationDrawer extends StatelessWidget {
                 ),
                 onTap: () {
                   Navigator.of(context).pop();
-                  if (item.route == null) {
-                    _showLoginSheet(context);
-                    return;
-                  }
-
                   _goTo(context, item.route!);
                 },
               ),
@@ -301,13 +296,12 @@ class _NavItem {
 const List<_NavItem> _primaryItems = [
   _NavItem(label: 'HOME', route: '/home'),
   _NavItem(label: 'COLLECTION', route: '/collections'),
-  _NavItem(label: 'ABOUT', route: '/about'),
-  _NavItem(label: 'CONTACT', route: '/contact'),
 ];
 
-const _NavItem _loginItem = _NavItem(
-  label: 'LOG IN',
-  icon: Icons.account_circle,
+const _NavItem _cartItem = _NavItem(
+  label: 'CART',
+  route: '/cart',
+  icon: Icons.shopping_bag_outlined,
 );
 
 Future<void> _showLoginSheet(BuildContext context) {
@@ -385,6 +379,22 @@ Future<void> _showLoginSheet(BuildContext context) {
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF914B0D),
+                  side: const BorderSide(color: Color(0xFF914B0D), width: 2),
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                onPressed: () => _showCreateAccountSheet(context),
+                child: const Text('Create account'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
               child: FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF914B0D),
@@ -395,6 +405,101 @@ Future<void> _showLoginSheet(BuildContext context) {
                 ),
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('Continue'),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+Future<void> _showCreateAccountSheet(BuildContext context) {
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: const Color(0xFFFEF5E6),
+    barrierColor: Colors.black54,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    ),
+    builder: (context) {
+      return Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 20,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 28,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 52,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD8C7B0),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Create Account',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1F1E25),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Use your email address and a password to get started.',
+              style: TextStyle(
+                fontSize: 16,
+                height: 1.5,
+                color: Color(0xFF4B463E),
+              ),
+            ),
+            const SizedBox(height: 24),
+            TextField(
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                labelText: 'Email',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF914B0D),
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                onPressed: () {},
+                child: const Text('Create account'),
               ),
             ),
           ],
