@@ -10,6 +10,7 @@ class AppScaffold extends StatelessWidget {
     required this.currentRoute,
     required this.body,
     this.centerBody = true,
+    this.useCartDesktopHeader = false,
     super.key,
   });
 
@@ -17,6 +18,7 @@ class AppScaffold extends StatelessWidget {
   final String currentRoute;
   final Widget body;
   final bool centerBody;
+  final bool useCartDesktopHeader;
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +44,7 @@ class AppScaffold extends StatelessWidget {
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(5)),
         ),
-        toolbarHeight: 110,
+        toolbarHeight: useCartDesktopHeader && !isMobile ? 130 : 110,
         automaticallyImplyLeading: false,
         backgroundColor: logoBackground,
         actions: isMobile
@@ -86,7 +88,10 @@ class AppScaffold extends StatelessWidget {
                 ),
               ),
             ),
-            if (!isMobile) _DesktopNavigation(currentRoute: currentRoute),
+            if (!isMobile)
+              useCartDesktopHeader
+                  ? const _CartDesktopNavigation()
+                  : _DesktopNavigation(currentRoute: currentRoute),
             SizedBox(width: isMobile ? 12 : 24),
           ],
         ),
@@ -94,6 +99,51 @@ class AppScaffold extends StatelessWidget {
       body: centerBody ? Center(child: body) : body,
     );
   }
+}
+
+class _CartDesktopNavigation extends StatelessWidget {
+  const _CartDesktopNavigation();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _HeaderButton(
+        label: 'YOUR CART',
+        icon: Icons.shopping_cart_outlined,
+        onTap: () => _goTo(context, '/cart'),
+      ),
+      const SizedBox(width: 14),
+      _RoundHeaderButton(
+        icon: Icons.settings,
+        onTap: () => _goTo(context, '/settings'),
+      ),
+      const SizedBox(width: 14),
+      _RoundHeaderButton(icon: Icons.account_circle, onTap: () {}),
+    ],
+  );
+}
+
+class _RoundHeaderButton extends StatelessWidget {
+  const _RoundHeaderButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xFFE7D0AE),
+    shape: const CircleBorder(),
+    child: InkWell(
+      customBorder: const CircleBorder(),
+      onTap: onTap,
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Icon(icon, size: 28, color: const Color(0xFF1F1E25)),
+      ),
+    ),
+  );
 }
 
 class _DesktopNavigation extends StatelessWidget {
@@ -184,46 +234,51 @@ class _NavigationDrawer extends StatelessWidget {
     return Drawer(
       backgroundColor: const Color(0xFFFEF5E6),
       child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-          children: [
-            const Padding(
-              padding: EdgeInsets.only(left: 8, bottom: 20),
-              child: Text(
-                'Menu',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF1F1E25),
-                ),
-              ),
-            ),
-            for (final item in [..._primaryItems, _cartItem])
-              ListTile(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                tileColor: item.route != null && currentRoute == item.route
-                    ? const Color(0xFFE7D0AE)
-                    : Colors.transparent,
-                leading: item.icon == null
-                    ? null
-                    : Icon(item.icon, color: const Color(0xFF1F1E25)),
-                title: Text(
-                  item.label,
-                  style: const TextStyle(
-                    color: Color(0xFF1F1E25),
-                    fontSize: 18,
+        child: AnimatedBuilder(
+          animation: CartService.instance,
+          builder: (context, _) => ListView(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(left: 8, bottom: 20),
+                child: Text(
+                  'Menu',
+                  style: TextStyle(
+                    fontSize: 22,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
+                    color: Color(0xFF1F1E25),
                   ),
                 ),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _goTo(context, item.route!);
-                },
               ),
-          ],
+              for (final item in [..._primaryItems, _cartItem])
+                ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  tileColor: item.route != null && currentRoute == item.route
+                      ? const Color(0xFFE7D0AE)
+                      : Colors.transparent,
+                  leading: item.icon == null
+                      ? null
+                      : Icon(item.icon, color: const Color(0xFF1F1E25)),
+                  title: Text(
+                    item.route == '/cart'
+                        ? 'CART (${CartService.instance.itemCount})'
+                        : item.label,
+                    style: const TextStyle(
+                      color: Color(0xFF1F1E25),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _goTo(context, item.route!);
+                  },
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -299,14 +354,18 @@ class _NavItem {
 }
 
 const List<_NavItem> _primaryItems = [
-  _NavItem(label: 'HOME', route: '/home'),
-  _NavItem(label: 'COLLECTION', route: '/collections'),
+  _NavItem(label: 'HOME', route: '/home', icon: Icons.home_outlined),
+  _NavItem(
+    label: 'COLLECTION',
+    route: '/collections',
+    icon: Icons.grid_view_outlined,
+  ),
 ];
 
 const _NavItem _cartItem = _NavItem(
   label: 'CART',
   route: '/cart',
-  icon: Icons.shopping_bag_outlined,
+  icon: Icons.shopping_cart_outlined,
 );
 
 Future<void> _showLoginSheet(BuildContext context) {

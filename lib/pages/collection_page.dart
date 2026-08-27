@@ -195,17 +195,26 @@ bool _matchesCategory(String productType, String category) {
   };
 }
 
-class _Card extends StatelessWidget {
+class _Card extends StatefulWidget {
   const _Card({required this.product});
   final Product product;
+
+  @override
+  State<_Card> createState() => _CardState();
+}
+
+class _CardState extends State<_Card> {
+  bool _isHovered = false;
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final horizontal = constraints.maxWidth >= 360;
+      final isDesktop = MediaQuery.sizeOf(context).width >= 700;
       final image = ClipRRect(
         borderRadius: BorderRadius.circular(13),
         child: FutureBuilder<String>(
-          future: ProductService().getProductImageUrlAsync(product.code),
+          future: ProductService().getProductImageUrlAsync(widget.product.code),
           builder: (_, s) => !s.hasData || s.data!.isEmpty
               ? const Center(child: CircularProgressIndicator())
               : Image.network(
@@ -217,41 +226,52 @@ class _Card extends StatelessWidget {
         ),
       );
 
-      final details = _CardDetails(product: product, compact: !horizontal);
-      return GestureDetector(
-        onTap: () => Navigator.pushNamed(
-          context,
-          '/product?${Uri.encodeComponent(product.code)}',
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFECE7DD),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFD7CBB9), width: 2),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x332D1E12),
-                blurRadius: 12,
-                offset: Offset(0, 5),
-              ),
-            ],
+      final details = _CardDetails(
+        product: widget.product,
+        compact: !isDesktop,
+      );
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: GestureDetector(
+          onTap: () => Navigator.pushNamed(
+            context,
+            '/product?${Uri.encodeComponent(widget.product.code)}',
           ),
-          child: horizontal
-              ? Row(
-                  children: [
-                    SizedBox(width: 155, child: image),
-                    const SizedBox(width: 14),
-                    Expanded(child: details),
-                  ],
-                )
-              : Column(
-                  children: [
-                    Expanded(child: image),
-                    const SizedBox(height: 10),
-                    details,
-                  ],
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFECE7DD),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFD7CBB9), width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: _isHovered
+                      ? const Color(0x592D1E12)
+                      : const Color(0x332D1E12),
+                  blurRadius: _isHovered ? 22 : 12,
+                  offset: Offset(0, _isHovered ? 10 : 5),
                 ),
+              ],
+            ),
+            child: horizontal
+                ? Row(
+                    children: [
+                      SizedBox(width: 155, child: image),
+                      const SizedBox(width: 14),
+                      Expanded(child: details),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      Expanded(child: image),
+                      const SizedBox(height: 10),
+                      details,
+                    ],
+                  ),
+          ),
         ),
       );
     },
@@ -273,7 +293,7 @@ class _CardDetails extends StatelessWidget {
         overflow: TextOverflow.clip,
         softWrap: true,
         style: GoogleFonts.dmSerifDisplay(
-          fontSize: compact ? 14 : 22,
+          fontSize: compact ? 14 : 20,
           fontWeight: FontWeight.bold,
           color: const Color(0xFF5B351A),
         ),
@@ -292,14 +312,14 @@ class _CardDetails extends StatelessWidget {
           FilledButton(
             onPressed: () => _addToCart(context, product.code),
             style: FilledButton.styleFrom(
-              minimumSize: const Size(42, 42),
+              minimumSize: const Size(46, 46),
               padding: EdgeInsets.zero,
               backgroundColor: const Color(0xFFA35710),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(11),
               ),
             ),
-            child: const Icon(Icons.add_shopping_cart_outlined),
+            child: const Icon(Icons.add_shopping_cart_outlined, size: 30),
           ),
         ],
       ),
