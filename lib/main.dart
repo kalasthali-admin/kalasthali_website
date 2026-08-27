@@ -36,7 +36,7 @@ class KalasthaliApp extends StatelessWidget {
   const KalasthaliApp({super.key});
 
   static const String homeRoute = '/home';
-  static const String collectionRoute = '/collection';
+  static const String collectionRoute = '/collections';
   static const String aboutRoute = '/about';
   static const String contactRoute = '/contact';
   static const String cartRoute = '/cart';
@@ -62,10 +62,20 @@ class KalasthaliApp extends StatelessWidget {
         settingsRoute: (context) => const SettingsPage(),
       },
       onGenerateRoute: (settings) {
-        if (settings.name == '/') {
+        final uri = Uri.parse(settings.name ?? '/');
+        if (uri.path == '/') {
           return MaterialPageRoute<void>(
             builder: (_) => const HomePage(),
             settings: const RouteSettings(name: homeRoute),
+          );
+        }
+
+        if (uri.path == collectionRoute || uri.path == '/collection') {
+          return MaterialPageRoute<void>(
+            builder: (_) => CollectionPage(
+              initialCategory: uri.queryParameters['category'],
+            ),
+            settings: settings,
           );
         }
 

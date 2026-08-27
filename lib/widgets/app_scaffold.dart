@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-const double _desktopHeaderBreakpoint = 1220;
+const double _desktopHeaderBreakpoint = 850;
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -19,9 +19,13 @@ class AppScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const logoBackground = Color(0xFFFEF5E6);
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final isMobile = screenWidth < _desktopHeaderBreakpoint;
-    final logoHeight = isMobile ? 58.0 : 80.0;
+    final screenSize = MediaQuery.sizeOf(context);
+    final screenWidth = screenSize.width;
+    // Landscape phones can be wide enough for a desktop breakpoint but do not
+    // have enough horizontal room for the full search/navigation row.
+    final isMobile =
+        screenWidth < _desktopHeaderBreakpoint || screenSize.height < 600;
+    final logoHeight = isMobile ? 58.0 : 70.0;
 
     return Scaffold(
       backgroundColor: Color.fromRGBO(231, 226, 215, 1),
@@ -30,20 +34,25 @@ class AppScaffold extends StatelessWidget {
           : null,
       appBar: AppBar(
         elevation: 5,
-        scrolledUnderElevation: 0,
+        scrolledUnderElevation: 5,
         shadowColor: Colors.black,
         surfaceTintColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(5)),
         ),
         toolbarHeight: 110,
         automaticallyImplyLeading: false,
         backgroundColor: logoBackground,
         actions: isMobile
             ? const [
-                EndDrawerButton(
-                  style: ButtonStyle(
-                    foregroundColor: WidgetStatePropertyAll(Color(0xFF1F1E25)),
+                Padding(
+                  padding: EdgeInsets.only(right: 12),
+                  child: EndDrawerButton(
+                    style: ButtonStyle(
+                      foregroundColor: WidgetStatePropertyAll(
+                        Color(0xFF1F1E25),
+                      ),
+                    ),
                   ),
                 ),
               ]
@@ -55,12 +64,22 @@ class AppScaffold extends StatelessWidget {
             Expanded(
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.all(5),
-                  child: Image.asset(
-                    'lib/assets/logo_text.png',
-                    height: logoHeight,
-                    fit: BoxFit.contain,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    overlayColor: const WidgetStatePropertyAll(
+                      Colors.transparent,
+                    ),
+                    onTap: () => _goTo(context, '/home'),
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Image.asset(
+                        'lib/assets/logo_text.png',
+                        height: logoHeight,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -85,22 +104,67 @@ class _DesktopNavigation extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final item in _primaryItems) ...[
-          _HeaderButton(
-            label: item.label,
-            onTap: () => _goTo(context, item.route!),
-            isActive: currentRoute == item.route,
-          ),
-          const SizedBox(width: 18),
-        ],
-        Container(width: 3, height: 68, color: const Color(0xFFA69E91)),
-        const SizedBox(width: 18),
+        const _ProductSearchField(),
+        const SizedBox(width: 10),
+        _HeaderButton(
+          label: 'COLLECTION',
+          onTap: () => _goTo(context, '/collections'),
+          isActive: currentRoute == '/collections',
+        ),
+        const SizedBox(width: 12),
+        Container(width: 2, height: 40, color: const Color(0xFFA69E91)),
+        const SizedBox(width: 16),
         _HeaderButton(
           label: 'LOG IN',
           onTap: () => _showLoginSheet(context),
           icon: Icons.account_circle,
         ),
       ],
+    );
+  }
+}
+
+class _ProductSearchField extends StatelessWidget {
+  const _ProductSearchField();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 700,
+      height: 45,
+      child: TextField(
+        textInputAction: TextInputAction.search,
+        style: const TextStyle(
+          color: Color(0xFF1F1E25),
+          fontSize: 18,
+          letterSpacing: 2,
+        ),
+        decoration: const InputDecoration(
+          hintText: 'SEARCH FOR PRODUCTS',
+          hintStyle: TextStyle(
+            color: Color(0xFF746D64),
+            fontSize: 18,
+            letterSpacing: 2,
+          ),
+          prefixIcon: Icon(Icons.search, size: 19),
+          prefixIconColor: Color(0xFF746D64),
+          filled: true,
+          fillColor: Color(0xFFE7D0AE),
+          contentPadding: EdgeInsets.symmetric(vertical: 8),
+          border: OutlineInputBorder(
+            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderSide: BorderSide.none,
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: Color(0xFF914B0D)),
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -188,11 +252,11 @@ class _HeaderButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(5),
         onTap: onTap,
         child: Ink(
           padding: EdgeInsets.symmetric(
-            horizontal: icon == null ? 20 : 18,
+            horizontal: icon == null ? 10 : 10,
             vertical: 5,
           ),
           decoration: BoxDecoration(
@@ -203,16 +267,19 @@ class _HeaderButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 34, color: const Color(0xFF1F1E25)),
-                const SizedBox(width: 12),
+                Icon(icon, size: 24, color: const Color(0xFF1F1E25)),
+                const SizedBox(width: 8),
               ],
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Color(0xFF111111),
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 3.4,
+              Padding(
+                padding: const EdgeInsets.all(5.0),
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Color(0xFF111111),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2.2,
+                  ),
                 ),
               ),
             ],
@@ -233,7 +300,7 @@ class _NavItem {
 
 const List<_NavItem> _primaryItems = [
   _NavItem(label: 'HOME', route: '/home'),
-  _NavItem(label: 'COLLECTION', route: '/collection'),
+  _NavItem(label: 'COLLECTION', route: '/collections'),
   _NavItem(label: 'ABOUT', route: '/about'),
   _NavItem(label: 'CONTACT', route: '/contact'),
 ];

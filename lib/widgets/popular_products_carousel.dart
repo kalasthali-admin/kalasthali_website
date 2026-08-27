@@ -13,6 +13,7 @@ class PopularProductsCarousel extends StatefulWidget {
 
 class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
   late PageController _pageController;
+  double _viewportFraction = 1;
   int _currentPage = 0;
   List<Product> _products = [];
   bool _isLoading = true;
@@ -21,9 +22,31 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 1.0);
+    _pageController = PageController(viewportFraction: _viewportFraction);
     _productService = ProductService();
     _loadProducts();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final viewportFraction = MediaQuery.sizeOf(context).width >= 700
+        ? 0.5
+        : 1.0;
+    if (_viewportFraction == viewportFraction) {
+      return;
+    }
+
+    final initialPage = _pageController.hasClients
+        ? _pageController.page?.round() ?? _currentPage
+        : _currentPage;
+    _pageController.dispose();
+    _viewportFraction = viewportFraction;
+    _pageController = PageController(
+      initialPage: initialPage,
+      viewportFraction: _viewportFraction,
+    );
   }
 
   Future<void> _loadProducts() async {
@@ -68,9 +91,10 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final isDesktop = screenWidth >= 900;
+    final isDesktop = screenWidth >= 1200;
+    final showsTwoCards = screenWidth >= 700;
     final carouselWidth = isDesktop
-        ? 1000.0
+        ? (screenWidth > 1656 ? 1600.0 : screenWidth - 56)
         : (screenWidth > 0
               ? screenWidth - 32
               : 360.0); // Full width minus padding on mobile
@@ -118,7 +142,9 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
                 // Carousel
                 Expanded(
                   child: SizedBox(
-                    height: isDesktop ? 500 : 600,
+                    // The mobile content needs room for the two actions below
+                    // longer product names and descriptions.
+                    height: isDesktop ? 500 : 640,
                     child: Stack(
                       children: [
                         PageView.builder(
@@ -130,9 +156,16 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
                           },
                           itemBuilder: (context, index) {
                             final product = _products[index % _products.length];
-                            return isDesktop
+                            final card = isDesktop
                                 ? _DesktopProductCard(product: product)
                                 : _MobileProductCard(product: product);
+
+                            return Padding(
+                              padding: showsTwoCards
+                                  ? const EdgeInsets.symmetric(horizontal: 15)
+                                  : EdgeInsets.zero,
+                              child: card,
+                            );
                           },
                         ),
                       ],
@@ -208,9 +241,6 @@ class _DesktopProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final productService = ProductService();
-    final imageUrl = productService.getProductImageUrl(product.code);
-
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
@@ -226,47 +256,7 @@ class _DesktopProductCard extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: imageUrl.isEmpty
-                    ? const Center(
-                        child: Icon(
-                          Icons.broken_image,
-                          color: Colors.red,
-                          size: 48,
-                        ),
-                      )
-                    : Image.network(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.broken_image,
-                                  color: Colors.red,
-                                  size: 48,
-                                ),
-                                SizedBox(height: 8),
-                                Text(
-                                  'Failed to load image',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
+                child: _ProductImage(productCode: product.code),
               ),
             ),
           ),
@@ -365,9 +355,6 @@ class _MobileProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final productService = ProductService();
-    final imageUrl = productService.getProductImageUrl(product.code);
-
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
@@ -382,50 +369,13 @@ class _MobileProductCard extends StatelessWidget {
             height: 280,
             width: double.infinity,
             decoration: BoxDecoration(
-              borderRadius: const BorderRadius.only(
+              borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(18),
                 topRight: Radius.circular(18),
               ),
             ),
-            child: imageUrl.isEmpty
-                ? const Center(
-                    child: Icon(
-                      Icons.broken_image,
-                      color: Colors.red,
-                      size: 48,
-                    ),
-                  )
-                : Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return const Center(child: CircularProgressIndicator());
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.broken_image,
-                              color: Colors.red,
-                              size: 48,
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              'Failed to load image',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+            clipBehavior: Clip.antiAlias,
+            child: _ProductImage(productCode: product.code),
           ),
           // Content section
           Expanded(
@@ -507,6 +457,58 @@ class _MobileProductCard extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductImage extends StatelessWidget {
+  const _ProductImage({required this.productCode});
+
+  final String productCode;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String>(
+      future: ProductService().getProductImageUrlAsync(productCode),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final imageUrl = snapshot.data;
+        if (imageUrl == null || imageUrl.isEmpty) {
+          return const _ProductImageError();
+        }
+
+        return Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) =>
+              const _ProductImageError(),
+        );
+      },
+    );
+  }
+}
+
+class _ProductImageError extends StatelessWidget {
+  const _ProductImageError();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.broken_image, color: Colors.red, size: 48),
+          SizedBox(height: 8),
+          Text(
+            'Failed to load image',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey, fontSize: 12),
           ),
         ],
       ),

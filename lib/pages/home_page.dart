@@ -29,16 +29,17 @@ class HomePage extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1600),
-                      child: isMobile
-                          ? const _MobileHero()
-                          : const _DesktopHero(),
-                    ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: isMobile
+                        ? const _MobileHero()
+                        : const _DesktopHero(),
                   ),
                   SizedBox(height: 100),
                   PopularProductsCarousel(),
+                  const SizedBox(height: 110),
+                  const _ShopByCategory(),
+                  const SizedBox(height: 80),
                 ],
               ),
             ),
@@ -139,6 +140,257 @@ class _MobileHero extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ShopByCategory extends StatelessWidget {
+  const _ShopByCategory();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 700;
+        final showThreeColumns = constraints.maxWidth >= 1200;
+        final tileWidth = isMobile
+            ? constraints.maxWidth - 32
+            : (constraints.maxWidth > 560
+                  ? 266.0
+                  : (constraints.maxWidth - 28) / 2);
+
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 0),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: showThreeColumns ? 1580 : 560,
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    'Shop By Category',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: isMobile ? 36 : 50,
+                      height: 1.05,
+                      color: const Color(0xFF1F1E25),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const _CategoryDivider(),
+                  SizedBox(height: isMobile ? 64 : 52),
+                  if (isMobile) ...[
+                    _CategoryButton(
+                      label: 'Home Decor',
+                      imagePath:
+                          'lib/assets/category_grid/home_decor_small.png',
+                      onTap: () => _goToCollection(context, 'home-decor'),
+                    ),
+                    const SizedBox(height: 42),
+                    _CategoryButton(
+                      label: 'Sarees',
+                      imagePath: 'lib/assets/category_grid/sarees_small.png',
+                      onTap: () => _goToCollection(context, 'sarees'),
+                    ),
+                    const SizedBox(height: 42),
+                    _CategoryButton(
+                      label: 'Dresses',
+                      imagePath: 'lib/assets/category_grid/dresses_small.png',
+                      onTap: () => _goToCollection(context, 'dresses'),
+                    ),
+                  ] else if (showThreeColumns) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _CategoryButton(
+                            label: 'Home Decor',
+                            imagePath:
+                                'lib/assets/category_grid/home_decor_large.png',
+                            onTap: () => _goToCollection(context, 'home-decor'),
+                          ),
+                        ),
+                        const SizedBox(width: 30),
+                        Expanded(
+                          child: _CategoryButton(
+                            label: 'Sarees',
+                            imagePath:
+                                'lib/assets/category_grid/sarees_large.png',
+                            onTap: () => _goToCollection(context, 'sarees'),
+                          ),
+                        ),
+                        const SizedBox(width: 30),
+                        Expanded(
+                          child: _CategoryButton(
+                            label: 'Dresses',
+                            imagePath:
+                                'lib/assets/category_grid/dresses_large.png',
+                            onTap: () => _goToCollection(context, 'dresses'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: tileWidth,
+                          child: _CategoryButton(
+                            label: 'Home Decor',
+                            imagePath:
+                                'lib/assets/category_grid/home_decor_large.png',
+                            onTap: () => _goToCollection(context, 'home-decor'),
+                          ),
+                        ),
+                        const SizedBox(width: 28),
+                        SizedBox(
+                          width: tileWidth,
+                          child: _CategoryButton(
+                            label: 'Sarees',
+                            imagePath:
+                                'lib/assets/category_grid/sarees_large.png',
+                            onTap: () => _goToCollection(context, 'sarees'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 30),
+                    SizedBox(
+                      width: tileWidth,
+                      child: _CategoryButton(
+                        label: 'Dresses',
+                        imagePath: 'lib/assets/category_grid/dresses_large.png',
+                        onTap: () => _goToCollection(context, 'dresses'),
+                      ),
+                    ),
+                  ],
+                  SizedBox(height: isMobile ? 44 : 50),
+                  _ExploreMoreButton(isMobile: isMobile),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CategoryDivider extends StatelessWidget {
+  const _CategoryDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    const color = Color(0xFF65421F);
+
+    return Row(
+      children: [
+        Transform.rotate(
+          angle: 0.785398,
+          child: const SizedBox(
+            width: 5,
+            height: 5,
+            child: DecoratedBox(decoration: BoxDecoration(color: color)),
+          ),
+        ),
+        const Expanded(child: Divider(color: color, height: 1, thickness: 1)),
+        Transform.rotate(
+          angle: 0.785398,
+          child: const SizedBox(
+            width: 5,
+            height: 5,
+            child: DecoratedBox(decoration: BoxDecoration(color: color)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CategoryButton extends StatefulWidget {
+  const _CategoryButton({
+    required this.label,
+    required this.imagePath,
+    required this.onTap,
+  });
+
+  final String label;
+  final String imagePath;
+  final VoidCallback onTap;
+
+  @override
+  State<_CategoryButton> createState() => _CategoryButtonState();
+}
+
+class _CategoryButtonState extends State<_CategoryButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: widget.label,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: _isHovered
+                  ? const [
+                      BoxShadow(
+                        color: Color(0x552D1E12),
+                        blurRadius: 18,
+                        offset: Offset(0, 8),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Image.asset(widget.imagePath, fit: BoxFit.contain),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExploreMoreButton extends StatelessWidget {
+  const _ExploreMoreButton({required this.isMobile});
+
+  final bool isMobile;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: isMobile ? 172 : 264,
+      height: isMobile ? 44 : 54,
+      child: FilledButton(
+        onPressed: () => _goToCollection(context),
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF9D510F),
+          foregroundColor: Colors.white,
+          elevation: 3,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Explore More',
+              style: GoogleFonts.blinker(fontSize: isMobile ? 15 : 21),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.north_east_rounded, size: isMobile ? 21 : 26),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -263,6 +515,12 @@ class _HeroCard extends StatelessWidget {
   }
 }
 
-void _goToCollection(BuildContext context) {
-  Navigator.pushReplacementNamed(context, '/collection');
+void _goToCollection(BuildContext context, [String? category]) {
+  Navigator.pushReplacementNamed(
+    context,
+    Uri(
+      path: '/collections',
+      queryParameters: category == null ? null : {'category': category},
+    ).toString(),
+  );
 }
