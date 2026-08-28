@@ -312,14 +312,14 @@ class _CardDetails extends StatelessWidget {
           FilledButton(
             onPressed: () => _addToCart(context, product.code),
             style: FilledButton.styleFrom(
-              minimumSize: const Size(46, 46),
+              minimumSize: const Size(55, 55),
               padding: EdgeInsets.zero,
               backgroundColor: const Color(0xFFA35710),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(11),
               ),
             ),
-            child: const Icon(Icons.add_shopping_cart_outlined, size: 30),
+            child: const Icon(Icons.add_shopping_cart_outlined, size: 25),
           ),
         ],
       ),

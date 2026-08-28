@@ -68,7 +68,7 @@ class ProductService {
               (await storage.list(path: productCode))
                   .where(
                     (file) => RegExp(
-                      r'^\d+\.(png|jpg)$',
+                      r'^\d+\.(webp|png|jpg)$',
                       caseSensitive: false,
                     ).hasMatch(file.name),
                   )
@@ -96,7 +96,9 @@ class ProductService {
       final storage = _supabase.storage.from('product_images');
       final files = await storage.list(path: productCode);
       final fileNames = files.map((file) => file.name).toSet();
-      final imageName = fileNames.contains('1.png')
+      final imageName = fileNames.contains('1.webp')
+          ? '1.webp'
+          : fileNames.contains('1.png')
           ? '1.png'
           : fileNames.contains('1.jpg')
           ? '1.jpg'

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -87,30 +89,100 @@ class _DesktopProductLayout extends StatelessWidget {
   final Product product;
 
   @override
-  Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Expanded(child: _ProductImagePanel(product: product)),
-      const SizedBox(width: 56),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      // Match the media panel's original image ratio while giving both desktop
+      // columns one finite height. This avoids intrinsic sizing of PageView.
+      final panelWidth = (constraints.maxWidth - 56) / 2;
+      final galleryHeight = (panelWidth - 56) / .78 + 86;
+      final panelHeight = math.max(
+        galleryHeight,
+        _detailsHeight(context, panelWidth),
+      );
+
+      return SizedBox(
+        height: panelHeight,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Align(alignment: Alignment.centerLeft, child: _ShareButton()),
-            const SizedBox(height: 20),
-            _ProductCopy(product: product),
-            const SizedBox(height: 44),
-            _PurchasePanel(product: product),
+            Expanded(
+              child: _ProductImagePanel(product: product, expandToParent: true),
+            ),
+            const SizedBox(width: 56),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Align(alignment: Alignment.centerLeft, child: _ShareButton()),
+                  const SizedBox(height: 20),
+                  _ProductCopy(product: product),
+                  const Spacer(),
+                  _PurchasePanel(product: product),
+                ],
+              ),
+            ),
           ],
         ),
-      ),
-    ],
+      );
+    },
   );
+
+  double _detailsHeight(BuildContext context, double width) {
+    final textScaler = MediaQuery.textScalerOf(context);
+    final textDirection = Directionality.of(context);
+    final specifications = product.specifications?.isNotEmpty == true
+        ? product.specifications!
+        : 'Details will be available soon.';
+
+    double measure(String text, TextStyle style) => (TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: textDirection,
+      textScaler: textScaler,
+    )..layout(maxWidth: width)).height;
+
+    final titleHeight = measure(
+      product.name,
+      GoogleFonts.dmSerifDisplay(
+        fontSize: 48,
+        height: 1,
+        color: const Color(0xFF5B351A),
+      ),
+    );
+    final labelStyle = GoogleFonts.blinker(
+      fontSize: 26,
+      color: Colors.grey.shade700,
+      fontWeight: FontWeight.bold,
+    );
+    final bodyStyle = GoogleFonts.blinker(fontSize: 18, height: 1.35);
+
+    // This mirrors the right column so longer Supabase copy expands the
+    // gallery instead of overflowing the fixed-height desktop layout.
+    return 32 +
+        20 +
+        titleHeight +
+        18 +
+        1 +
+        20 +
+        measure('Description', labelStyle) +
+        6 +
+        measure(product.description, bodyStyle) +
+        30 +
+        measure('Specifications', labelStyle) +
+        6 +
+        measure(specifications, bodyStyle) +
+        118 +
+        8;
+  }
 }
 
 class _ProductImagePanel extends StatefulWidget {
-  const _ProductImagePanel({required this.product});
+  const _ProductImagePanel({
+    required this.product,
+    this.expandToParent = false,
+  });
+
   final Product product;
+  final bool expandToParent;
   @override
   State<_ProductImagePanel> createState() => _ProductImagePanelState();
 }
@@ -126,105 +198,99 @@ class _ProductImagePanelState extends State<_ProductImagePanel> {
   }
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(28),
-    decoration: BoxDecoration(
-      border: Border.all(color: const Color(0xFFA35710), width: 1.5),
-      borderRadius: BorderRadius.circular(30),
-    ),
-    child: Column(
-      children: [
-        AspectRatio(
-          aspectRatio: .78,
-          child: FutureBuilder<List<String>>(
-            future: ProductService().getProductImageUrlsAsync(
-              widget.product.code,
-            ),
-            builder: (_, snapshot) =>
-                !snapshot.hasData || snapshot.data!.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: PageView.builder(
-                          controller: _pageController,
-                          itemCount: snapshot.data!.length,
-                          onPageChanged: (index) =>
-                              setState(() => currentImage = index),
-                          itemBuilder: (_, index) => Image.network(
-                            snapshot.data![index],
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) =>
-                                const Icon(Icons.broken_image),
-                          ),
-                        ),
-                      ),
-                      if (MediaQuery.sizeOf(context).width >= 800) ...[
-                        Positioned(
-                          left: 12,
-                          top: 0,
-                          bottom: 0,
-                          child: Center(
-                            child: _GalleryArrow(
-                              icon: Icons.chevron_left,
-                              onPressed: currentImage == 0
-                                  ? null
-                                  : () => _pageController.previousPage(
-                                      duration: const Duration(
-                                        milliseconds: 250,
-                                      ),
-                                      curve: Curves.easeOut,
-                                    ),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          right: 12,
-                          top: 0,
-                          bottom: 0,
-                          child: Center(
-                            child: _GalleryArrow(
-                              icon: Icons.chevron_right,
-                              onPressed:
-                                  currentImage == snapshot.data!.length - 1
-                                  ? null
-                                  : () => _pageController.nextPage(
-                                      duration: const Duration(
-                                        milliseconds: 250,
-                                      ),
-                                      curve: Curves.easeOut,
-                                    ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        FutureBuilder<List<String>>(
-          future: ProductService().getProductImageUrlsAsync(
-            widget.product.code,
-          ),
-          builder: (_, snapshot) => Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              snapshot.data?.length ?? 0,
-              (index) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                child: Icon(
-                  index == currentImage ? Icons.circle : Icons.circle_outlined,
-                  size: index == currentImage ? 16 : 18,
+  Widget build(BuildContext context) {
+    final gallery = FutureBuilder<List<String>>(
+      future: ProductService().getProductImageUrlsAsync(widget.product.code),
+      builder: (_, snapshot) => !snapshot.hasData || snapshot.data!.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: snapshot.data!.length,
+                onPageChanged: (index) => setState(() => currentImage = index),
+                itemBuilder: (_, index) => Image.network(
+                  snapshot.data![index],
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const Icon(Icons.broken_image),
                 ),
               ),
             ),
+    );
+
+    return Container(
+      height: widget.expandToParent ? double.infinity : null,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8E3D8),
+        border: Border.all(color: const Color(0xFFE0D2BE), width: 2),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x332D1E12),
+            blurRadius: 12,
+            offset: Offset(0, 5),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+      child: Column(
+        children: [
+          if (widget.expandToParent)
+            Expanded(child: gallery)
+          else
+            AspectRatio(aspectRatio: .78, child: gallery),
+          const SizedBox(height: 12),
+          FutureBuilder<List<String>>(
+            future: ProductService().getProductImageUrlsAsync(
+              widget.product.code,
+            ),
+            builder: (_, snapshot) {
+              final imageCount = snapshot.data?.length ?? 0;
+              return Row(
+                children: [
+                  _GalleryArrow(
+                    icon: Icons.chevron_left,
+                    onPressed: imageCount < 2 || currentImage == 0
+                        ? null
+                        : () => _pageController.previousPage(
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeOut,
+                          ),
+                  ),
+                  Expanded(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        imageCount,
+                        (index) => Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Icon(
+                            index == currentImage
+                                ? Icons.circle
+                                : Icons.circle_outlined,
+                            size: index == currentImage ? 15 : 17,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  _GalleryArrow(
+                    icon: Icons.chevron_right,
+                    onPressed: imageCount < 2 || currentImage == imageCount - 1
+                        ? null
+                        : () => _pageController.nextPage(
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeOut,
+                          ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _GalleryArrow extends StatelessWidget {
@@ -232,13 +298,12 @@ class _GalleryArrow extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.white.withValues(alpha: .88),
-    shape: const CircleBorder(),
-    child: IconButton(
-      onPressed: onPressed,
-      icon: Icon(icon, color: const Color(0xFF5B351A)),
-    ),
+  Widget build(BuildContext context) => IconButton(
+    onPressed: onPressed,
+    icon: Icon(icon, size: 34),
+    color: const Color(0xFF1F1E25),
+    disabledColor: const Color(0xFF1F1E25).withValues(alpha: .28),
+    tooltip: icon == Icons.chevron_left ? 'Previous image' : 'Next image',
   );
 }
 
