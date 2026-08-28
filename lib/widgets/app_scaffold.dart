@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 const double _desktopHeaderBreakpoint = 850;
+const double _headerSearchBreakpoint = 1200;
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -101,11 +102,15 @@ class _DesktopNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final showSearch =
+        MediaQuery.sizeOf(context).width >= _headerSearchBreakpoint;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const _ProductSearchField(),
-        const SizedBox(width: 10),
+        if (showSearch && currentRoute != '/collections') ...[
+          const _ProductSearchField(),
+          const SizedBox(width: 10),
+        ],
         _HeaderButton(
           label: 'COLLECTION',
           onTap: () => _goTo(context, '/collections'),
@@ -126,6 +131,17 @@ class _ProductSearchField extends StatelessWidget {
       height: 45,
       child: TextField(
         textInputAction: TextInputAction.search,
+        onSubmitted: (value) {
+          final query = value.trim();
+          if (query.isEmpty) return;
+          Navigator.pushNamed(
+            context,
+            Uri(
+              path: '/collections',
+              queryParameters: {'search': query},
+            ).toString(),
+          );
+        },
         style: const TextStyle(
           color: Color(0xFF1F1E25),
           fontSize: 18,

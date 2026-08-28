@@ -74,6 +74,7 @@ class KalasthaliApp extends StatelessWidget {
           return MaterialPageRoute<void>(
             builder: (_) => CollectionPage(
               initialCategory: uri.queryParameters['category'],
+              initialSearch: uri.queryParameters['search'],
             ),
             settings: settings,
           );

@@ -5,8 +5,9 @@ import '../core/services/product_service.dart';
 import '../widgets/app_scaffold.dart';
 
 class CollectionPage extends StatefulWidget {
-  const CollectionPage({this.initialCategory, super.key});
+  const CollectionPage({this.initialCategory, this.initialSearch, super.key});
   final String? initialCategory;
+  final String? initialSearch;
   @override
   State<CollectionPage> createState() => _CollectionPageState();
 }
@@ -14,7 +15,7 @@ class CollectionPage extends StatefulWidget {
 class _CollectionPageState extends State<CollectionPage> {
   static const categories = ['home-decor', 'sarees', 'dresses'];
   late final Future<List<Product>> products = ProductService().getProducts();
-  final search = TextEditingController();
+  late final TextEditingController search;
   String? category;
   @override
   void initState() {
@@ -22,6 +23,7 @@ class _CollectionPageState extends State<CollectionPage> {
     category = categories.contains(widget.initialCategory)
         ? widget.initialCategory
         : null;
+    search = TextEditingController(text: widget.initialSearch ?? '');
     search.addListener(() => setState(() {}));
   }
 
@@ -35,7 +37,10 @@ class _CollectionPageState extends State<CollectionPage> {
     context,
     Uri(
       path: '/collections',
-      queryParameters: category == value ? null : {'category': value},
+      queryParameters: {
+        if (category != value) 'category': value,
+        if (search.text.trim().isNotEmpty) 'search': search.text.trim(),
+      },
     ).toString(),
   );
   @override
@@ -58,7 +63,7 @@ class _CollectionPageState extends State<CollectionPage> {
                       (category == null ||
                           _matchesCategory(p.type, category!)) &&
                       (query.isEmpty ||
-                          '${p.name} ${p.description} ${p.type}'
+                          '${p.name} ${p.description} ${p.specifications ?? ''}'
                               .toLowerCase()
                               .contains(query)),
                 )
