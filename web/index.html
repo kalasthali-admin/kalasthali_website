@@ -184,33 +184,123 @@
       .skeleton-photo { min-height: 380px; }
       .skeleton-copy { display: none; }
     }
+
+    /* Responsive launch skeleton matching the product-page structure. */
+    #app-skeleton {
+      display: block;
+      background: #ece7dd;
+      min-height: 100dvh;
+    }
+
+    .launch-skeleton {
+      box-sizing: border-box;
+      width: 100%;
+      min-height: 100dvh;
+      padding: 41px 2.55vw 80px;
+    }
+
+    .launch-shape {
+      border-radius: 22px;
+      background: linear-gradient(105deg, #d4d4d4 25%, #eeeeee 45%, #d4d4d4 65%);
+      background-size: 300% 100%;
+      animation: launch-shine 1.45s ease-in-out infinite;
+    }
+
+    @keyframes launch-shine {
+      0% { background-position: 100% 0; }
+      100% { background-position: 0 0; }
+    }
+
+    .launch-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+
+    .launch-brand {
+      width: 21.8%;
+      height: 69px;
+      border-radius: 10px;
+    }
+
+    .launch-actions {
+      display: flex;
+      gap: 11.3%;
+      width: 57.1%;
+      padding-top: 15px;
+    }
+
+    .launch-action-main { flex: 0 0 58.3%; height: 36px; border-radius: 9px; }
+    .launch-action-small { flex: 1; height: 36px; border-radius: 9px; }
+
+    .launch-content {
+      display: block;
+      margin-top: 65px;
+    }
+
+    .launch-media {
+      width: 100%;
+      aspect-ratio: 2.386;
+      min-height: 0;
+      border-radius: 10px;
+    }
+
+    .launch-line {
+      height: 134px;
+      border-radius: 22px;
+    }
+
+    .launch-bottom-copy {
+      display: none;
+    }
+
+    .launch-desktop-copy, .launch-mobile-copy { display: none; }
+
+    @media (max-width: 800px) {
+      .launch-skeleton { padding: 31px 32px 72px; }
+      .launch-brand {
+        width: 100%;
+        height: 107px;
+        border-radius: 22px;
+      }
+      .launch-actions { display: none; }
+      .launch-content {
+        display: block;
+        margin-top: 97px;
+      }
+      .launch-media {
+        aspect-ratio: 1.1;
+        min-height: 0;
+        border-radius: 22px;
+        width: calc(100% - 24px);
+      }
+      .launch-bottom-copy {
+        display: block;
+        width: calc(100% - 24px);
+        margin-top: 49px;
+      }
+      .launch-line { height: 134px; }
+    }
   </style>
 </head>
 
 <body>
   <div id="app-skeleton" aria-label="Loading Kalasthali">
-    <header class="skeleton-header">
-      <div class="skeleton-brand">KALASTHALI</div>
-      <div class="skeleton-nav">
-        <div class="skeleton-pill"></div>
-        <div class="skeleton-pill short"></div>
-      </div>
-    </header>
-    <main class="skeleton-page">
-      <div class="skeleton-title shimmer"></div>
-      <div class="skeleton-rule"></div>
-      <div class="skeleton-grid">
-        <div class="skeleton-photo shimmer"></div>
-        <div class="skeleton-copy">
-          <div class="skeleton-line heading shimmer"></div>
-          <div class="skeleton-line wide shimmer"></div>
-          <div class="skeleton-line wide shimmer"></div>
-          <div class="skeleton-line medium shimmer"></div>
-          <div class="skeleton-line small shimmer"></div>
-          <div class="skeleton-panel shimmer"></div>
+    <div class="launch-skeleton">
+      <header class="launch-header">
+        <div class="launch-shape launch-brand"></div>
+        <div class="launch-actions">
+          <div class="launch-shape launch-action-main"></div>
+          <div class="launch-shape launch-action-small"></div>
         </div>
+      </header>
+      <main class="launch-content">
+        <div class="launch-shape launch-media"></div>
+      </main>
+      <div class="launch-bottom-copy">
+        <div class="launch-shape launch-line"></div>
       </div>
-    </main>
+    </div>
   </div>
   <script>
     window.addEventListener('flutter-first-frame', function () {

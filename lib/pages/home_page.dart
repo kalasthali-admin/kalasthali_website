@@ -76,7 +76,7 @@ class _DesktopHero extends StatelessWidget {
               AspectRatio(
                 aspectRatio: 1829 / 852,
                 child: Image.asset(
-                  'lib/assets/homepage_art_large.png',
+                  'lib/assets/homepage_art_large.webp',
                   fit: BoxFit.cover,
                 ),
               ),
@@ -117,7 +117,7 @@ class _MobileHero extends StatelessWidget {
         AspectRatio(
           aspectRatio: 393 / 852,
           child: Image.asset(
-            'lib/assets/homepage_art_mobile.png',
+            'lib/assets/homepage_art_mobile.webp',
             fit: BoxFit.cover,
             width: double.infinity,
           ),

@@ -165,6 +165,21 @@ class _ProductImagePanel extends StatefulWidget {
 class _ProductImagePanelState extends State<_ProductImagePanel> {
   int currentImage = 0;
   final PageController _pageController = PageController();
+  final Set<String> _prefetchedImages = {};
+
+  void _prefetchAdjacentImages(List<String> imageUrls) {
+    if (!mounted || imageUrls.length < 2) return;
+
+    for (final index in {
+      (currentImage + 1) % imageUrls.length,
+      (currentImage - 1 + imageUrls.length) % imageUrls.length,
+    }) {
+      final imageUrl = imageUrls[index];
+      if (_prefetchedImages.add(imageUrl)) {
+        precacheImage(NetworkImage(imageUrl), context);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -176,21 +191,30 @@ class _ProductImagePanelState extends State<_ProductImagePanel> {
   Widget build(BuildContext context) {
     final gallery = FutureBuilder<List<String>>(
       future: ProductService().getProductImageUrlsAsync(widget.product.code),
-      builder: (_, snapshot) => !snapshot.hasData || snapshot.data!.isEmpty
-          ? const Center(child: CircularProgressIndicator())
-          : ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: snapshot.data!.length,
-                onPageChanged: (index) => setState(() => currentImage = index),
-                itemBuilder: (_, index) => Image.network(
-                  snapshot.data![index],
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const Icon(Icons.broken_image),
-                ),
-              ),
+      builder: (_, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final imageUrls = snapshot.data!;
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _prefetchAdjacentImages(imageUrls),
+        );
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: PageView.builder(
+            controller: _pageController,
+            allowImplicitScrolling: true,
+            itemCount: imageUrls.length,
+            onPageChanged: (index) => setState(() => currentImage = index),
+            itemBuilder: (_, index) => Image.network(
+              imageUrls[index],
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              errorBuilder: (_, _, _) => const Icon(Icons.broken_image),
             ),
+          ),
+        );
+      },
     );
 
     return Container(
@@ -404,7 +428,7 @@ class _PurchaseButton extends StatelessWidget {
     onPressed: onPressed,
     style: FilledButton.styleFrom(
       backgroundColor: const Color(0xFFA35710),
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     ),
     child: Row(

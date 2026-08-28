@@ -57,11 +57,23 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
         _products = products;
         _isLoading = false;
       });
+      _precacheProductThumbnails(products);
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
       print('Error loading products: $e');
+    }
+  }
+
+  Future<void> _precacheProductThumbnails(List<Product> products) async {
+    for (final product in products.take(3)) {
+      final imageUrl = await _productService.getProductImageUrlAsync(
+        product.code,
+      );
+      if (mounted && imageUrl.isNotEmpty) {
+        precacheImage(NetworkImage(imageUrl), context);
+      }
     }
   }
 

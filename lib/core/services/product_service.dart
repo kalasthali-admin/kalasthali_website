@@ -92,24 +92,10 @@ class ProductService {
       });
 
   Future<String> _resolveProductImageUrl(String productCode) async {
-    try {
-      final storage = _supabase.storage.from('product_images');
-      final files = await storage.list(path: productCode);
-      final fileNames = files.map((file) => file.name).toSet();
-      final imageName = fileNames.contains('1.webp')
-          ? '1.webp'
-          : fileNames.contains('1.png')
-          ? '1.png'
-          : fileNames.contains('1.jpg')
-          ? '1.jpg'
-          : null;
-
-      return imageName == null
-          ? ''
-          : storage.getPublicUrl('$productCode/$imageName');
-    } catch (e) {
-      print('Error resolving image URL for $productCode: $e');
-      return '';
-    }
+    // Product buckets are standardized on 1.webp, so no Storage list request
+    // is needed before rendering each thumbnail.
+    return _supabase.storage
+        .from('product_images')
+        .getPublicUrl('$productCode/1.webp');
   }
 }
