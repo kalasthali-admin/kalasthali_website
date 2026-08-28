@@ -18,7 +18,7 @@ class _CartPageState extends State<CartPage> {
     title: 'Cart',
     currentRoute: '/cart',
     centerBody: false,
-    useCartDesktopHeader: true,
+    useCartDesktopHeader: false,
     body: FutureBuilder<List<Product>>(
       future: products,
       builder: (context, snapshot) {
@@ -69,52 +69,56 @@ class _DesktopCart extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(32, 56, 32, 96),
       child: Align(
         alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1180),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Your Cart',
-                style: GoogleFonts.dmSerifDisplay(
-                  fontSize: 44,
-                  color: const Color(0xFF5B351A),
+        child: Transform.scale(
+          scale: 1.06,
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1180),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your Cart',
+                  style: GoogleFonts.dmSerifDisplay(
+                    fontSize: 44,
+                    color: const Color(0xFF5B351A),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              const Divider(color: Color(0xFF9E8B74), thickness: 1),
-              const SizedBox(height: 24),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final summaryWidth = constraints.maxWidth >= 900
-                      ? 344.0
-                      : 310.0;
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          children: [
-                            for (final product in products) ...[
-                              _DesktopCartCard(
-                                product: product,
-                                quantity: quantities[product.code] ?? 0,
-                              ),
-                              const SizedBox(height: 24),
+                const SizedBox(height: 10),
+                const Divider(color: Color(0xFF9E8B74), thickness: 1),
+                const SizedBox(height: 24),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final summaryWidth = constraints.maxWidth >= 900
+                        ? 344.0
+                        : 310.0;
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            children: [
+                              for (final product in products) ...[
+                                _DesktopCartCard(
+                                  product: product,
+                                  quantity: quantities[product.code] ?? 0,
+                                ),
+                                const SizedBox(height: 24),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 36),
-                      SizedBox(
-                        width: summaryWidth,
-                        child: _OrderSummary(subtotal: subtotal),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
+                        const SizedBox(width: 36),
+                        SizedBox(
+                          width: summaryWidth,
+                          child: _OrderSummary(subtotal: subtotal),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -142,7 +146,7 @@ class _MobileCart extends StatelessWidget {
         Text(
           'Your Cart',
           style: GoogleFonts.dmSerifDisplay(
-            fontSize: 36,
+            fontSize: 30,
             color: const Color(0xFF5B351A),
           ),
         ),
@@ -153,8 +157,8 @@ class _MobileCart extends StatelessWidget {
         ],
         Center(
           child: SizedBox(
-            width: 145,
-            height: 44,
+            width: 138,
+            height: 38,
             child: FilledButton(
               onPressed: () => _showMobileCheckoutSheet(context, subtotal),
               style: FilledButton.styleFrom(
@@ -163,7 +167,7 @@ class _MobileCart extends StatelessWidget {
                   borderRadius: BorderRadius.circular(11),
                 ),
               ),
-              child: Text('Checkout', style: GoogleFonts.blinker(fontSize: 17)),
+              child: Text('Checkout', style: GoogleFonts.blinker(fontSize: 16)),
             ),
           ),
         ),
@@ -382,7 +386,7 @@ class _DesktopCartCard extends StatelessWidget {
     final price = _priceFor(product);
 
     return Container(
-      height: 158,
+      height: 164,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFFE8E3D8),
@@ -401,7 +405,7 @@ class _DesktopCartCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: SizedBox(
-              width: 88,
+              width: 98,
               height: double.infinity,
               child: _ProductImage(product: product),
             ),
@@ -798,7 +802,7 @@ class _CartCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(11),
             child: SizedBox(
-              width: 88,
+              width: 112,
               height: double.infinity,
               child: _ProductImage(product: product),
             ),
@@ -810,14 +814,14 @@ class _CartCard extends StatelessWidget {
               children: [
                 Text(
                   product.type,
-                  style: GoogleFonts.blinker(fontSize: 13, color: Colors.grey),
+                  style: GoogleFonts.blinker(fontSize: 10, color: Colors.grey),
                 ),
                 Text(
                   product.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.dmSerifDisplay(
-                    fontSize: 20,
+                    fontSize: 18,
                     height: 1,
                     color: const Color(0xFF5B351A),
                   ),
@@ -834,7 +838,7 @@ class _CartCard extends StatelessWidget {
                             Text(
                               'Size',
                               style: GoogleFonts.blinker(
-                                fontSize: 12,
+                                fontSize: 10,
                                 color: Colors.grey,
                               ),
                             ),
@@ -849,7 +853,7 @@ class _CartCard extends StatelessWidget {
                                         label: Text(
                                           size,
                                           style: GoogleFonts.blinker(
-                                            fontSize: 11,
+                                            fontSize: 9,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -875,20 +879,21 @@ class _CartCard extends StatelessWidget {
                       ),
                     ),
                     SizedBox(
-                      width: 66,
+                      width: 72,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Text(
                             'Quantity',
                             style: GoogleFonts.blinker(
-                              fontSize: 12,
+                              fontSize: 10,
                               color: Colors.grey,
                             ),
+                            textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 2),
                           SizedBox(
-                            height: 24,
+                            height: 20,
                             child: _MobileQuantity(
                               productCode: product.code,
                               quantity: quantity,
@@ -900,17 +905,20 @@ class _CartCard extends StatelessWidget {
                   ],
                 ),
                 const Spacer(),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _MobileInfo(label: 'Price', value: '₹$price'),
-                    ),
-                    _MobileInfo(
-                      label: 'Total',
-                      value: '₹${price * quantity}',
-                      bold: true,
-                    ),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _MobileInfo(label: 'Price', value: '₹$price'),
+                      ),
+                      _MobileInfo(
+                        label: 'Total',
+                        value: '₹${price * quantity}',
+                        bold: true,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -949,7 +957,7 @@ class _MobileQuantity extends StatelessWidget {
             child: Text(
               '$quantity',
               style: GoogleFonts.blinker(
-                fontSize: 13,
+                fontSize: 11,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -979,11 +987,11 @@ class _MobileInfo extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(label, style: GoogleFonts.blinker(fontSize: 12, color: Colors.grey)),
+      Text(label, style: GoogleFonts.blinker(fontSize: 10, color: Colors.grey)),
       Text(
         value,
         style: GoogleFonts.blinker(
-          fontSize: 17,
+          fontSize: 14,
           height: 1,
           fontWeight: bold ? FontWeight.bold : FontWeight.w500,
         ),

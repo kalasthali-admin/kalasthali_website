@@ -257,7 +257,9 @@ class _DesktopProductCard extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: _ProductImage(productCode: product.code),
+                child: SizedBox.expand(
+                  child: _ProductImage(productCode: product.code),
+                ),
               ),
             ),
           ),

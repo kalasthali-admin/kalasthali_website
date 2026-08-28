@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -53,7 +51,7 @@ class _ProductDetails extends StatelessWidget {
           ),
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1120),
+              constraints: const BoxConstraints(maxWidth: 1200),
               child: mobile
                   ? _MobileProductLayout(product: product)
                   : _DesktopProductLayout(product: product),
@@ -84,95 +82,67 @@ class _MobileProductLayout extends StatelessWidget {
   );
 }
 
-class _DesktopProductLayout extends StatelessWidget {
+class _DesktopProductLayout extends StatefulWidget {
   const _DesktopProductLayout({required this.product});
   final Product product;
 
   @override
+  State<_DesktopProductLayout> createState() => _DesktopProductLayoutState();
+}
+
+class _DesktopProductLayoutState extends State<_DesktopProductLayout> {
+  final _detailsKey = GlobalKey();
+  double? _detailsHeight;
+
+  void _measureDetails() {
+    final height = _detailsKey.currentContext?.size?.height;
+    if (height == null ||
+        !mounted ||
+        (_detailsHeight != null && (_detailsHeight! - height).abs() < .5)) {
+      return;
+    }
+    setState(() => _detailsHeight = height);
+  }
+
+  @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      // Match the media panel's original image ratio while giving both desktop
-      // columns one finite height. This avoids intrinsic sizing of PageView.
-      final panelWidth = (constraints.maxWidth - 56) / 2;
-      final galleryHeight = (panelWidth - 56) / .78 + 86;
-      final panelHeight = math.max(
-        galleryHeight,
-        _detailsHeight(context, panelWidth),
-      );
+      final panelWidth = (constraints.maxWidth - 50) / 2;
+      final naturalGalleryHeight = (panelWidth - 24) / .78 + 54;
+      final panelHeight = _detailsHeight ?? naturalGalleryHeight;
 
-      return SizedBox(
-        height: panelHeight,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: _ProductImagePanel(product: product, expandToParent: true),
-            ),
-            const SizedBox(width: 56),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Align(alignment: Alignment.centerLeft, child: _ShareButton()),
-                  const SizedBox(height: 20),
-                  _ProductCopy(product: product),
-                  const Spacer(),
-                  _PurchasePanel(product: product),
-                ],
+      WidgetsBinding.instance.addPostFrameCallback((_) => _measureDetails());
+
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: panelHeight,
+              child: _ProductImagePanel(
+                product: widget.product,
+                expandToParent: true,
               ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 56),
+          Expanded(
+            child: Column(
+              key: _detailsKey,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Align(alignment: Alignment.centerLeft, child: _ShareButton()),
+                const SizedBox(height: 20),
+                _ProductCopy(product: widget.product),
+                const SizedBox(height: 44),
+                _PurchasePanel(product: widget.product),
+              ],
+            ),
+          ),
+        ],
       );
     },
   );
-
-  double _detailsHeight(BuildContext context, double width) {
-    final textScaler = MediaQuery.textScalerOf(context);
-    final textDirection = Directionality.of(context);
-    final specifications = product.specifications?.isNotEmpty == true
-        ? product.specifications!
-        : 'Details will be available soon.';
-
-    double measure(String text, TextStyle style) => (TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: textDirection,
-      textScaler: textScaler,
-    )..layout(maxWidth: width)).height;
-
-    final titleHeight = measure(
-      product.name,
-      GoogleFonts.dmSerifDisplay(
-        fontSize: 48,
-        height: 1,
-        color: const Color(0xFF5B351A),
-      ),
-    );
-    final labelStyle = GoogleFonts.blinker(
-      fontSize: 26,
-      color: Colors.grey.shade700,
-      fontWeight: FontWeight.bold,
-    );
-    final bodyStyle = GoogleFonts.blinker(fontSize: 18, height: 1.35);
-
-    // This mirrors the right column so longer Supabase copy expands the
-    // gallery instead of overflowing the fixed-height desktop layout.
-    return 32 +
-        20 +
-        titleHeight +
-        18 +
-        1 +
-        20 +
-        measure('Description', labelStyle) +
-        6 +
-        measure(product.description, bodyStyle) +
-        30 +
-        measure('Specifications', labelStyle) +
-        6 +
-        measure(specifications, bodyStyle) +
-        118 +
-        8;
-  }
 }
 
 class _ProductImagePanel extends StatefulWidget {
