@@ -4,6 +4,7 @@ import '../core/models/product.dart';
 import '../core/services/product_service.dart';
 import '../core/services/cart_service.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/cart_feedback.dart';
 
 class CollectionPage extends StatefulWidget {
   const CollectionPage({this.initialCategory, super.key});
@@ -309,17 +310,23 @@ class _CardDetails extends StatelessWidget {
               style: GoogleFonts.blinker(fontSize: 24),
             ),
           ),
-          FilledButton(
-            onPressed: () => _addToCart(context, product.code),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(55, 55),
-              padding: EdgeInsets.zero,
-              backgroundColor: const Color(0xFFA35710),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(11),
+          CartButtonFeedback(
+            onAdd: () => _addToCart(context, product.code),
+            builder: (context, confirmed, handlePress) => FilledButton(
+              onPressed: handlePress,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(55, 55),
+                padding: EdgeInsets.zero,
+                backgroundColor: const Color(0xFFA35710),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(11),
+                ),
+              ),
+              child: Icon(
+                confirmed ? Icons.check : Icons.add_shopping_cart_outlined,
+                size: 25,
               ),
             ),
-            child: const Icon(Icons.add_shopping_cart_outlined, size: 25),
           ),
         ],
       ),
@@ -330,7 +337,5 @@ class _CardDetails extends StatelessWidget {
 Future<void> _addToCart(BuildContext context, String productCode) async {
   await CartService.instance.add(productCode);
   if (!context.mounted) return;
-  ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(const SnackBar(content: Text('Added to cart')));
+  showAddedToCartSnackBar(context);
 }

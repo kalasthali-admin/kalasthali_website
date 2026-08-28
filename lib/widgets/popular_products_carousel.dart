@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/models/product.dart';
 import '../core/services/cart_service.dart';
 import '../core/services/product_service.dart';
+import 'cart_feedback.dart';
 
 class PopularProductsCarousel extends StatefulWidget {
   const PopularProductsCarousel({super.key});
@@ -322,17 +323,29 @@ class _DesktopProductCard extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         height: 48,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _addToCart(context, product.code),
-                          icon: const Icon(Icons.shopping_cart),
-                          label: const Text('Add To Cart'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF914B0D),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
+                        child: CartButtonFeedback(
+                          onAdd: () => _addToCart(context, product.code),
+                          builder: (context, confirmed, handlePress) =>
+                              ElevatedButton(
+                                onPressed: handlePress,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF914B0D),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: confirmed
+                                    ? const Icon(Icons.check, size: 22)
+                                    : const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.shopping_cart),
+                                          SizedBox(width: 8),
+                                          Text('Add To Cart'),
+                                        ],
+                                      ),
+                              ),
                         ),
                       ),
                     ],
@@ -434,17 +447,29 @@ class _MobileProductCard extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         height: 40,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _addToCart(context, product.code),
-                          icon: const Icon(Icons.shopping_cart),
-                          label: const Text('Add To Cart'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF914B0D),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
+                        child: CartButtonFeedback(
+                          onAdd: () => _addToCart(context, product.code),
+                          builder: (context, confirmed, handlePress) =>
+                              ElevatedButton(
+                                onPressed: handlePress,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF914B0D),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: confirmed
+                                    ? const Icon(Icons.check, size: 20)
+                                    : const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.shopping_cart),
+                                          SizedBox(width: 8),
+                                          Text('Add To Cart'),
+                                        ],
+                                      ),
+                              ),
                         ),
                       ),
                     ],
@@ -496,9 +521,7 @@ void _openProduct(BuildContext context, String productCode) {
 Future<void> _addToCart(BuildContext context, String productCode) async {
   await CartService.instance.add(productCode);
   if (!context.mounted) return;
-  ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(const SnackBar(content: Text('Added to cart')));
+  showAddedToCartSnackBar(context);
 }
 
 class _ProductImageError extends StatelessWidget {

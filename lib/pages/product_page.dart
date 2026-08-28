@@ -5,6 +5,7 @@ import '../core/models/product.dart';
 import '../core/services/cart_service.dart';
 import '../core/services/product_service.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/cart_feedback.dart';
 
 class ProductPage extends StatelessWidget {
   const ProductPage({this.productCode = '', super.key});
@@ -370,12 +371,14 @@ class _PurchasePanel extends StatelessWidget {
                 label: 'Add To Cart',
                 icon: Icons.add_shopping_cart_outlined,
                 onPressed: () => _addToCart(context, product.code),
+                showsConfirmation: true,
               ),
               const SizedBox(height: 10),
               _PurchaseButton(
                 label: 'Buy Now',
-                onPressed: () {
-                  _addToCart(context, product.code);
+                onPressed: () async {
+                  await _addToCart(context, product.code);
+                  if (!context.mounted) return;
                   Navigator.pushNamed(context, '/cart');
                 },
               ),
@@ -390,9 +393,7 @@ class _PurchasePanel extends StatelessWidget {
 Future<void> _addToCart(BuildContext context, String productCode) async {
   await CartService.instance.add(productCode);
   if (!context.mounted) return;
-  ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(const SnackBar(content: Text('Added to cart')));
+  showAddedToCartSnackBar(context);
 }
 
 class _PurchaseButton extends StatelessWidget {
@@ -400,30 +401,49 @@ class _PurchaseButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.icon,
+    this.showsConfirmation = false,
   });
   final String label;
-  final VoidCallback onPressed;
+  final Future<void> Function() onPressed;
   final IconData? icon;
+  final bool showsConfirmation;
+
   @override
   Widget build(BuildContext context) => SizedBox(
     width: double.infinity,
     height: 38,
-    child: FilledButton(
-      onPressed: onPressed,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
-          Text(label, style: GoogleFonts.blinker(fontSize: 15)),
-        ],
-      ),
-      style: FilledButton.styleFrom(
-        backgroundColor: const Color(0xFFA35710),
-        padding: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      ),
-    ),
+    child: showsConfirmation
+        ? CartButtonFeedback(
+            onAdd: onPressed,
+            builder: (context, confirmed, handlePress) =>
+                _button(onPressed: handlePress, confirmed: confirmed),
+          )
+        : _button(onPressed: () => onPressed()),
   );
+
+  Widget _button({required VoidCallback onPressed, bool confirmed = false}) =>
+      FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFFA35710),
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        child: confirmed
+            ? const Icon(Icons.check, size: 22)
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: 18),
+                    const SizedBox(width: 8),
+                  ],
+                  Text(label, style: GoogleFonts.blinker(fontSize: 15)),
+                ],
+              ),
+      );
 }
 
 class _ShareButton extends StatelessWidget {

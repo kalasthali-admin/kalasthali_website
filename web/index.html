@@ -49,9 +49,177 @@
 
   <!-- PWA Manifest -->
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    :root {
+      --page: #e7e2d7;
+      --header: #fef5e6;
+      --surface: #ece7dd;
+      --line: #d7cbb9;
+      --accent: #a35710;
+    }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--page);
+    }
+
+    #app-skeleton {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      overflow: hidden;
+      background: var(--page);
+      color: #5b351a;
+      font-family: Georgia, serif;
+      transition: opacity 180ms ease;
+    }
+
+    #app-skeleton.is-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .skeleton-header {
+      height: 110px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      box-sizing: border-box;
+      background: var(--header);
+      box-shadow: 0 4px 9px rgba(45, 30, 18, .25);
+    }
+
+    .skeleton-brand {
+      font-size: clamp(28px, 3vw, 48px);
+      letter-spacing: .12em;
+      white-space: nowrap;
+    }
+
+    .skeleton-nav {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .skeleton-pill {
+      width: 130px;
+      height: 42px;
+      border-radius: 8px;
+      background: #e7d0ae;
+    }
+
+    .skeleton-pill.short { width: 100px; }
+
+    .skeleton-page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 72px 54px;
+      box-sizing: border-box;
+    }
+
+    .skeleton-title {
+      width: 230px;
+      height: 44px;
+      margin-bottom: 22px;
+      border-radius: 6px;
+    }
+
+    .skeleton-rule {
+      width: 100%;
+      height: 1px;
+      margin-bottom: 34px;
+      background: #b29e84;
+    }
+
+    .skeleton-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 56px;
+    }
+
+    .skeleton-photo {
+      min-height: 520px;
+      border: 2px solid var(--line);
+      border-radius: 18px;
+    }
+
+    .skeleton-copy {
+      padding-top: 18px;
+    }
+
+    .skeleton-line {
+      height: 18px;
+      margin-bottom: 14px;
+      border-radius: 6px;
+    }
+
+    .skeleton-line.heading { height: 52px; width: 84%; margin-bottom: 34px; }
+    .skeleton-line.wide { width: 100%; }
+    .skeleton-line.medium { width: 78%; }
+    .skeleton-line.small { width: 53%; }
+    .skeleton-panel { height: 136px; margin-top: 42px; border-radius: 20px; }
+
+    .shimmer {
+      background: linear-gradient(90deg, var(--surface) 25%, #f4eee4 45%, var(--surface) 65%);
+      background-size: 400% 100%;
+      animation: shimmer 1.25s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 100% 0; }
+      100% { background-position: 0 0; }
+    }
+
+    @media (max-width: 800px) {
+      .skeleton-header { height: 88px; padding: 0 20px; border-radius: 0 0 22px 22px; }
+      .skeleton-brand { font-size: 25px; }
+      .skeleton-nav .skeleton-pill { display: none; }
+      .skeleton-nav::after { content: ''; width: 28px; height: 20px; border-top: 3px solid #1f1e25; border-bottom: 3px solid #1f1e25; }
+      .skeleton-page { padding: 44px 22px; }
+      .skeleton-title { width: 170px; height: 34px; margin-bottom: 18px; }
+      .skeleton-grid { grid-template-columns: 1fr; gap: 28px; }
+      .skeleton-photo { min-height: 380px; }
+      .skeleton-copy { display: none; }
+    }
+  </style>
 </head>
 
 <body>
+  <div id="app-skeleton" aria-label="Loading Kalasthali">
+    <header class="skeleton-header">
+      <div class="skeleton-brand">KALASTHALI</div>
+      <div class="skeleton-nav">
+        <div class="skeleton-pill"></div>
+        <div class="skeleton-pill short"></div>
+      </div>
+    </header>
+    <main class="skeleton-page">
+      <div class="skeleton-title shimmer"></div>
+      <div class="skeleton-rule"></div>
+      <div class="skeleton-grid">
+        <div class="skeleton-photo shimmer"></div>
+        <div class="skeleton-copy">
+          <div class="skeleton-line heading shimmer"></div>
+          <div class="skeleton-line wide shimmer"></div>
+          <div class="skeleton-line wide shimmer"></div>
+          <div class="skeleton-line medium shimmer"></div>
+          <div class="skeleton-line small shimmer"></div>
+          <div class="skeleton-panel shimmer"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var skeleton = document.getElementById('app-skeleton');
+      if (!skeleton) return;
+      skeleton.classList.add('is-hidden');
+      window.setTimeout(function () { skeleton.remove(); }, 200);
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

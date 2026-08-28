@@ -70,7 +70,7 @@ class _DesktopCart extends StatelessWidget {
       child: Align(
         alignment: Alignment.topCenter,
         child: Transform.scale(
-          scale: 1.06,
+          scale: 1.16,
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1180),
@@ -245,16 +245,7 @@ class _MobileCheckoutSheetState extends State<_MobileCheckoutSheet> {
           ),
           const Divider(color: Color(0xFF8C7154), thickness: 2),
           const SizedBox(height: 16),
-          _MobileSummaryCopy(
-            title: 'Deliver to',
-            body:
-                'Jhun Doe\nXYZ Street, Some Random Landmark\nCity Name, State Name of Area\nCountry name',
-          ),
-          const SizedBox(height: 14),
-          _MobileSummaryCopy(
-            title: 'Contact',
-            body: 'Jhun Doe\n+91 1234567895',
-          ),
+          const _CheckoutDetailsForm(compact: true),
           const SizedBox(height: 16),
           Text(
             'Mode of Payment',
@@ -309,26 +300,180 @@ class _MobileCheckoutSheetState extends State<_MobileCheckoutSheet> {
   );
 }
 
-class _MobileSummaryCopy extends StatelessWidget {
-  const _MobileSummaryCopy({required this.title, required this.body});
+class _CheckoutDetailsForm extends StatelessWidget {
+  const _CheckoutDetailsForm({this.compact = false});
 
-  final String title;
-  final String body;
+  final bool compact;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        title,
-        style: GoogleFonts.dmSerifDisplay(
-          fontSize: 18,
-          color: const Color(0xFF5B351A),
+  Widget build(BuildContext context) {
+    final sectionFontSize = compact ? 18.0 : 22.0;
+    final fieldFontSize = compact ? 10.0 : 12.0;
+    final gap = compact ? 2.0 : 3.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Deliver to (Click to Edit)',
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: sectionFontSize,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        SizedBox(height: gap),
+        _EditableCheckoutField(
+          label: 'Address Line 1',
+          compact: compact,
+          fontSize: fieldFontSize,
+          textCapitalization: TextCapitalization.words,
+        ),
+        _EditableCheckoutField(
+          label: 'Address Line 2',
+          compact: compact,
+          fontSize: fieldFontSize,
+          textCapitalization: TextCapitalization.words,
+        ),
+        _EditableCheckoutField(
+          label: 'City',
+          compact: compact,
+          fontSize: fieldFontSize,
+          textCapitalization: TextCapitalization.words,
+        ),
+        _EditableCheckoutField(
+          label: 'State with Pincode',
+          compact: compact,
+          fontSize: fieldFontSize,
+          textCapitalization: TextCapitalization.words,
+        ),
+        _EditableCheckoutField(
+          label: 'Country',
+          compact: compact,
+          fontSize: fieldFontSize,
+          textCapitalization: TextCapitalization.words,
+        ),
+        SizedBox(height: compact ? 10 : 12),
+        Text(
+          'Contact (Click to Edit)',
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: sectionFontSize,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        SizedBox(height: gap),
+        _EditableCheckoutField(
+          label: 'Name',
+          compact: compact,
+          fontSize: fieldFontSize,
+          textCapitalization: TextCapitalization.words,
+        ),
+        _EditableCheckoutField(
+          label: 'Email ID',
+          compact: compact,
+          fontSize: fieldFontSize,
+          keyboardType: TextInputType.emailAddress,
+        ),
+        _EditableCheckoutField(
+          label: 'Mobile Number',
+          compact: compact,
+          fontSize: fieldFontSize,
+          keyboardType: TextInputType.phone,
+        ),
+      ],
+    );
+  }
+}
+
+class _EditableCheckoutField extends StatefulWidget {
+  const _EditableCheckoutField({
+    required this.label,
+    required this.compact,
+    required this.fontSize,
+    this.keyboardType,
+    this.textCapitalization = TextCapitalization.none,
+  });
+
+  final String label;
+  final bool compact;
+  final double fontSize;
+  final TextInputType? keyboardType;
+  final TextCapitalization textCapitalization;
+
+  @override
+  State<_EditableCheckoutField> createState() => _EditableCheckoutFieldState();
+}
+
+class _EditableCheckoutFieldState extends State<_EditableCheckoutField> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  bool _editing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(() {
+      if (!_focusNode.hasFocus && mounted) {
+        setState(() => _editing = false);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _startEditing() {
+    setState(() => _editing = true);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _focusNode.requestFocus(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final verticalPadding = widget.compact ? 1.0 : 2.0;
+    final labelStyle = GoogleFonts.blinker(
+      fontSize: widget.fontSize,
+      color: const Color(0xFF5B351A).withValues(alpha: .76),
+    );
+
+    if (!_editing) {
+      return InkWell(
+        onTap: _startEditing,
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: verticalPadding),
+          child: Text(
+            _controller.text.isEmpty ? widget.label : _controller.text,
+            style: labelStyle,
+          ),
+        ),
+      );
+    }
+
+    return TextField(
+      controller: _controller,
+      focusNode: _focusNode,
+      keyboardType: widget.keyboardType,
+      textCapitalization: widget.textCapitalization,
+      style: GoogleFonts.blinker(fontSize: widget.fontSize),
+      onEditingComplete: _focusNode.unfocus,
+      decoration: InputDecoration(
+        isDense: true,
+        labelText: widget.label,
+        labelStyle: labelStyle,
+        contentPadding: EdgeInsets.symmetric(vertical: verticalPadding),
+        enabledBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFF8C7154)),
+        ),
+        focusedBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFFA35710), width: 1.5),
         ),
       ),
-      Text(body, style: GoogleFonts.blinker(fontSize: 10, height: 1.05)),
-    ],
-  );
+    );
+  }
 }
 
 class _MobilePaymentOption extends StatelessWidget {
@@ -386,8 +531,8 @@ class _DesktopCartCard extends StatelessWidget {
     final price = _priceFor(product);
 
     return Container(
-      height: 164,
-      padding: const EdgeInsets.all(12),
+      height: 200,
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: const Color(0xFFE8E3D8),
         borderRadius: BorderRadius.circular(20),
@@ -405,7 +550,7 @@ class _DesktopCartCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: SizedBox(
-              width: 98,
+              width: 150,
               height: double.infinity,
               child: _ProductImage(product: product),
             ),
@@ -415,6 +560,7 @@ class _DesktopCartCard extends StatelessWidget {
             flex: 14,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   product.type,
@@ -425,7 +571,7 @@ class _DesktopCartCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.dmSerifDisplay(
-                    fontSize: 20,
+                    fontSize: 24,
                     height: 1,
                     color: const Color(0xFF5B351A),
                   ),
@@ -474,7 +620,7 @@ class _DesktopCartCard extends StatelessWidget {
           _DesktopInfo(label: 'Price', value: '₹$price'),
           const SizedBox(width: 16),
           _DesktopQuantity(productCode: product.code, quantity: quantity),
-          const SizedBox(width: 16),
+          const SizedBox(width: 30),
           _DesktopInfo(
             label: 'Total',
             value: '₹${price * quantity}',
@@ -516,7 +662,7 @@ class _DesktopInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 62,
+    width: 90,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -659,13 +805,7 @@ class _OrderSummaryState extends State<_OrderSummary> {
         ),
         const Divider(color: Color(0xFF8C7154), thickness: 1),
         const SizedBox(height: 14),
-        _SummaryCopy(
-          title: 'Deliver to',
-          body:
-              'Jhun Doe\nXYZ Street, Some Random Landmark\nCity Name, State Name of Area\nCountry name',
-        ),
-        const SizedBox(height: 12),
-        _SummaryCopy(title: 'Contact', body: 'Jhun Doe\n+91 1234567895'),
+        const _CheckoutDetailsForm(),
         const SizedBox(height: 16),
         Text(
           'Mode of Payment',
@@ -710,28 +850,6 @@ class _OrderSummaryState extends State<_OrderSummary> {
         ),
       ],
     ),
-  );
-}
-
-class _SummaryCopy extends StatelessWidget {
-  const _SummaryCopy({required this.title, required this.body});
-
-  final String title;
-  final String body;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        title,
-        style: GoogleFonts.dmSerifDisplay(
-          fontSize: 22,
-          color: const Color(0xFF5B351A),
-        ),
-      ),
-      Text(body, style: GoogleFonts.blinker(fontSize: 12, height: 1.1)),
-    ],
   );
 }
 
