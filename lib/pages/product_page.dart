@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/models/product.dart';
-import '../core/services/cart_service.dart';
 import '../core/services/product_service.dart';
+import '../core/services/whatsapp_order_service.dart';
 import '../widgets/app_scaffold.dart';
-import '../widgets/cart_feedback.dart';
 
 class ProductPage extends StatelessWidget {
   const ProductPage({this.productCode = '', super.key});
@@ -74,7 +74,7 @@ class _MobileProductLayout extends StatelessWidget {
     children: [
       _ProductImagePanel(product: product),
       const SizedBox(height: 54),
-      Center(child: _ShareButton()),
+      Center(child: _ShareButton(productCode: product.code)),
       const SizedBox(height: 20),
       _ProductCopy(product: product, centeredTitle: true),
       const SizedBox(height: 44),
@@ -132,7 +132,10 @@ class _DesktopProductLayoutState extends State<_DesktopProductLayout> {
               key: _detailsKey,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Align(alignment: Alignment.centerLeft, child: _ShareButton()),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _ShareButton(productCode: widget.product.code),
+                ),
                 const SizedBox(height: 20),
                 _ProductCopy(product: widget.product),
                 const SizedBox(height: 44),
@@ -365,24 +368,13 @@ class _PurchasePanel extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: Column(
-            children: [
-              _PurchaseButton(
-                label: 'Add To Cart',
-                icon: Icons.add_shopping_cart_outlined,
-                onPressed: () => _addToCart(context, product.code),
-                showsConfirmation: true,
-              ),
-              const SizedBox(height: 10),
-              _PurchaseButton(
-                label: 'Buy Now',
-                onPressed: () async {
-                  await _addToCart(context, product.code);
-                  if (!context.mounted) return;
-                  Navigator.pushNamed(context, '/cart');
-                },
-              ),
-            ],
+          child: Center(
+            child: _PurchaseButton(
+              label: 'Buy Now',
+              icon: Icons.chat_outlined,
+              onPressed: () =>
+                  WhatsAppOrderService.requestOrder(context, product),
+            ),
           ),
         ),
       ],
@@ -390,86 +382,101 @@ class _PurchasePanel extends StatelessWidget {
   );
 }
 
-Future<void> _addToCart(BuildContext context, String productCode) async {
-  await CartService.instance.add(productCode);
-  if (!context.mounted) return;
-  showAddedToCartSnackBar(context);
-}
-
 class _PurchaseButton extends StatelessWidget {
   const _PurchaseButton({
     required this.label,
     required this.onPressed,
     this.icon,
-    this.showsConfirmation = false,
   });
   final String label;
   final Future<void> Function() onPressed;
   final IconData? icon;
-  final bool showsConfirmation;
 
   @override
   Widget build(BuildContext context) => SizedBox(
     width: double.infinity,
-    height: 38,
-    child: showsConfirmation
-        ? CartButtonFeedback(
-            onAdd: onPressed,
-            builder: (context, confirmed, handlePress) =>
-                _button(onPressed: handlePress, confirmed: confirmed),
-          )
-        : _button(onPressed: () => onPressed()),
+    height: 65,
+    child: _button(onPressed: () => onPressed()),
   );
 
-  Widget _button({required VoidCallback onPressed, bool confirmed = false}) =>
-      FilledButton(
-        onPressed: onPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: const Color(0xFFA35710),
-          padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-        child: confirmed
-            ? const Icon(Icons.check, size: 22)
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: 18),
-                    const SizedBox(width: 8),
-                  ],
-                  Text(label, style: GoogleFonts.blinker(fontSize: 15)),
-                ],
-              ),
-      );
+  Widget _button({required VoidCallback onPressed}) => FilledButton(
+    onPressed: onPressed,
+    style: FilledButton.styleFrom(
+      backgroundColor: const Color(0xFFA35710),
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
+        Text(label, style: GoogleFonts.blinker(fontSize: 20)),
+      ],
+    ),
+  );
 }
 
-class _ShareButton extends StatelessWidget {
+class _ShareButton extends StatefulWidget {
+  const _ShareButton({required this.productCode});
+
+  final String productCode;
+
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: const Color(0xFFE2C7A0),
+  State<_ShareButton> createState() => _ShareButtonState();
+}
+
+class _ShareButtonState extends State<_ShareButton> {
+  bool _copied = false;
+
+  Future<void> _copyProductUrl() async {
+    if (_copied) return;
+
+    final productUrl = Uri.base
+        .replace(
+          path: '/product',
+          query: Uri.encodeComponent(widget.productCode),
+        )
+        .toString();
+    await Clipboard.setData(ClipboardData(text: productUrl));
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Product Link Copied!')));
+    setState(() => _copied = true);
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    if (mounted) setState(() => _copied = false);
+  }
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xFFE2C7A0),
+    borderRadius: BorderRadius.circular(999),
+    child: InkWell(
       borderRadius: BorderRadius.circular(999),
-      boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 4)],
-    ),
-    child: const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'SHARE',
-            style: TextStyle(
-              fontSize: 12,
-              letterSpacing: 2,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(width: 6),
-          Icon(Icons.share, size: 18),
-        ],
+      onTap: _copyProductUrl,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        child: _copied
+            ? const Text(
+                '✓',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              )
+            : const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'SHARE',
+                    style: TextStyle(
+                      fontSize: 12,
+                      letterSpacing: 2,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(width: 6),
+                  Icon(Icons.share, size: 18),
+                ],
+              ),
       ),
     ),
   );

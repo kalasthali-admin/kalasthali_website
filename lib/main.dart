@@ -4,8 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 
 import 'core/supabase_config.dart';
-import 'core/services/cart_service.dart';
-import 'pages/cart_page.dart';
 import 'pages/collection_page.dart';
 import 'pages/contact_page.dart';
 import 'pages/home_page.dart';
@@ -30,7 +28,6 @@ Future<void> main() async {
     url: SupabaseConfig.url,
     publishableKey: SupabaseConfig.publishableKey,
   );
-  await CartService.instance.load();
   runApp(const KalasthaliApp());
 }
 
@@ -41,14 +38,15 @@ class KalasthaliApp extends StatelessWidget {
   static const String collectionRoute = '/collections';
   static const String aboutRoute = '/about';
   static const String contactRoute = '/contact';
-  static const String cartRoute = '/cart';
   static const String productRoute = '/product';
   static const String settingsRoute = '/settings';
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      theme: ThemeData.from(colorScheme: ColorScheme.fromSeed(seedColor: Color(0xFF65421F))),
+      theme: ThemeData.from(
+        colorScheme: ColorScheme.fromSeed(seedColor: Color(0xFF65421F)),
+      ),
       title: 'Kalasthali By Nisha',
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
@@ -60,7 +58,6 @@ class KalasthaliApp extends StatelessWidget {
         collectionRoute: (context) => const CollectionPage(),
         aboutRoute: (context) => const AboutPage(),
         contactRoute: (context) => const ContactPage(),
-        cartRoute: (context) => const CartPage(),
         productRoute: (context) => const ProductPage(),
         settingsRoute: (context) => const SettingsPage(),
       },

@@ -19,4 +19,5 @@ export PATH="$FLUTTER_ROOT/bin:$PATH"
 
 flutter config --enable-web
 flutter pub get
-flutter build web --release
+flutter build web --release \
+  --dart-define=WHATSAPP_BUSINESS_NUMBER="${WHATSAPP_BUSINESS_NUMBER:-}"

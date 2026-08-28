@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/models/product.dart';
-import '../core/services/cart_service.dart';
 import '../core/services/product_service.dart';
-import 'cart_feedback.dart';
+import '../core/services/whatsapp_order_service.dart';
 
 class PopularProductsCarousel extends StatefulWidget {
   const PopularProductsCarousel({super.key});
@@ -310,7 +309,7 @@ class _DesktopProductCard extends StatelessWidget {
                             ),
                           ),
                           child: const Text(
-                            'View More',
+                            'More Info',
                             style: TextStyle(
                               color: Color(0xFF914B0D),
                               fontWeight: FontWeight.w600,
@@ -323,29 +322,20 @@ class _DesktopProductCard extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         height: 48,
-                        child: CartButtonFeedback(
-                          onAdd: () => _addToCart(context, product.code),
-                          builder: (context, confirmed, handlePress) =>
-                              ElevatedButton(
-                                onPressed: handlePress,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF914B0D),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                child: confirmed
-                                    ? const Icon(Icons.check, size: 22)
-                                    : const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.shopping_cart),
-                                          SizedBox(width: 8),
-                                          Text('Add To Cart'),
-                                        ],
-                                      ),
-                              ),
+                        child: ElevatedButton.icon(
+                          onPressed: () => WhatsAppOrderService.requestOrder(
+                            context,
+                            product,
+                          ),
+                          icon: const Icon(Icons.chat_outlined),
+                          label: const Text('Buy Now'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF914B0D),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -435,7 +425,7 @@ class _MobileProductCard extends StatelessWidget {
                             ),
                           ),
                           child: const Text(
-                            'View More',
+                            'More Info',
                             style: TextStyle(
                               color: Color(0xFF914B0D),
                               fontWeight: FontWeight.w600,
@@ -447,29 +437,20 @@ class _MobileProductCard extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         height: 40,
-                        child: CartButtonFeedback(
-                          onAdd: () => _addToCart(context, product.code),
-                          builder: (context, confirmed, handlePress) =>
-                              ElevatedButton(
-                                onPressed: handlePress,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF914B0D),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                child: confirmed
-                                    ? const Icon(Icons.check, size: 20)
-                                    : const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.shopping_cart),
-                                          SizedBox(width: 8),
-                                          Text('Add To Cart'),
-                                        ],
-                                      ),
-                              ),
+                        child: ElevatedButton.icon(
+                          onPressed: () => WhatsAppOrderService.requestOrder(
+                            context,
+                            product,
+                          ),
+                          icon: const Icon(Icons.chat_outlined),
+                          label: const Text('Buy Now'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF914B0D),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -516,12 +497,6 @@ class _ProductImage extends StatelessWidget {
 
 void _openProduct(BuildContext context, String productCode) {
   Navigator.pushNamed(context, '/product?${Uri.encodeComponent(productCode)}');
-}
-
-Future<void> _addToCart(BuildContext context, String productCode) async {
-  await CartService.instance.add(productCode);
-  if (!context.mounted) return;
-  showAddedToCartSnackBar(context);
 }
 
 class _ProductImageError extends StatelessWidget {

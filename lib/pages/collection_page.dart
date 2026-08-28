@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/models/product.dart';
 import '../core/services/product_service.dart';
-import '../core/services/cart_service.dart';
 import '../widgets/app_scaffold.dart';
-import '../widgets/cart_feedback.dart';
 
 class CollectionPage extends StatefulWidget {
   const CollectionPage({this.initialCategory, super.key});
@@ -300,42 +298,12 @@ class _CardDetails extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 8),
-      Row(
-        children: [
-          Expanded(
-            child: Text(
-              product.price?.startsWith('₹') == true
-                  ? product.price!
-                  : '₹${product.price ?? '-'}',
-              style: GoogleFonts.blinker(fontSize: 24),
-            ),
-          ),
-          CartButtonFeedback(
-            onAdd: () => _addToCart(context, product.code),
-            builder: (context, confirmed, handlePress) => FilledButton(
-              onPressed: handlePress,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(55, 55),
-                padding: EdgeInsets.zero,
-                backgroundColor: const Color(0xFFA35710),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(11),
-                ),
-              ),
-              child: Icon(
-                confirmed ? Icons.check : Icons.add_shopping_cart_outlined,
-                size: 25,
-              ),
-            ),
-          ),
-        ],
+      Text(
+        product.price?.startsWith('₹') == true
+            ? product.price!
+            : '₹${product.price ?? '-'}',
+        style: GoogleFonts.blinker(fontSize: 24),
       ),
     ],
   );
-}
-
-Future<void> _addToCart(BuildContext context, String productCode) async {
-  await CartService.instance.add(productCode);
-  if (!context.mounted) return;
-  showAddedToCartSnackBar(context);
 }

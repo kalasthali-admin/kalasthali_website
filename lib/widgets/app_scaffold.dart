@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../core/services/cart_service.dart';
-
 const double _desktopHeaderBreakpoint = 850;
 
 class AppScaffold extends StatelessWidget {
@@ -10,7 +8,6 @@ class AppScaffold extends StatelessWidget {
     required this.currentRoute,
     required this.body,
     this.centerBody = true,
-    this.useCartDesktopHeader = false,
     super.key,
   });
 
@@ -18,7 +15,6 @@ class AppScaffold extends StatelessWidget {
   final String currentRoute;
   final Widget body;
   final bool centerBody;
-  final bool useCartDesktopHeader;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +40,7 @@ class AppScaffold extends StatelessWidget {
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(5)),
         ),
-        toolbarHeight: useCartDesktopHeader && !isMobile ? 100 : 90,
+        toolbarHeight: 90,
         automaticallyImplyLeading: false,
         backgroundColor: logoBackground,
         actions: isMobile
@@ -88,10 +84,7 @@ class AppScaffold extends StatelessWidget {
                 ),
               ),
             ),
-            if (!isMobile)
-              useCartDesktopHeader
-                  ? const _CartDesktopNavigation()
-                  : _DesktopNavigation(currentRoute: currentRoute),
+            if (!isMobile) _DesktopNavigation(currentRoute: currentRoute),
             SizedBox(width: isMobile ? 12 : 24),
           ],
         ),
@@ -99,51 +92,6 @@ class AppScaffold extends StatelessWidget {
       body: centerBody ? Center(child: body) : body,
     );
   }
-}
-
-class _CartDesktopNavigation extends StatelessWidget {
-  const _CartDesktopNavigation();
-
-  @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      _HeaderButton(
-        label: 'YOUR CART',
-        icon: Icons.shopping_cart_outlined,
-        onTap: () => _goTo(context, '/cart'),
-      ),
-      const SizedBox(width: 14),
-      _RoundHeaderButton(
-        icon: Icons.settings,
-        onTap: () => _goTo(context, '/settings'),
-      ),
-      const SizedBox(width: 14),
-      _RoundHeaderButton(icon: Icons.account_circle, onTap: () {}),
-    ],
-  );
-}
-
-class _RoundHeaderButton extends StatelessWidget {
-  const _RoundHeaderButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Material(
-    color: const Color(0xFFE7D0AE),
-    shape: const CircleBorder(),
-    child: InkWell(
-      customBorder: const CircleBorder(),
-      onTap: onTap,
-      child: SizedBox(
-        width: 44,
-        height: 44,
-        child: Icon(icon, size: 28, color: const Color(0xFF1F1E25)),
-      ),
-    ),
-  );
 }
 
 class _DesktopNavigation extends StatelessWidget {
@@ -162,17 +110,6 @@ class _DesktopNavigation extends StatelessWidget {
           label: 'COLLECTION',
           onTap: () => _goTo(context, '/collections'),
           isActive: currentRoute == '/collections',
-        ),
-        const SizedBox(width: 12),
-        Container(width: 2, height: 40, color: const Color(0xFFA69E91)),
-        const SizedBox(width: 16),
-        AnimatedBuilder(
-          animation: CartService.instance,
-          builder: (context, _) => _HeaderButton(
-            label: 'CART (${CartService.instance.itemCount})',
-            onTap: () => _goTo(context, '/cart'),
-            icon: Icons.shopping_bag_outlined,
-          ),
         ),
       ],
     );
@@ -234,51 +171,46 @@ class _NavigationDrawer extends StatelessWidget {
     return Drawer(
       backgroundColor: const Color(0xFFFEF5E6),
       child: SafeArea(
-        child: AnimatedBuilder(
-          animation: CartService.instance,
-          builder: (context, _) => ListView(
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-            children: [
-              const Padding(
-                padding: EdgeInsets.only(left: 8, bottom: 20),
-                child: Text(
-                  'Menu',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1F1E25),
-                  ),
+        child: ListView(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(left: 8, bottom: 20),
+              child: Text(
+                'Menu',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1F1E25),
                 ),
               ),
-              for (final item in [..._primaryItems, _cartItem])
-                ListTile(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  tileColor: item.route != null && currentRoute == item.route
-                      ? const Color(0xFFE7D0AE)
-                      : Colors.transparent,
-                  leading: item.icon == null
-                      ? null
-                      : Icon(item.icon, color: const Color(0xFF1F1E25)),
-                  title: Text(
-                    item.route == '/cart'
-                        ? 'CART (${CartService.instance.itemCount})'
-                        : item.label,
-                    style: const TextStyle(
-                      color: Color(0xFF1F1E25),
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    _goTo(context, item.route!);
-                  },
+            ),
+            for (final item in _primaryItems)
+              ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
                 ),
-            ],
-          ),
+                tileColor: item.route != null && currentRoute == item.route
+                    ? const Color(0xFFE7D0AE)
+                    : Colors.transparent,
+                leading: item.icon == null
+                    ? null
+                    : Icon(item.icon, color: const Color(0xFF1F1E25)),
+                title: Text(
+                  item.label,
+                  style: const TextStyle(
+                    color: Color(0xFF1F1E25),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _goTo(context, item.route!);
+                },
+              ),
+          ],
         ),
       ),
     );
@@ -289,14 +221,12 @@ class _HeaderButton extends StatelessWidget {
   const _HeaderButton({
     required this.label,
     required this.onTap,
-    this.icon,
     this.isActive = false,
   });
 
   final String label;
   final VoidCallback onTap;
   final bool isActive;
-  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -310,10 +240,7 @@ class _HeaderButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(5),
         onTap: onTap,
         child: Ink(
-          padding: EdgeInsets.symmetric(
-            horizontal: icon == null ? 10 : 10,
-            vertical: 5,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(12),
@@ -321,12 +248,8 @@ class _HeaderButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (icon != null) ...[
-                Icon(icon, size: 24, color: const Color(0xFF1F1E25)),
-                const SizedBox(width: 8),
-              ],
               Padding(
-                padding: const EdgeInsets.all(5.0),
+                padding: const EdgeInsets.all(5),
                 child: Text(
                   label,
                   style: const TextStyle(
@@ -361,12 +284,6 @@ const List<_NavItem> _primaryItems = [
     icon: Icons.grid_view_outlined,
   ),
 ];
-
-const _NavItem _cartItem = _NavItem(
-  label: 'CART',
-  route: '/cart',
-  icon: Icons.shopping_cart_outlined,
-);
 
 Future<void> _showLoginSheet(BuildContext context) {
   return showModalBottomSheet<void>(
