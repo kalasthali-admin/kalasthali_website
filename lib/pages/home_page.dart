@@ -179,7 +179,7 @@ class _ShopByCategory extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   const _CategoryDivider(),
-                  SizedBox(height: isMobile ? 64 : 52),
+                  SizedBox(height: isMobile ? 40 : 52),
                   if (isMobile) ...[
                     _CategoryButton(
                       label: 'Home Decor',
@@ -187,13 +187,13 @@ class _ShopByCategory extends StatelessWidget {
                           'lib/assets/category_grid/home_decor_small.png',
                       onTap: () => _goToCollection(context, 'home-decor'),
                     ),
-                    const SizedBox(height: 42),
+                    const SizedBox(height: 30),
                     _CategoryButton(
                       label: 'Sarees',
                       imagePath: 'lib/assets/category_grid/sarees_small.png',
                       onTap: () => _goToCollection(context, 'sarees'),
                     ),
-                    const SizedBox(height: 42),
+                    const SizedBox(height: 30),
                     _CategoryButton(
                       label: 'Dresses',
                       imagePath: 'lib/assets/category_grid/dresses_small.png',
@@ -408,9 +408,9 @@ class _HeroCard extends StatelessWidget {
     this.innerPadding = const EdgeInsets.fromLTRB(30, 28, 30, 24),
     this.minHeight,
     this.buttonTextSize = 26,
-    this.buttonHorizontalPadding = 22,
-    this.buttonVerticalPadding = 18,
-    this.buttonIconSize = 24,
+    this.buttonHorizontalPadding = 20,
+    this.buttonVerticalPadding = 10,
+    this.buttonIconSize = 40,
   });
 
   final String title;
@@ -466,7 +466,7 @@ class _HeroCard extends StatelessWidget {
                       color: Colors.white,
                       fontSize: subtitleSize,
                       height: 1.15,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w300,
                     ),
                   ),
                   const SizedBox(height: 50),
@@ -489,14 +489,16 @@ class _HeroCard extends StatelessWidget {
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Text(
-                            'Explore',
+                            '  Explore',
                             style: GoogleFonts.blinker(
                               fontSize: buttonTextSize,
                             ),
                           ),
-                          SizedBox(width: 10),
+                          //SizedBox(width: 2),
                           Icon(
                             Icons.chevron_right_rounded,
                             size: buttonIconSize,

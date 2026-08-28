@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -340,34 +341,34 @@ class _PurchasePanel extends StatelessWidget {
   final Product product;
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
+    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
     decoration: BoxDecoration(
       border: Border.all(color: const Color(0xFFA35710), width: 1.5),
-      borderRadius: BorderRadius.circular(28),
+      borderRadius: BorderRadius.circular(15),
     ),
     child: Row(
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Price',
-                style: GoogleFonts.blinker(
-                  fontSize: 24,
-                  color: Colors.grey.shade700,
-                ),
-              ),
-              Text(
-                product.price?.startsWith('₹') == true
-                    ? product.price!
-                    : '₹${product.price ?? '-'}',
-                style: GoogleFonts.blinker(fontSize: 48),
-              ),
-            ],
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              product.price?.startsWith('₹') == true
+                  ? product.price!
+                  : '₹${product.price ?? '-'}',
+              style: GoogleFonts.blinker(fontSize: 35),
+            ),
+            // Text(
+            //   'Price',
+            //   style: GoogleFonts.blinker(
+            //     fontSize: 18,
+            //     color: Colors.grey.shade700,
+            //   ),
+            // ),
+          ],
         ),
-        Expanded(
+        Spacer(),
+        Padding(
+          padding: EdgeInsetsGeometry.symmetric(vertical: 5),
           child: Center(
             child: _PurchaseButton(
               label: 'Buy Now',
@@ -394,8 +395,8 @@ class _PurchaseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: double.infinity,
-    height: 65,
+    width: 200,
+    height: 60,
     child: _button(onPressed: () => onPressed()),
   );
 
@@ -459,8 +460,12 @@ class _ShareButtonState extends State<_ShareButton> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         child: _copied
             ? const Text(
-                '✓',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                'Link Coped!',
+                style: TextStyle(
+                  fontSize: 12,
+                  letterSpacing: 1,
+                  fontWeight: FontWeight.bold,
+                ),
               )
             : const Row(
                 mainAxisSize: MainAxisSize.min,

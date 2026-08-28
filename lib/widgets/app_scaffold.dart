@@ -41,7 +41,7 @@ class AppScaffold extends StatelessWidget {
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(5)),
         ),
-        toolbarHeight: 90,
+        toolbarHeight: 75,
         automaticallyImplyLeading: false,
         backgroundColor: logoBackground,
         actions: isMobile

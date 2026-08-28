@@ -34,7 +34,7 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
 
     final viewportFraction = MediaQuery.sizeOf(context).width >= 700
         ? 0.5
-        : 1.0;
+        : 0.86;
     if (_viewportFraction == viewportFraction) {
       return;
     }
@@ -96,9 +96,7 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
     final showsTwoCards = screenWidth >= 700;
     final carouselWidth = isDesktop
         ? (screenWidth > 1656 ? 1600.0 : screenWidth - 56)
-        : (screenWidth > 0
-              ? screenWidth - 32
-              : 360.0); // Full width minus padding on mobile
+        : (screenWidth > 0 ? screenWidth : 360.0);
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -143,9 +141,7 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
                 // Carousel
                 Expanded(
                   child: SizedBox(
-                    // The mobile content needs room for the two actions below
-                    // longer product names and descriptions.
-                    height: isDesktop ? 500 : 640,
+                    height: isDesktop ? 500 : 590,
                     child: Stack(
                       children: [
                         PageView.builder(
@@ -164,7 +160,7 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
                             return Padding(
                               padding: showsTwoCards
                                   ? const EdgeInsets.symmetric(horizontal: 15)
-                                  : EdgeInsets.zero,
+                                  : const EdgeInsets.symmetric(horizontal: 6),
                               child: card,
                             );
                           },
@@ -368,7 +364,7 @@ class _MobileProductCard extends StatelessWidget {
         children: [
           // Image section
           Container(
-            height: 280,
+            height: 250,
             width: double.infinity,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.only(
@@ -382,12 +378,14 @@ class _MobileProductCard extends StatelessWidget {
           // Content section
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     product.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.dmSerifDisplay(
                       fontSize: 30,
                       fontWeight: FontWeight.bold,
@@ -395,7 +393,35 @@ class _MobileProductCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  // Note: Pills/categories UI implementation skipped as per request
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE7D0AE),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: const Color(0xFF914B0D),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          product.type.toUpperCase(),
+                          style: GoogleFonts.blinker(
+                            color: const Color(0xFF5B351A),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     product.description,
@@ -404,7 +430,7 @@ class _MobileProductCard extends StatelessWidget {
                       height: 1.5,
                       color: const Color(0xFF4B463E),
                     ),
-                    maxLines: 5,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const Spacer(),
