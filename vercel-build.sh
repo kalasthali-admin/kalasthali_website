@@ -20,4 +20,8 @@ export PATH="$FLUTTER_ROOT/bin:$PATH"
 flutter config --enable-web
 flutter pub get
 flutter build web --release \
-  --dart-define=WHATSAPP_BUSINESS_NUMBER="${WHATSAPP_BUSINESS_NUMBER:-}"
+  --dart-define=WHATSAPP_BUSINESS_NUMBER="${WHATSAPP_BUSINESS_NUMBER:-}" \
+  --dart-define=INSTAGRAM_URL="${INSTAGRAM_URL:-}" \
+  --dart-define=FACEBOOK_URL="${FACEBOOK_URL:-}" \
+  --dart-define=AMAZON_URL="${AMAZON_URL:-}" \
+  --dart-define=MYNTRA_URL="${MYNTRA_URL:-}"

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../widgets/popular_products_carousel.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/app_footer.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -20,28 +21,33 @@ class HomePage extends StatelessWidget {
           final isMobile = constraints.maxWidth < 700;
 
           return SingleChildScrollView(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                isMobile ? 0 : 28,
-                isMobile ? 0 : 30,
-                isMobile ? 0 : 28,
-                isMobile ? 0 : 40,
-              ),
-              child: Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: isMobile
-                        ? const _MobileHero()
-                        : const _DesktopHero(),
+            child: Column(
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    isMobile ? 0 : 28,
+                    isMobile ? 0 : 30,
+                    isMobile ? 0 : 28,
+                    isMobile ? 0 : 40,
                   ),
-                  SizedBox(height: 100),
-                  PopularProductsCarousel(),
-                  const SizedBox(height: 110),
-                  const _ShopByCategory(),
-                  const SizedBox(height: 80),
-                ],
-              ),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: isMobile
+                            ? const _MobileHero()
+                            : const _DesktopHero(),
+                      ),
+                      const SizedBox(height: 100),
+                      PopularProductsCarousel(),
+                      const SizedBox(height: 110),
+                      const _ShopByCategory(),
+                      const SizedBox(height: 80),
+                    ],
+                  ),
+                ),
+                const AppFooter(),
+              ],
             ),
           );
         },

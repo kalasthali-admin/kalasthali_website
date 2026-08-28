@@ -7,6 +7,7 @@ import '../core/models/product.dart';
 import '../core/services/product_service.dart';
 import '../core/services/whatsapp_order_service.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/app_footer.dart';
 
 class ProductPage extends StatelessWidget {
   const ProductPage({this.productCode = '', super.key});
@@ -45,19 +46,26 @@ class _ProductDetails extends StatelessWidget {
       builder: (context, constraints) {
         final mobile = constraints.maxWidth < 800;
         return SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            mobile ? 22 : 54,
-            mobile ? 70 : 72,
-            mobile ? 22 : 54,
-            100,
-          ),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1200),
-              child: mobile
-                  ? _MobileProductLayout(product: product)
-                  : _DesktopProductLayout(product: product),
-            ),
+          child: Column(
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  mobile ? 22 : 54,
+                  mobile ? 70 : 72,
+                  mobile ? 22 : 54,
+                  100,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1200),
+                    child: mobile
+                        ? _MobileProductLayout(product: product)
+                        : _DesktopProductLayout(product: product),
+                  ),
+                ),
+              ),
+              const AppFooter(),
+            ],
           ),
         );
       },
