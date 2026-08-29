@@ -88,6 +88,8 @@ class _MobileProductLayout extends StatelessWidget {
       _ProductCopy(product: product, centeredTitle: true),
       const SizedBox(height: 44),
       _PurchasePanel(product: product),
+      const SizedBox(height: 28),
+      const _ProductDisclaimer(),
     ],
   );
 }
@@ -123,35 +125,42 @@ class _DesktopProductLayoutState extends State<_DesktopProductLayout> {
 
       WidgetsBinding.instance.addPostFrameCallback((_) => _measureDetails());
 
-      return Row(
+      return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: SizedBox(
-              height: panelHeight,
-              child: _ProductImagePanel(
-                product: widget.product,
-                expandToParent: true,
-              ),
-            ),
-          ),
-          const SizedBox(width: 56),
-          Expanded(
-            child: Column(
-              key: _detailsKey,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: _ShareButton(productCode: widget.product.code),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: panelHeight,
+                  child: _ProductImagePanel(
+                    product: widget.product,
+                    expandToParent: true,
+                  ),
                 ),
-                const SizedBox(height: 20),
-                _ProductCopy(product: widget.product),
-                const SizedBox(height: 44),
-                _PurchasePanel(product: widget.product),
-              ],
-            ),
+              ),
+              const SizedBox(width: 56),
+              Expanded(
+                child: Column(
+                  key: _detailsKey,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _ShareButton(productCode: widget.product.code),
+                    ),
+                    const SizedBox(height: 20),
+                    _ProductCopy(product: widget.product),
+                    const SizedBox(height: 44),
+                    _PurchasePanel(product: widget.product),
+                  ],
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 34),
+          const _ProductDisclaimer(),
         ],
       );
     },
@@ -445,6 +454,20 @@ class _PurchaseButton extends StatelessWidget {
         if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
         Text(label, style: GoogleFonts.blinker(fontSize: 20)),
       ],
+    ),
+  );
+}
+
+class _ProductDisclaimer extends StatelessWidget {
+  const _ProductDisclaimer();
+
+  @override
+  Widget build(BuildContext context) => Text(
+    'Disclaimer: The model images are for illustrative purposes only and are intended to help you understand the placement and overall look of the hand-painted design on the saree. The actual colours, detailing, brushwork, and design may vary slightly from the images shown.\n\nFor an accurate view of the artwork and its finer details, please refer to the close-up product image.',
+    style: GoogleFonts.blinker(
+      fontSize: 16,
+      height: 1.35,
+      color: const Color(0xFF4E463E),
     ),
   );
 }
