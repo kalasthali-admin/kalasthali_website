@@ -353,7 +353,7 @@ module.exports = async (req, res) => {
         return json(res, 400, { error: 'A valid product code and image name are required.' });
       }
       await deleteImage(code, name);
-      return res.status(204).end();
+      return json(res, 200, imageGallery(code, await listImages(code)));
     }
 
     if (action === 'create' && req.method === 'POST') {

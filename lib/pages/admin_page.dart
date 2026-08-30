@@ -130,7 +130,15 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  Future<void> _uploadImage(String code) async {
+  void _replaceGallery(AdminGallery updated) {
+    setState(() {
+      _gallery = _gallery
+          .map((entry) => entry.code == updated.code ? updated : entry)
+          .toList();
+    });
+  }
+
+  Future<AdminGallery?> _uploadImage(String code) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['webp'],
@@ -138,38 +146,36 @@ class _AdminPageState extends State<AdminPage> {
     );
     final file = result?.files.singleOrNull;
     final bytes = file?.bytes;
-    if (bytes == null) return;
+    if (bytes == null) return null;
     if (bytes.length > 3 * 1024 * 1024) {
       _showMessage('Please choose a WebP image smaller than 3 MB.');
-      return;
+      return null;
     }
 
-    setState(() => _loading = true);
     try {
-      await _service.uploadImage(code, bytes);
-      await _loadDashboard();
+      final gallery = await _service.uploadImage(code, bytes);
+      _replaceGallery(gallery);
       if (mounted) _showMessage('Image uploaded as a product image.');
+      return gallery;
     } on AdminException catch (error) {
       if (mounted) _showMessage(error.message);
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      return null;
     }
   }
 
-  Future<void> _setThumbnail(String code, String name) async {
-    setState(() => _loading = true);
+  Future<AdminGallery?> _setThumbnail(String code, String name) async {
     try {
-      await _service.setThumbnail(code, name);
-      await _loadDashboard();
+      final gallery = await _service.setThumbnail(code, name);
+      _replaceGallery(gallery);
       if (mounted) _showMessage('Thumbnail updated.');
+      return gallery;
     } on AdminException catch (error) {
       if (mounted) _showMessage(error.message);
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      return null;
     }
   }
 
-  Future<void> _deleteImage(String code, String name) async {
+  Future<AdminGallery?> _deleteImage(String code, String name) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -190,17 +196,16 @@ class _AdminPageState extends State<AdminPage> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true) return null;
 
-    setState(() => _loading = true);
     try {
-      await _service.deleteImage(code, name);
-      await _loadDashboard();
+      final gallery = await _service.deleteImage(code, name);
+      _replaceGallery(gallery);
       if (mounted) _showMessage('Image removed.');
+      return gallery;
     } on AdminException catch (error) {
       if (mounted) _showMessage(error.message);
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      return null;
     }
   }
 
@@ -382,9 +387,9 @@ class _AdminDashboard extends StatelessWidget {
   final VoidCallback onCreate;
   final ValueChanged<Product> onEdit;
   final ValueChanged<Product> onDelete;
-  final ValueChanged<String> onUploadImage;
-  final void Function(String code, String name) onSetThumbnail;
-  final void Function(String code, String name) onDeleteImage;
+  final Future<AdminGallery?> Function(String) onUploadImage;
+  final Future<AdminGallery?> Function(String code, String name) onSetThumbnail;
+  final Future<AdminGallery?> Function(String code, String name) onDeleteImage;
   final VoidCallback onSignOut;
 
   @override
@@ -513,18 +518,10 @@ class _AdminDashboard extends StatelessWidget {
                             entry: entry,
                             productName: product?.name ?? 'Product',
                             loading: loading,
-                            onUpload: () {
-                              Navigator.pop(sheetContext);
-                              onUploadImage(entry.code);
-                            },
-                            onSetThumbnail: (name) {
-                              Navigator.pop(sheetContext);
-                              onSetThumbnail(entry.code, name);
-                            },
-                            onDelete: (name) {
-                              Navigator.pop(sheetContext);
-                              onDeleteImage(entry.code, name);
-                            },
+                            onUpload: () => onUploadImage(entry.code),
+                            onSetThumbnail: (name) =>
+                                onSetThumbnail(entry.code, name),
+                            onDelete: (name) => onDeleteImage(entry.code, name),
                           ),
                         ),
                       ),
@@ -668,7 +665,7 @@ class _GalleryListTile extends StatelessWidget {
   );
 }
 
-class _GallerySheet extends StatelessWidget {
+class _GallerySheet extends StatefulWidget {
   const _GallerySheet({
     required this.entry,
     required this.productName,
@@ -681,9 +678,33 @@ class _GallerySheet extends StatelessWidget {
   final AdminGallery entry;
   final String productName;
   final bool loading;
-  final VoidCallback onUpload;
-  final ValueChanged<String> onSetThumbnail;
-  final ValueChanged<String> onDelete;
+  final Future<AdminGallery?> Function() onUpload;
+  final Future<AdminGallery?> Function(String) onSetThumbnail;
+  final Future<AdminGallery?> Function(String) onDelete;
+
+  @override
+  State<_GallerySheet> createState() => _GallerySheetState();
+}
+
+class _GallerySheetState extends State<_GallerySheet> {
+  late AdminGallery _entry;
+  var _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _entry = widget.entry;
+  }
+
+  Future<void> _apply(Future<AdminGallery?> operation) async {
+    setState(() => _busy = true);
+    final updated = await operation;
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (updated != null) _entry = updated;
+    });
+  }
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -709,7 +730,7 @@ class _GallerySheet extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '${entry.code}-$productName',
+                    '${_entry.code}-${widget.productName}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.dmSerifDisplay(
@@ -719,7 +740,9 @@ class _GallerySheet extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  onPressed: loading ? null : onUpload,
+                  onPressed: _busy || widget.loading
+                      ? null
+                      : () => _apply(widget.onUpload()),
                   tooltip: 'Upload WebP image',
                   icon: const Icon(Icons.add_photo_alternate_outlined),
                 ),
@@ -732,7 +755,7 @@ class _GallerySheet extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             Expanded(
-              child: entry.images.isEmpty
+              child: _entry.images.isEmpty
                   ? Center(
                       child: Text(
                         'No images found. Upload a WebP image to begin.',
@@ -747,12 +770,13 @@ class _GallerySheet extends StatelessWidget {
                             mainAxisSpacing: 12,
                             childAspectRatio: .72,
                           ),
-                      itemCount: entry.images.length,
+                      itemCount: _entry.images.length,
                       itemBuilder: (_, index) => _GalleryImageTile(
-                        image: entry.images[index],
-                        loading: loading,
-                        onSetThumbnail: onSetThumbnail,
-                        onDelete: onDelete,
+                        image: _entry.images[index],
+                        loading: _busy || widget.loading,
+                        onSetThumbnail: (name) =>
+                            _apply(widget.onSetThumbnail(name)),
+                        onDelete: (name) => _apply(widget.onDelete(name)),
                       ),
                     ),
             ),

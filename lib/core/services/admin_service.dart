@@ -125,31 +125,31 @@ class AdminService {
     if (response.statusCode >= 400) _decode(response);
   }
 
-  Future<void> uploadImage(String code, List<int> bytes) async {
+  Future<AdminGallery> uploadImage(String code, List<int> bytes) async {
     final response = await http.post(
       _uri('image_upload'),
       headers: _headers,
       body: jsonEncode({'code': code, 'imageBase64': base64Encode(bytes)}),
     );
-    _decode(response);
+    return AdminGallery.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
-  Future<void> setThumbnail(String code, String name) async {
+  Future<AdminGallery> setThumbnail(String code, String name) async {
     final response = await http.post(
       _uri('image_thumbnail'),
       headers: _headers,
       body: jsonEncode({'code': code, 'name': name}),
     );
-    _decode(response);
+    return AdminGallery.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
-  Future<void> deleteImage(String code, String name) async {
+  Future<AdminGallery> deleteImage(String code, String name) async {
     final response = await http.delete(
       _uri('image_delete'),
       headers: _headers,
       body: jsonEncode({'code': code, 'name': name}),
     );
-    if (response.statusCode >= 400) _decode(response);
+    return AdminGallery.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
   dynamic _decode(http.Response response) {
