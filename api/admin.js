@@ -192,6 +192,7 @@ function imageGallery(code, files) {
       // The dashboard displays only a small preview; keep full-size URLs for
       // the storefront and avoid downloading the original image here.
       url: adminPreviewImageUrl(code, file.name),
+      sourceUrl: publicImageUrl(code, file.name),
       isThumbnail: file.name.toLowerCase() === 'thumbnail.webp',
     })),
   };

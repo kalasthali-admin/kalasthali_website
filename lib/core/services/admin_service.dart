@@ -8,17 +8,21 @@ class AdminGalleryImage {
   const AdminGalleryImage({
     required this.name,
     required this.url,
+    required this.sourceUrl,
     required this.isThumbnail,
   });
 
   final String name;
   final String url;
+  final String sourceUrl;
   final bool isThumbnail;
 
   factory AdminGalleryImage.fromJson(Map<String, dynamic> json) =>
       AdminGalleryImage(
         name: json['name'] as String? ?? '',
         url: json['url'] as String? ?? '',
+        sourceUrl:
+            (json['sourceUrl'] as String?) ?? (json['url'] as String?) ?? '',
         isThumbnail: json['isThumbnail'] as bool? ?? false,
       );
 }

@@ -491,23 +491,45 @@ class _AdminDashboard extends StatelessWidget {
                     ),
                   )
                 else
-                  Wrap(
-                    spacing: 18,
-                    runSpacing: 18,
-                    children: gallery
-                        .map(
-                          (entry) => _GalleryCard(
-                            entry: entry,
-                            mobile: mobile,
-                            loading: loading,
-                            onUpload: () => onUploadImage(entry.code),
-                            onSetThumbnail: (name) =>
-                                onSetThumbnail(entry.code, name),
-                            onDelete: (name) => onDeleteImage(entry.code, name),
+                  ...gallery.map((entry) {
+                    final product = products
+                        .where((product) => product.code == entry.code)
+                        .firstOrNull;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _GalleryListTile(
+                        entry: entry,
+                        productName: product?.name ?? 'Product',
+                        onOpen: () => showModalBottomSheet<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: const Color(0xFFFEF5E6),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(28),
+                            ),
                           ),
-                        )
-                        .toList(),
-                  ),
+                          builder: (sheetContext) => _GallerySheet(
+                            entry: entry,
+                            productName: product?.name ?? 'Product',
+                            loading: loading,
+                            onUpload: () {
+                              Navigator.pop(sheetContext);
+                              onUploadImage(entry.code);
+                            },
+                            onSetThumbnail: (name) {
+                              Navigator.pop(sheetContext);
+                              onSetThumbnail(entry.code, name);
+                            },
+                            onDelete: (name) {
+                              Navigator.pop(sheetContext);
+                              onDeleteImage(entry.code, name);
+                            },
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
               ],
             ),
           ),
@@ -597,149 +619,233 @@ class _ProductAdminCard extends StatelessWidget {
   );
 }
 
-class _GalleryCard extends StatelessWidget {
-  const _GalleryCard({
+class _GalleryListTile extends StatelessWidget {
+  const _GalleryListTile({
     required this.entry,
-    required this.mobile,
+    required this.productName,
+    required this.onOpen,
+  });
+
+  final AdminGallery entry;
+  final String productName;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xFFECE7DD),
+    borderRadius: BorderRadius.circular(16),
+    child: InkWell(
+      onTap: onOpen,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFD5B48A)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.photo_library_outlined, color: Color(0xFF5B351A)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                '${entry.code}-$productName',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.blinker(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            Text('${entry.images.length} images', style: GoogleFonts.blinker()),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _GallerySheet extends StatelessWidget {
+  const _GallerySheet({
+    required this.entry,
+    required this.productName,
     required this.loading,
     required this.onUpload,
     required this.onSetThumbnail,
     required this.onDelete,
   });
+
   final AdminGallery entry;
-  final bool mobile;
+  final String productName;
   final bool loading;
   final VoidCallback onUpload;
   final ValueChanged<String> onSetThumbnail;
   final ValueChanged<String> onDelete;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: mobile ? double.infinity : 290,
-    child: Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFECE7DD),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFD5B48A)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  entry.code,
-                  style: GoogleFonts.blinker(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                  ),
+  Widget build(BuildContext context) => SafeArea(
+    child: FractionallySizedBox(
+      heightFactor: .86,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 48,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD6C0AA),
+                  borderRadius: BorderRadius.circular(99),
                 ),
               ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${entry.code}-$productName',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 30,
+                      color: const Color(0xFF5B351A),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: loading ? null : onUpload,
+                  tooltip: 'Upload WebP image',
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Star an image to use it as the storefront thumbnail.',
+              style: GoogleFonts.blinker(fontSize: 16),
+            ),
+            const SizedBox(height: 18),
+            Expanded(
+              child: entry.images.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No images found. Upload a WebP image to begin.',
+                        style: GoogleFonts.blinker(fontSize: 17),
+                      ),
+                    )
+                  : GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: .72,
+                          ),
+                      itemCount: entry.images.length,
+                      itemBuilder: (_, index) => _GalleryImageTile(
+                        image: entry.images[index],
+                        loading: loading,
+                        onSetThumbnail: onSetThumbnail,
+                        onDelete: onDelete,
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _GalleryImageTile extends StatelessWidget {
+  const _GalleryImageTile({
+    required this.image,
+    required this.loading,
+    required this.onSetThumbnail,
+    required this.onDelete,
+  });
+
+  final AdminGalleryImage image;
+  final bool loading;
+  final ValueChanged<String> onSetThumbnail;
+  final ValueChanged<String> onDelete;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      Positioned.fill(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.network(
+            image.url,
+            fit: BoxFit.cover,
+            cacheWidth: 288,
+            filterQuality: FilterQuality.low,
+            errorBuilder: (_, _, _) => Image.network(
+              image.sourceUrl,
+              fit: BoxFit.cover,
+              cacheWidth: 288,
+              filterQuality: FilterQuality.low,
+              errorBuilder: (_, _, _) => const ColoredBox(
+                color: Color(0xFFD8D0C3),
+                child: Icon(Icons.broken_image),
+              ),
+            ),
+          ),
+        ),
+      ),
+      Positioned(
+        top: 8,
+        left: 8,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: const Color(0xE95B351A),
+            borderRadius: BorderRadius.circular(99),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Text(
+              image.isThumbnail ? 'Thumbnail' : image.name,
+              style: GoogleFonts.blinker(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
+      Positioned(
+        right: 6,
+        bottom: 6,
+        child: Material(
+          color: const Color(0xE9FEF5E6),
+          borderRadius: BorderRadius.circular(16),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!image.isThumbnail)
+                IconButton(
+                  onPressed: loading ? null : () => onSetThumbnail(image.name),
+                  tooltip: 'Use as thumbnail',
+                  icon: const Icon(Icons.star_outline),
+                ),
               IconButton(
-                onPressed: loading ? null : onUpload,
-                tooltip: 'Upload WebP image',
-                icon: const Icon(Icons.add_photo_alternate_outlined),
+                onPressed: loading ? null : () => onDelete(image.name),
+                tooltip: 'Remove image',
+                icon: const Icon(Icons.delete_outline),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          if (entry.images.isEmpty)
-            const AspectRatio(
-              aspectRatio: 1.4,
-              child: Center(child: Text('No images found')),
-            )
-          else
-            SizedBox(
-              height: 190,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: entry.images.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (_, index) {
-                  final image = entry.images[index];
-                  return SizedBox(
-                    width: 144,
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: Image.network(
-                              image.url,
-                              fit: BoxFit.cover,
-                              cacheWidth: 288,
-                              filterQuality: FilterQuality.low,
-                              errorBuilder: (_, _, _) => const ColoredBox(
-                                color: Color(0xFFD8D0C3),
-                                child: Icon(Icons.broken_image),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: 6,
-                          left: 6,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: const Color(0xE95B351A),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              child: Text(
-                                image.isThumbnail ? 'Thumbnail' : image.name,
-                                style: GoogleFonts.blinker(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          right: 2,
-                          bottom: 2,
-                          child: Material(
-                            color: const Color(0xE9FEF5E6),
-                            borderRadius: BorderRadius.circular(14),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (!image.isThumbnail)
-                                  IconButton(
-                                    onPressed: loading
-                                        ? null
-                                        : () => onSetThumbnail(image.name),
-                                    tooltip: 'Use as thumbnail',
-                                    icon: const Icon(Icons.star_outline),
-                                  ),
-                                IconButton(
-                                  onPressed: loading
-                                      ? null
-                                      : () => onDelete(image.name),
-                                  tooltip: 'Remove image',
-                                  icon: const Icon(Icons.delete_outline),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-        ],
+        ),
       ),
-    ),
+    ],
   );
 }
 
