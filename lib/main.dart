@@ -10,6 +10,7 @@ import 'pages/home_page.dart';
 import 'pages/about_page.dart';
 import 'pages/product_page.dart';
 import 'pages/settings_page.dart';
+import 'pages/admin_page.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -40,6 +41,7 @@ class KalasthaliApp extends StatelessWidget {
   static const String contactRoute = '/contact';
   static const String productRoute = '/product';
   static const String settingsRoute = '/settings';
+  static const String adminRoute = '/admin';
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +62,7 @@ class KalasthaliApp extends StatelessWidget {
         contactRoute: (context) => const ContactPage(),
         productRoute: (context) => const ProductPage(),
         settingsRoute: (context) => const SettingsPage(),
+        adminRoute: (context) => const AdminPage(),
       },
       onGenerateRoute: (settings) {
         final uri = Uri.parse(settings.name ?? '/');
