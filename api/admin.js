@@ -11,6 +11,9 @@ const allowedFields = [
   'is_popular',
 ];
 const sessionLifetimeMs = 8 * 60 * 60 * 1000;
+const imageNamePattern = /^(thumbnail|pimage\d+|\d+)\.webp$/i;
+// Base64 adds about one-third overhead, so this remains below Vercel's body limit.
+const maxImageBytes = 3 * 1024 * 1024;
 const supabaseUrl =
   process.env.SUPABASE_URL || 'https://dddriininznavwrsrgww.supabase.co';
 
@@ -156,31 +159,132 @@ function publicImageUrl(code, name) {
   return `${supabaseUrl}/storage/v1/object/public/product_images/${encodeURIComponent(code)}/${encodeURIComponent(name)}`;
 }
 
+function adminPreviewImageUrl(code, name) {
+  return `${supabaseUrl}/storage/v1/render/image/public/product_images/${encodeURIComponent(code)}/${encodeURIComponent(name)}?width=288&quality=60`;
+}
+
+function imageSort(left, right) {
+  if (left.name.toLowerCase() === 'thumbnail.webp') return -1;
+  if (right.name.toLowerCase() === 'thumbnail.webp') return 1;
+  const leftNumber = Number(/(?:pimage)?(\d+)/i.exec(left.name)?.[1] || 0);
+  const rightNumber = Number(/(?:pimage)?(\d+)/i.exec(right.name)?.[1] || 0);
+  return leftNumber - rightNumber;
+}
+
+async function listImages(code) {
+  const files = await supabaseFetch('/storage/v1/object/list/product_images', {
+    method: 'POST',
+    body: JSON.stringify({
+      prefix: code,
+      limit: 100,
+      offset: 0,
+      sortBy: { column: 'name', order: 'asc' },
+    }),
+  });
+  return files.filter((file) => imageNamePattern.test(file.name)).sort(imageSort);
+}
+
+function imageGallery(code, files) {
+  return {
+    code,
+    images: files.map((file) => ({
+      name: file.name,
+      // The dashboard displays only a small preview; keep full-size URLs for
+      // the storefront and avoid downloading the original image here.
+      url: adminPreviewImageUrl(code, file.name),
+      isThumbnail: file.name.toLowerCase() === 'thumbnail.webp',
+    })),
+  };
+}
+
 async function gallery() {
   const products = await supabaseFetch('/rest/v1/products?select=code&order=code.asc');
-  const galleries = await Promise.all(
-    products.map(async ({ code }) => {
-      const files = await supabaseFetch('/storage/v1/object/list/product_images', {
-        method: 'POST',
-        body: JSON.stringify({
-          prefix: code,
-          limit: 100,
-          offset: 0,
-          sortBy: { column: 'name', order: 'asc' },
-        }),
-      });
-      const images = files
-        .filter((file) => /^\d+\.(webp|png|jpe?g)$/i.test(file.name))
-        .sort((left, right) => {
-          const leftNumber = Number(/^\d+/.exec(left.name)?.[0] || 0);
-          const rightNumber = Number(/^\d+/.exec(right.name)?.[0] || 0);
-          return leftNumber - rightNumber;
-        })
-        .map((file) => publicImageUrl(code, file.name));
-      return { code, images };
-    }),
+  return Promise.all(
+    products.map(async ({ code }) => imageGallery(code, await listImages(code))),
   );
-  return galleries;
+}
+
+function validImageName(name) {
+  return typeof name === 'string' && imageNamePattern.test(name);
+}
+
+function validProductCode(code) {
+  return /^[A-Za-z0-9_-]+$/.test(code);
+}
+
+async function moveImage(sourceKey, destinationKey) {
+  await supabaseFetch('/storage/v1/object/move', {
+    method: 'POST',
+    body: JSON.stringify({
+      bucketId: 'product_images',
+      sourceKey,
+      destinationKey,
+    }),
+  });
+}
+
+async function normalizeImageNames(code, thumbnailName) {
+  const images = await listImages(code);
+  const thumbnail = images.find((image) => image.name === thumbnailName);
+  if (!thumbnail) throw new Error('Image not found. Refresh the gallery and try again.');
+
+  const ordered = [thumbnail, ...images.filter((image) => image.name !== thumbnailName)];
+  const nonce = crypto.randomBytes(8).toString('hex');
+  for (var index = 0; index < ordered.length; index += 1) {
+    await moveImage(
+      `${code}/${ordered[index].name}`,
+      `${code}/.admin-${nonce}-${index}.webp`,
+    );
+  }
+  for (var index = 0; index < ordered.length; index += 1) {
+    const destination = index === 0 ? 'thumbnail.webp' : `pimage${index}.webp`;
+    await moveImage(
+      `${code}/.admin-${nonce}-${index}.webp`,
+      `${code}/${destination}`,
+    );
+  }
+}
+
+async function uploadImage(code, imageBase64) {
+  if (typeof imageBase64 !== 'string' || !imageBase64) {
+    throw new Error('Choose a WebP image to upload.');
+  }
+  const bytes = Buffer.from(imageBase64, 'base64');
+  const isWebp =
+    bytes.length >= 12 &&
+    bytes.toString('ascii', 0, 4) === 'RIFF' &&
+    bytes.toString('ascii', 8, 12) === 'WEBP';
+  if (!isWebp || bytes.length > maxImageBytes) {
+    throw new Error('Images must be valid WebP files smaller than 3 MB.');
+  }
+  const images = await listImages(code);
+  const nextNumber = images
+    .map((image) => Number(/^pimage(\d+)\.webp$/i.exec(image.name)?.[1] || 0))
+    .reduce((largest, value) => Math.max(largest, value), 0) + 1;
+  const name = `pimage${nextNumber}.webp`;
+  await supabaseFetch(`/storage/v1/object/product_images/${encodeURIComponent(code)}/${name}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'image/webp',
+      'x-upsert': 'false',
+    },
+    body: bytes,
+  });
+}
+
+async function deleteImage(code, name) {
+  if (!validImageName(name)) throw new Error('Invalid image name.');
+  await supabaseFetch('/storage/v1/object/remove', {
+    method: 'DELETE',
+    body: JSON.stringify({ bucketId: 'product_images', prefixes: [`${code}/${name}`] }),
+  });
+  const remaining = await listImages(code);
+  if (remaining.isNotEmpty) {
+    const thumbnail = remaining.find(
+      (image) => image.name.toLowerCase() === 'thumbnail.webp',
+    );
+    await normalizeImageNames(code, thumbnail?.name || remaining.first.name);
+  }
 }
 
 module.exports = async (req, res) => {
@@ -220,6 +324,35 @@ module.exports = async (req, res) => {
 
     if (action === 'gallery' && req.method === 'GET') {
       return json(res, 200, await gallery());
+    }
+
+    if (action === 'image_upload' && req.method === 'POST') {
+      const code = String(body.code || '');
+      if (!validProductCode(code)) {
+        return json(res, 400, { error: 'A valid product code is required.' });
+      }
+      await uploadImage(code, body.imageBase64);
+      return json(res, 201, imageGallery(code, await listImages(code)));
+    }
+
+    if (action === 'image_thumbnail' && req.method === 'POST') {
+      const code = String(body.code || '');
+      const name = String(body.name || '');
+      if (!validProductCode(code) || !imageNamePattern.test(name)) {
+        return json(res, 400, { error: 'A valid product image is required.' });
+      }
+      await normalizeImageNames(code, name);
+      return json(res, 200, imageGallery(code, await listImages(code)));
+    }
+
+    if (action === 'image_delete' && req.method === 'DELETE') {
+      const code = String(body.code || '');
+      const name = String(body.name || '');
+      if (!validProductCode(code) || !name) {
+        return json(res, 400, { error: 'A valid product code and image name are required.' });
+      }
+      await deleteImage(code, name);
+      return res.status(204).end();
     }
 
     if (action === 'create' && req.method === 'POST') {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/models/product.dart';
@@ -49,7 +50,9 @@ class _AdminPageState extends State<AdminPage> {
             context: context,
             builder: (_) => const _AdminLoginDialog(),
           );
-    if (password == null || password.isEmpty) return;
+    if (password == null || (!AdminService.isTestMode && password.isEmpty)) {
+      return;
+    }
 
     setState(() => _loading = true);
     try {
@@ -127,6 +130,80 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _uploadImage(String code) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['webp'],
+      withData: true,
+    );
+    final file = result?.files.singleOrNull;
+    final bytes = file?.bytes;
+    if (bytes == null) return;
+    if (bytes.length > 3 * 1024 * 1024) {
+      _showMessage('Please choose a WebP image smaller than 3 MB.');
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      await _service.uploadImage(code, bytes);
+      await _loadDashboard();
+      if (mounted) _showMessage('Image uploaded as a product image.');
+    } on AdminException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _setThumbnail(String code, String name) async {
+    setState(() => _loading = true);
+    try {
+      await _service.setThumbnail(code, name);
+      await _loadDashboard();
+      if (mounted) _showMessage('Thumbnail updated.');
+    } on AdminException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _deleteImage(String code, String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove image?'),
+        content: const Text(
+          'This permanently removes the image from Supabase Storage.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _loading = true);
+    try {
+      await _service.deleteImage(code, name);
+      await _loadDashboard();
+      if (mounted) _showMessage('Image removed.');
+    } on AdminException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   void _showMessage(String message) => ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(message)));
@@ -148,6 +225,9 @@ class _AdminPageState extends State<AdminPage> {
               onCreate: () => _editProduct(),
               onEdit: _editProduct,
               onDelete: _deleteProduct,
+              onUploadImage: _uploadImage,
+              onSetThumbnail: _setThumbnail,
+              onDeleteImage: _deleteImage,
               onSignOut: () => setState(_service.signOut),
             ),
     );
@@ -288,6 +368,9 @@ class _AdminDashboard extends StatelessWidget {
     required this.onCreate,
     required this.onEdit,
     required this.onDelete,
+    required this.onUploadImage,
+    required this.onSetThumbnail,
+    required this.onDeleteImage,
     required this.onSignOut,
   });
 
@@ -299,6 +382,9 @@ class _AdminDashboard extends StatelessWidget {
   final VoidCallback onCreate;
   final ValueChanged<Product> onEdit;
   final ValueChanged<Product> onDelete;
+  final ValueChanged<String> onUploadImage;
+  final void Function(String code, String name) onSetThumbnail;
+  final void Function(String code, String name) onDeleteImage;
   final VoidCallback onSignOut;
 
   @override
@@ -393,7 +479,7 @@ class _AdminDashboard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Images are read from the product_images storage bucket by matching folder code.',
+                  'Upload WebP images, choose a thumbnail, or remove images from each product folder.',
                   style: GoogleFonts.blinker(fontSize: mobile ? 15 : 17),
                 ),
                 const SizedBox(height: 22),
@@ -410,7 +496,15 @@ class _AdminDashboard extends StatelessWidget {
                     runSpacing: 18,
                     children: gallery
                         .map(
-                          (entry) => _GalleryCard(entry: entry, mobile: mobile),
+                          (entry) => _GalleryCard(
+                            entry: entry,
+                            mobile: mobile,
+                            loading: loading,
+                            onUpload: () => onUploadImage(entry.code),
+                            onSetThumbnail: (name) =>
+                                onSetThumbnail(entry.code, name),
+                            onDelete: (name) => onDeleteImage(entry.code, name),
+                          ),
                         )
                         .toList(),
                   ),
@@ -504,9 +598,20 @@ class _ProductAdminCard extends StatelessWidget {
 }
 
 class _GalleryCard extends StatelessWidget {
-  const _GalleryCard({required this.entry, required this.mobile});
+  const _GalleryCard({
+    required this.entry,
+    required this.mobile,
+    required this.loading,
+    required this.onUpload,
+    required this.onSetThumbnail,
+    required this.onDelete,
+  });
   final AdminGallery entry;
   final bool mobile;
+  final bool loading;
+  final VoidCallback onUpload;
+  final ValueChanged<String> onSetThumbnail;
+  final ValueChanged<String> onDelete;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -521,13 +626,24 @@ class _GalleryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            entry.code,
-            style: GoogleFonts.blinker(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  entry.code,
+                  style: GoogleFonts.blinker(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: loading ? null : onUpload,
+                tooltip: 'Upload WebP image',
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           if (entry.images.isEmpty)
@@ -542,20 +658,83 @@ class _GalleryCard extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 itemCount: entry.images.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (_, index) => ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: AspectRatio(
-                    aspectRatio: .75,
-                    child: Image.network(
-                      entry.images[index],
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const ColoredBox(
-                        color: Color(0xFFD8D0C3),
-                        child: Icon(Icons.broken_image),
-                      ),
+                itemBuilder: (_, index) {
+                  final image = entry.images[index];
+                  return SizedBox(
+                    width: 144,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.network(
+                              image.url,
+                              fit: BoxFit.cover,
+                              cacheWidth: 288,
+                              filterQuality: FilterQuality.low,
+                              errorBuilder: (_, _, _) => const ColoredBox(
+                                color: Color(0xFFD8D0C3),
+                                child: Icon(Icons.broken_image),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 6,
+                          left: 6,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: const Color(0xE95B351A),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              child: Text(
+                                image.isThumbnail ? 'Thumbnail' : image.name,
+                                style: GoogleFonts.blinker(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          right: 2,
+                          bottom: 2,
+                          child: Material(
+                            color: const Color(0xE9FEF5E6),
+                            borderRadius: BorderRadius.circular(14),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (!image.isThumbnail)
+                                  IconButton(
+                                    onPressed: loading
+                                        ? null
+                                        : () => onSetThumbnail(image.name),
+                                    tooltip: 'Use as thumbnail',
+                                    icon: const Icon(Icons.star_outline),
+                                  ),
+                                IconButton(
+                                  onPressed: loading
+                                      ? null
+                                      : () => onDelete(image.name),
+                                  tooltip: 'Remove image',
+                                  icon: const Icon(Icons.delete_outline),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
         ],

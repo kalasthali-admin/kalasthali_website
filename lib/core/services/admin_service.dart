@@ -4,16 +4,36 @@ import 'package:http/http.dart' as http;
 
 import '../models/product.dart';
 
+class AdminGalleryImage {
+  const AdminGalleryImage({
+    required this.name,
+    required this.url,
+    required this.isThumbnail,
+  });
+
+  final String name;
+  final String url;
+  final bool isThumbnail;
+
+  factory AdminGalleryImage.fromJson(Map<String, dynamic> json) =>
+      AdminGalleryImage(
+        name: json['name'] as String? ?? '',
+        url: json['url'] as String? ?? '',
+        isThumbnail: json['isThumbnail'] as bool? ?? false,
+      );
+}
+
 class AdminGallery {
   const AdminGallery({required this.code, required this.images});
 
   final String code;
-  final List<String> images;
+  final List<AdminGalleryImage> images;
 
   factory AdminGallery.fromJson(Map<String, dynamic> json) => AdminGallery(
     code: json['code'] as String? ?? '',
     images: (json['images'] as List<dynamic>? ?? [])
-        .whereType<String>()
+        .whereType<Map<String, dynamic>>()
+        .map(AdminGalleryImage.fromJson)
         .toList(),
   );
 }
@@ -97,6 +117,33 @@ class AdminService {
     final response = await http.delete(
       _uri('delete', {'code': code}),
       headers: _headers,
+    );
+    if (response.statusCode >= 400) _decode(response);
+  }
+
+  Future<void> uploadImage(String code, List<int> bytes) async {
+    final response = await http.post(
+      _uri('image_upload'),
+      headers: _headers,
+      body: jsonEncode({'code': code, 'imageBase64': base64Encode(bytes)}),
+    );
+    _decode(response);
+  }
+
+  Future<void> setThumbnail(String code, String name) async {
+    final response = await http.post(
+      _uri('image_thumbnail'),
+      headers: _headers,
+      body: jsonEncode({'code': code, 'name': name}),
+    );
+    _decode(response);
+  }
+
+  Future<void> deleteImage(String code, String name) async {
+    final response = await http.delete(
+      _uri('image_delete'),
+      headers: _headers,
+      body: jsonEncode({'code': code, 'name': name}),
     );
     if (response.statusCode >= 400) _decode(response);
   }

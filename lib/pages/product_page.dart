@@ -44,7 +44,12 @@ class _ProductDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final mobile = constraints.maxWidth < 800;
+        final screenSize = MediaQuery.sizeOf(context);
+        final tabletPortrait =
+            screenSize.height > screenSize.width && screenSize.width < 1100;
+        // Portrait tablets need the stacked composition too; the two-column
+        // layout leaves both the gallery and product copy too narrow there.
+        final mobile = constraints.maxWidth < 800 || tabletPortrait;
         return SingleChildScrollView(
           child: Column(
             children: [

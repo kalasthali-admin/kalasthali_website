@@ -68,21 +68,22 @@ class ProductService {
               (await storage.list(path: productCode))
                   .where(
                     (file) => RegExp(
-                      r'^\d+\.(webp|png|jpg)$',
+                      r'^(thumbnail|pimage\d+)\.webp$',
                       caseSensitive: false,
                     ).hasMatch(file.name),
                   )
                   .toList()
-                ..sort(
-                  (a, b) =>
-                      int.parse(
-                        RegExp(r'^\d+').firstMatch(a.name)!.group(0)!,
-                      ).compareTo(
-                        int.parse(
-                          RegExp(r'^\d+').firstMatch(b.name)!.group(0)!,
-                        ),
-                      ),
-                );
+                ..sort((a, b) {
+                  if (a.name.toLowerCase() == 'thumbnail.webp') return -1;
+                  if (b.name.toLowerCase() == 'thumbnail.webp') return 1;
+                  final aNumber = int.parse(
+                    RegExp(r'^pimage(\d+)').firstMatch(a.name)!.group(1)!,
+                  );
+                  final bNumber = int.parse(
+                    RegExp(r'^pimage(\d+)').firstMatch(b.name)!.group(1)!,
+                  );
+                  return aNumber.compareTo(bNumber);
+                });
           return files
               .map((file) => storage.getPublicUrl('$productCode/${file.name}'))
               .toList();
@@ -92,10 +93,10 @@ class ProductService {
       });
 
   Future<String> _resolveProductImageUrl(String productCode) async {
-    // Product buckets are standardized on 1.webp, so no Storage list request
+    // Product buckets are standardized on thumbnail.webp, so no Storage list request
     // is needed before rendering each thumbnail.
     return _supabase.storage
         .from('product_images')
-        .getPublicUrl('$productCode/1.webp');
+        .getPublicUrl('$productCode/thumbnail.webp');
   }
 }
