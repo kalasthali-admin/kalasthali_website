@@ -159,10 +159,6 @@ function publicImageUrl(code, name) {
   return `${supabaseUrl}/storage/v1/object/public/product_images/${encodeURIComponent(code)}/${encodeURIComponent(name)}`;
 }
 
-function adminPreviewImageUrl(code, name) {
-  return `${supabaseUrl}/storage/v1/render/image/public/product_images/${encodeURIComponent(code)}/${encodeURIComponent(name)}?width=288&quality=60`;
-}
-
 function imageSort(left, right) {
   if (left.name.toLowerCase() === 'thumbnail.webp') return -1;
   if (right.name.toLowerCase() === 'thumbnail.webp') return 1;
@@ -189,9 +185,10 @@ function imageGallery(code, files) {
     code,
     images: files.map((file) => ({
       name: file.name,
-      // The dashboard displays only a small preview; keep full-size URLs for
-      // the storefront and avoid downloading the original image here.
-      url: adminPreviewImageUrl(code, file.name),
+      // Some WebP encodings render black through Supabase's transformation
+      // endpoint. The image manager loads on demand, so use the reliable
+      // source URL and let Flutter downscale the decoded preview instead.
+      url: publicImageUrl(code, file.name),
       sourceUrl: publicImageUrl(code, file.name),
       isThumbnail: file.name.toLowerCase() === 'thumbnail.webp',
     })),
