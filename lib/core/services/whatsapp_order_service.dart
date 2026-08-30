@@ -50,13 +50,13 @@ class WhatsAppOrderService {
         : '₹${product.price ?? '-'}';
     final message =
         '''Hello Kalasthali,
-
 I would like to request this product:
-**Product: ${product.name}
 
-Code: ${product.code}
+*Product: ${product.name}*
 
-Price: $price**
+*Code: ${product.code}*
+
+*Price: $price*
 
 Please let me know the next steps to place my order.''';
     final uri = Uri.parse(

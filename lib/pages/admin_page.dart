@@ -811,11 +811,15 @@ class _GalleryImageTile extends StatelessWidget {
             fit: BoxFit.cover,
             cacheWidth: 288,
             filterQuality: FilterQuality.low,
+            // Use the browser's decoder on the web. It is substantially more
+            // reliable than CanvasKit for large WebP images on low-end devices.
+            webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
             errorBuilder: (_, _, _) => Image.network(
               image.sourceUrl,
               fit: BoxFit.cover,
               cacheWidth: 288,
               filterQuality: FilterQuality.low,
+              webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
               errorBuilder: (_, _, _) => const ColoredBox(
                 color: Color(0xFFD8D0C3),
                 child: Icon(Icons.broken_image),

@@ -414,7 +414,7 @@ class _PurchasePanel extends StatelessWidget {
         ),
         Spacer(),
         Padding(
-          padding: EdgeInsetsGeometry.symmetric(vertical: 5),
+          padding: EdgeInsetsGeometry.symmetric(vertical: 5, horizontal: 10),
           child: Center(
             child: _PurchaseButton(
               label: 'Buy Now',
