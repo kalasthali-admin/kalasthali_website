@@ -360,6 +360,14 @@ module.exports = async (req, res) => {
           error: 'code is required and can only use letters, numbers, _ and -.',
         });
       }
+      const existing = await supabaseFetch(
+        `/rest/v1/products?select=code&code=eq.${encodeURIComponent(product.code)}&limit=1`,
+      );
+      if (existing.length > 0) {
+        return json(res, 409, {
+          error: 'A product with this code already exists. Choose a unique code.',
+        });
+      }
       const created = await supabaseFetch('/rest/v1/products', {
         method: 'POST',
         headers: { Prefer: 'return=representation' },

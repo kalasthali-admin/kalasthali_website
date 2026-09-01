@@ -76,7 +76,10 @@ class _AdminPageState extends State<AdminPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (_) => _ProductEditor(product: product),
+      builder: (_) => _ProductEditor(
+        product: product,
+        existingCodes: _products.map((item) => item.code).toSet(),
+      ),
     );
     if (values == null) return;
 
@@ -878,8 +881,9 @@ class _GalleryImageTile extends StatelessWidget {
 }
 
 class _ProductEditor extends StatefulWidget {
-  const _ProductEditor({this.product});
+  const _ProductEditor({this.product, required this.existingCodes});
   final Product? product;
+  final Set<String> existingCodes;
 
   @override
   State<_ProductEditor> createState() => _ProductEditorState();
@@ -966,6 +970,19 @@ class _ProductEditorState extends State<_ProductEditor> {
                 controller: fields['code']!,
                 label: 'Code',
                 enabled: widget.product == null,
+                validator: (value) {
+                  final code = value?.trim() ?? '';
+                  if (code.isEmpty) return 'Code is required.';
+                  if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(code)) {
+                    return 'Use letters, numbers, hyphens and underscores only.';
+                  }
+                  if (widget.existingCodes.any(
+                    (existing) => existing.toLowerCase() == code.toLowerCase(),
+                  )) {
+                    return 'This product code already exists.';
+                  }
+                  return null;
+                },
                 helperText: widget.product == null
                     ? 'Letters, numbers, hyphens and underscores only.'
                     : 'Product codes cannot be changed after creation.',
@@ -1031,6 +1048,7 @@ class _EditorField extends StatelessWidget {
     this.required = false,
     this.lines = 1,
     this.helperText,
+    this.validator,
   });
   final TextEditingController controller;
   final String label;
@@ -1038,6 +1056,7 @@ class _EditorField extends StatelessWidget {
   final bool required;
   final int lines;
   final String? helperText;
+  final String? Function(String?)? validator;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -1047,11 +1066,13 @@ class _EditorField extends StatelessWidget {
       enabled: enabled,
       minLines: lines,
       maxLines: lines,
-      validator: required
-          ? (value) => value == null || value.trim().isEmpty
-                ? '$label is required.'
-                : null
-          : null,
+      validator:
+          validator ??
+          (required
+              ? (value) => value == null || value.trim().isEmpty
+                    ? '$label is required.'
+                    : null
+              : null),
       decoration: InputDecoration(
         labelText: label,
         helperText: helperText,

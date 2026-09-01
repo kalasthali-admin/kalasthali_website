@@ -14,16 +14,13 @@ class CollectionPage extends StatefulWidget {
 }
 
 class _CollectionPageState extends State<CollectionPage> {
-  static const categories = ['home-decor', 'sarees', 'dresses'];
   late final Future<List<Product>> products = ProductService().getProducts();
   late final TextEditingController search;
   String? category;
   @override
   void initState() {
     super.initState();
-    category = categories.contains(widget.initialCategory)
-        ? widget.initialCategory
-        : null;
+    category = widget.initialCategory;
     search = TextEditingController(text: widget.initialSearch ?? '');
     search.addListener(() => setState(() {}));
   }
@@ -58,11 +55,25 @@ class _CollectionPageState extends State<CollectionPage> {
           builder: (context, box) {
             final mobile = box.maxWidth < 700;
             final query = search.text.toLowerCase();
+            final categories =
+                snap.data!
+                    .map((product) => product.type.trim())
+                    .where((type) => type.isNotEmpty)
+                    .toSet()
+                    .toList()
+                  ..sort(
+                    (left, right) =>
+                        left.toLowerCase().compareTo(right.toLowerCase()),
+                  );
+            final selectedCategory =
+                categories.any((value) => _key(value) == _key(category ?? ''))
+                ? category
+                : null;
             final filtered = snap.data!
                 .where(
                   (p) =>
-                      (category == null ||
-                          _matchesCategory(p.type, category!)) &&
+                      (selectedCategory == null ||
+                          _matchesCategory(p.type, selectedCategory)) &&
                       (query.isEmpty ||
                           '${p.name} ${p.description} ${p.specifications ?? ''}'
                               .toLowerCase()
@@ -141,7 +152,9 @@ class _CollectionPageState extends State<CollectionPage> {
                                           letterSpacing: mobile ? 1.4 : 2,
                                         ),
                                       ),
-                                      selected: category == c,
+                                      selected:
+                                          _key(selectedCategory ?? '') ==
+                                          _key(c),
                                       onSelected: (_) => select(c),
                                       selectedColor: const Color(0xFFE2C7A0),
                                       backgroundColor: const Color(0xFFE9E2D6),
@@ -200,14 +213,7 @@ class _CollectionPageState extends State<CollectionPage> {
 String _key(String v) => v.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '');
 
 bool _matchesCategory(String productType, String category) {
-  final type = _key(productType);
-
-  return switch (category) {
-    'home-decor' => type == 'homedecor',
-    'sarees' => type == 'saree',
-    'dresses' => type != 'homedecor' && type != 'saree',
-    _ => false,
-  };
+  return _key(productType) == _key(category);
 }
 
 class _Card extends StatefulWidget {
