@@ -1086,19 +1086,22 @@ class _ProductEditorState extends State<_ProductEditor> {
                 controller: fields['code']!,
                 label: 'Code',
                 enabled: widget.product == null,
-                validator: (value) {
-                  final code = value?.trim() ?? '';
-                  if (code.isEmpty) return 'Code is required.';
-                  if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(code)) {
-                    return 'Use letters, numbers, hyphens and underscores only.';
-                  }
-                  if (widget.existingCodes.any(
-                    (existing) => existing.toLowerCase() == code.toLowerCase(),
-                  )) {
-                    return 'This product code already exists.';
-                  }
-                  return null;
-                },
+                validator: widget.product == null
+                    ? (value) {
+                        final code = value?.trim() ?? '';
+                        if (code.isEmpty) return 'Code is required.';
+                        if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(code)) {
+                          return 'Use letters, numbers, hyphens and underscores only.';
+                        }
+                        if (widget.existingCodes.any(
+                          (existing) =>
+                              existing.toLowerCase() == code.toLowerCase(),
+                        )) {
+                          return 'This product code already exists.';
+                        }
+                        return null;
+                      }
+                    : null,
                 helperText: widget.product == null
                     ? 'Letters, numbers, hyphens and underscores only.'
                     : 'Product codes cannot be changed after creation.',
