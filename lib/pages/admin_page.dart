@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../core/models/product.dart';
 import '../core/services/admin_service.dart';
+import '../core/services/image_upload_converter.dart';
 import '../widgets/app_scaffold.dart';
 
 class AdminPage extends StatefulWidget {
@@ -104,7 +105,7 @@ class _AdminPageState extends State<AdminPage> {
       builder: (context) => AlertDialog(
         title: const Text('Delete product?'),
         content: Text(
-          'Delete "${product.name}" from the products table? Its storage images will not be deleted.',
+          'Delete "${product.name}" from the products database? Its storage images will not be deleted.',
         ),
         actions: [
           TextButton(
@@ -144,19 +145,28 @@ class _AdminPageState extends State<AdminPage> {
   Future<AdminGallery?> _uploadImage(String code) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: const ['webp'],
+      allowedExtensions: const ['png'],
       withData: true,
     );
     final file = result?.files.singleOrNull;
     final bytes = file?.bytes;
     if (bytes == null) return null;
-    if (bytes.length > 3 * 1024 * 1024) {
-      _showMessage('Please choose a WebP image smaller than 3 MB.');
+    late final List<int> webpBytes;
+    try {
+      webpBytes = await convertPngToWebp(bytes);
+    } catch (_) {
+      if (mounted) {
+        _showMessage('The PNG could not be converted to a WebP image.');
+      }
+      return null;
+    }
+    if (webpBytes.length > 3 * 1024 * 1024) {
+      _showMessage('The converted WebP must be smaller than 3 MB.');
       return null;
     }
 
     try {
-      final gallery = await _service.uploadImage(code, bytes);
+      final gallery = await _service.uploadImage(code, webpBytes);
       _replaceGallery(gallery);
       if (mounted) _showMessage('Image uploaded as a product image.');
       return gallery;
@@ -184,7 +194,7 @@ class _AdminPageState extends State<AdminPage> {
       builder: (context) => AlertDialog(
         title: const Text('Remove image?'),
         content: const Text(
-          'This permanently removes the image from Supabase Storage.',
+          'This permanently removes the image from the database.',
         ),
         actions: [
           TextButton(
@@ -291,7 +301,7 @@ class _AdminGate extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'Manage products and review their storage galleries.',
+                'For managing listed products and their images',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.blinker(fontSize: 17),
               ),
@@ -437,7 +447,7 @@ class _AdminDashboard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Changes are applied directly to the live products table.',
+                  'Add, delete, or edit your listed products on the website. To view or edit product images, scroll further.',
                   style: GoogleFonts.blinker(fontSize: mobile ? 16 : 18),
                 ),
                 if (error != null) ...[
@@ -487,7 +497,7 @@ class _AdminDashboard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Upload WebP images, choose a thumbnail, or remove images from each product folder.',
+                  'Upload PNG images, choose a thumbnail, or remove images from each product folder.',
                   style: GoogleFonts.blinker(fontSize: mobile ? 15 : 17),
                 ),
                 const SizedBox(height: 22),
@@ -746,7 +756,7 @@ class _GallerySheetState extends State<_GallerySheet> {
                   onPressed: _busy || widget.loading
                       ? null
                       : () => _apply(widget.onUpload()),
-                  tooltip: 'Upload WebP image',
+                  tooltip: 'Upload PNG image',
                   icon: const Icon(Icons.add_photo_alternate_outlined),
                 ),
               ],
@@ -761,7 +771,7 @@ class _GallerySheetState extends State<_GallerySheet> {
               child: _entry.images.isEmpty
                   ? Center(
                       child: Text(
-                        'No images found. Upload a WebP image to begin.',
+                        'No images found. Upload a PNG image to begin.',
                         style: GoogleFonts.blinker(fontSize: 17),
                       ),
                     )
