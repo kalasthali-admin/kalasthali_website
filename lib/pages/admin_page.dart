@@ -151,30 +151,33 @@ class _AdminPageState extends State<AdminPage> {
     final file = result?.files.singleOrNull;
     final bytes = file?.bytes;
     if (bytes == null) return null;
+    if (!mounted) return null;
     final extension = file?.extension?.toLowerCase();
     final inputMime = extension == 'png' ? 'image/png' : 'image/jpeg';
-    late final List<int> webpBytes;
+    final status = ValueNotifier<_ImageUploadStatus>(
+      const _ImageUploadStatus.processing(),
+    );
+    final dialog = showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _ImageUploadDialog(status: status),
+    );
     try {
-      webpBytes = await convertImageToWebp(bytes, inputMime);
-    } catch (error) {
-      if (mounted) {
-        _showMessage('Image conversion failed: $error');
+      final webpBytes = await convertImageToWebp(bytes, inputMime);
+      if (webpBytes.length > 3 * 1024 * 1024) {
+        throw StateError('The converted WebP must be smaller than 3 MB.');
       }
-      return null;
-    }
-    if (webpBytes.length > 3 * 1024 * 1024) {
-      _showMessage('The converted WebP must be smaller than 3 MB.');
-      return null;
-    }
-
-    try {
       final gallery = await _service.uploadImage(code, webpBytes);
       _replaceGallery(gallery);
-      if (mounted) _showMessage('Image uploaded as a product image.');
+      status.value = const _ImageUploadStatus.success();
+      await dialog;
       return gallery;
-    } on AdminException catch (error) {
-      if (mounted) _showMessage(error.message);
+    } catch (error) {
+      status.value = _ImageUploadStatus.failure(error.toString());
+      await dialog;
       return null;
+    } finally {
+      status.dispose();
     }
   }
 
@@ -252,6 +255,92 @@ class _AdminPageState extends State<AdminPage> {
             ),
     );
   }
+}
+
+enum _ImageUploadPhase { processing, success, failure }
+
+class _ImageUploadStatus {
+  const _ImageUploadStatus.processing()
+    : phase = _ImageUploadPhase.processing,
+      message = '';
+  const _ImageUploadStatus.success()
+    : phase = _ImageUploadPhase.success,
+      message = '';
+  const _ImageUploadStatus.failure(this.message)
+    : phase = _ImageUploadPhase.failure;
+
+  final _ImageUploadPhase phase;
+  final String message;
+}
+
+class _ImageUploadDialog extends StatelessWidget {
+  const _ImageUploadDialog({required this.status});
+
+  final ValueNotifier<_ImageUploadStatus> status;
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: false,
+    child: ValueListenableBuilder<_ImageUploadStatus>(
+      valueListenable: status,
+      builder: (context, current, _) {
+        final processing = current.phase == _ImageUploadPhase.processing;
+        final success = current.phase == _ImageUploadPhase.success;
+        return AlertDialog(
+          title: Text(
+            processing
+                ? 'Preparing image'
+                : success
+                ? 'Image uploaded'
+                : 'Upload failed',
+            style: GoogleFonts.dmSerifDisplay(
+              fontSize: 28,
+              color: const Color(0xFF5B351A),
+            ),
+          ),
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (processing)
+                const Padding(
+                  padding: EdgeInsets.only(top: 2),
+                  child: SizedBox.square(
+                    dimension: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  ),
+                )
+              else
+                Icon(
+                  success ? Icons.check_circle_outline : Icons.error_outline,
+                  color: success
+                      ? const Color(0xFF477A45)
+                      : Colors.red.shade700,
+                  size: 26,
+                ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  processing
+                      ? 'Converting your image to WebP and uploading it securely.'
+                      : success
+                      ? 'Your image was uploaded successfully.'
+                      : current.message,
+                  style: GoogleFonts.blinker(fontSize: 17),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            if (!processing)
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(success ? 'Done' : 'Close'),
+              ),
+          ],
+        );
+      },
+    ),
+  );
 }
 
 class _AdminGate extends StatelessWidget {
