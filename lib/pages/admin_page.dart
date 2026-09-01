@@ -194,32 +194,9 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<AdminGallery?> _deleteImage(String code, String name) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Remove image?'),
-        content: const Text(
-          'This permanently removes the image from the database.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return null;
-
     try {
       final gallery = await _service.deleteImage(code, name);
       _replaceGallery(gallery);
-      if (mounted) _showMessage('Image removed.');
       return gallery;
     } on AdminException catch (error) {
       if (mounted) _showMessage(error.message);
@@ -810,6 +787,40 @@ class _GallerySheetState extends State<_GallerySheet> {
     });
   }
 
+  Future<void> _confirmDelete(String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Remove image?',
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: 28,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        content: Text(
+          'This permanently removes $name from Supabase Storage.',
+          style: GoogleFonts.blinker(fontSize: 17),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove image'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await _apply(widget.onDelete(name));
+    }
+  }
+
   @override
   Widget build(BuildContext context) => SafeArea(
     child: FractionallySizedBox(
@@ -880,7 +891,7 @@ class _GallerySheetState extends State<_GallerySheet> {
                         loading: _busy || widget.loading,
                         onSetThumbnail: (name) =>
                             _apply(widget.onSetThumbnail(name)),
-                        onDelete: (name) => _apply(widget.onDelete(name)),
+                        onDelete: _confirmDelete,
                       ),
                     ),
             ),

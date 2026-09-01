@@ -277,6 +277,9 @@ async function deleteImage(code, name) {
     body: JSON.stringify({ bucketId: 'product_images', prefixes: [`${code}/${name}`] }),
   });
   const remaining = await listImages(code);
+  if (remaining.some((image) => image.name === name)) {
+    throw new Error('Supabase did not remove the selected image.');
+  }
   if (remaining.isNotEmpty) {
     const thumbnail = remaining.find(
       (image) => image.name.toLowerCase() === 'thumbnail.webp',
