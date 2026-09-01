@@ -1077,6 +1077,10 @@ class _ProductEditorState extends State<_ProductEditor> {
                   color: const Color(0xFF5B351A),
                 ),
               ),
+              Text(
+                "To modify product images, exit from this menu & check product images section below the product list",
+                style: GoogleFonts.blinker(color: Colors.black, fontSize: 14),
+              ),
               const SizedBox(height: 18),
               _EditorField(
                 controller: fields['code']!,
