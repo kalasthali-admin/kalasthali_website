@@ -145,18 +145,20 @@ class _AdminPageState extends State<AdminPage> {
   Future<AdminGallery?> _uploadImage(String code) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: const ['png'],
+      allowedExtensions: const ['png', 'jpg', 'jpeg'],
       withData: true,
     );
     final file = result?.files.singleOrNull;
     final bytes = file?.bytes;
     if (bytes == null) return null;
+    final extension = file?.extension?.toLowerCase();
+    final inputMime = extension == 'png' ? 'image/png' : 'image/jpeg';
     late final List<int> webpBytes;
     try {
-      webpBytes = await convertPngToWebp(bytes);
-    } catch (_) {
+      webpBytes = await convertImageToWebp(bytes, inputMime);
+    } catch (error) {
       if (mounted) {
-        _showMessage('The PNG could not be converted to a WebP image.');
+        _showMessage('Image conversion failed: $error');
       }
       return null;
     }
@@ -497,7 +499,7 @@ class _AdminDashboard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Upload PNG images, choose a thumbnail, or remove images from each product folder.',
+                  'Upload PNG or JPEG images, choose a thumbnail, or remove images from each product folder.',
                   style: GoogleFonts.blinker(fontSize: mobile ? 15 : 17),
                 ),
                 const SizedBox(height: 22),
@@ -756,7 +758,7 @@ class _GallerySheetState extends State<_GallerySheet> {
                   onPressed: _busy || widget.loading
                       ? null
                       : () => _apply(widget.onUpload()),
-                  tooltip: 'Upload PNG image',
+                  tooltip: 'Upload PNG or JPEG image',
                   icon: const Icon(Icons.add_photo_alternate_outlined),
                 ),
               ],
@@ -771,7 +773,7 @@ class _GallerySheetState extends State<_GallerySheet> {
               child: _entry.images.isEmpty
                   ? Center(
                       child: Text(
-                        'No images found. Upload a PNG image to begin.',
+                        'No images found. Upload a PNG or JPEG image to begin.',
                         style: GoogleFonts.blinker(fontSize: 17),
                       ),
                     )
