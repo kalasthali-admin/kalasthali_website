@@ -272,7 +272,7 @@ async function uploadImage(code, imageBase64) {
 
 async function deleteImage(code, name) {
   if (!validImageName(name)) throw new Error('Invalid image name.');
-  await supabaseFetch('/storage/v1/object/remove', {
+  await supabaseFetch('/storage/v1/object/product_images', {
     method: 'DELETE',
     body: JSON.stringify({ bucketId: 'product_images', prefixes: [`${code}/${name}`] }),
   });
