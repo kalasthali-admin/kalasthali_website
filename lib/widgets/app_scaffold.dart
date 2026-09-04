@@ -107,7 +107,9 @@ class _DesktopNavigation extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (showSearch && currentRoute != '/collections') ...[
+        if (showSearch &&
+            currentRoute != '/collections' &&
+            currentRoute != '/admin') ...[
           const _ProductSearchField(),
           const SizedBox(width: 10),
         ],

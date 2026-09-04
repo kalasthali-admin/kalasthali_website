@@ -18,10 +18,29 @@ class AdminPage extends StatefulWidget {
 
 class _AdminPageState extends State<AdminPage> {
   final _service = AdminService.instance;
+  final _productSearch = TextEditingController();
   bool _loading = false;
   String? _error;
   List<Product> _products = const [];
   List<AdminGallery> _gallery = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _productSearch.addListener(_refreshProductSearch);
+  }
+
+  @override
+  void dispose() {
+    _productSearch
+      ..removeListener(_refreshProductSearch)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _refreshProductSearch() {
+    if (mounted) setState(() {});
+  }
 
   Future<void> _loadDashboard() async {
     setState(() {
@@ -279,6 +298,7 @@ class _AdminPageState extends State<AdminPage> {
               error: _error,
               products: _products,
               gallery: _gallery,
+              productSearch: _productSearch,
               onRefresh: _loadDashboard,
               onCreate: () => _editProduct(),
               onEdit: _editProduct,
@@ -504,6 +524,7 @@ class _AdminDashboard extends StatelessWidget {
     required this.error,
     required this.products,
     required this.gallery,
+    required this.productSearch,
     required this.onRefresh,
     required this.onCreate,
     required this.onEdit,
@@ -515,6 +536,7 @@ class _AdminDashboard extends StatelessWidget {
   final String? error;
   final List<Product> products;
   final List<AdminGallery> gallery;
+  final TextEditingController productSearch;
   final Future<void> Function() onRefresh;
   final VoidCallback onCreate;
   final ValueChanged<Product> onEdit;
@@ -525,6 +547,14 @@ class _AdminDashboard extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final mobile = constraints.maxWidth < 700;
+      final searchQuery = productSearch.text.trim().toLowerCase();
+      final visibleProducts = products.where((product) {
+        if (searchQuery.isEmpty) return true;
+        return '${product.code} ${product.name} ${product.type} '
+                '${product.description} ${product.specifications ?? ''}'
+            .toLowerCase()
+            .contains(searchQuery);
+      }).toList();
       return SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
           mobile ? 18 : 42,
@@ -571,29 +601,58 @@ class _AdminDashboard extends StatelessWidget {
                   Text(error!, style: const TextStyle(color: Colors.red)),
                 ],
                 const SizedBox(height: 24),
-                SizedBox(
-                  height: 48,
-                  child: FilledButton.icon(
-                    onPressed: loading ? null : onCreate,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add product'),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 48,
+                        child: TextField(
+                          controller: productSearch,
+                          enabled: !loading,
+                          textInputAction: TextInputAction.search,
+                          style: GoogleFonts.blinker(fontSize: 17),
+                          decoration: const InputDecoration(
+                            hintText: 'Search listed products',
+                            prefixIcon: Icon(Icons.search),
+                            filled: true,
+                            fillColor: Color(0xFFE9E2D6),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      height: 48,
+                      child: FilledButton.icon(
+                        onPressed: loading ? null : onCreate,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add product'),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 22),
-                if (loading && products.isEmpty)
+                if (loading && visibleProducts.isEmpty)
                   const Center(
                     child: Padding(
                       padding: EdgeInsets.all(40),
                       child: CircularProgressIndicator(),
                     ),
                   )
-                else if (products.isEmpty)
+                else if (visibleProducts.isEmpty)
                   Text(
-                    'No products found.',
+                    searchQuery.isEmpty
+                        ? 'No products found.'
+                        : 'No matching products found.',
                     style: GoogleFonts.blinker(fontSize: 18),
                   )
                 else
-                  ...products.map((product) {
+                  ...visibleProducts.map((product) {
                     final productGallery = gallery
                         .where((entry) => entry.code == product.code)
                         .firstOrNull;
