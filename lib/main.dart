@@ -9,6 +9,7 @@ import 'pages/contact_page.dart';
 import 'pages/home_page.dart';
 import 'pages/not_found_page.dart';
 import 'pages/about_page.dart';
+import 'pages/account_page.dart';
 import 'pages/product_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/admin_page.dart';
@@ -43,6 +44,7 @@ class KalasthaliApp extends StatelessWidget {
   static const String productRoute = '/product';
   static const String settingsRoute = '/settings';
   static const String adminRoute = '/admin';
+  static const String accountRoute = '/account';
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +66,7 @@ class KalasthaliApp extends StatelessWidget {
         productRoute: (context) => const ProductPage(),
         settingsRoute: (context) => const SettingsPage(),
         adminRoute: (context) => const AdminPage(),
+        accountRoute: (context) => const AccountPage(),
       },
       onGenerateRoute: (settings) {
         final uri = Uri.parse(settings.name ?? '/');
