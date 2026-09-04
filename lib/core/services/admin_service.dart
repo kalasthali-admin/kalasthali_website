@@ -42,11 +42,25 @@ class AdminGallery {
   );
 }
 
+class _ImageUploadTicket {
+  const _ImageUploadTicket({required this.path, required this.uploadUrl});
+
+  final String path;
+  final String uploadUrl;
+
+  factory _ImageUploadTicket.fromJson(Map<String, dynamic> json) =>
+      _ImageUploadTicket(
+        path: json['path'] as String? ?? '',
+        uploadUrl: json['uploadUrl'] as String? ?? '',
+      );
+}
+
 class AdminService {
   AdminService._();
 
   static final instance = AdminService._();
   static const isTestMode = bool.fromEnvironment('ADMIN_TEST_MODE');
+  static const maxImageBytes = 10 * 1024 * 1024;
   String? _token;
 
   bool get isAuthenticated => _token != null;
@@ -126,12 +140,49 @@ class AdminService {
   }
 
   Future<AdminGallery> uploadImage(String code, List<int> bytes) async {
+    if (bytes.isEmpty || bytes.length > maxImageBytes) {
+      throw const AdminException(
+        'Converted WebP images must be smaller than 10 MB.',
+      );
+    }
     final response = await http.post(
-      _uri('image_upload'),
+      _uri('image_upload_ticket'),
       headers: _headers,
-      body: jsonEncode({'code': code, 'imageBase64': base64Encode(bytes)}),
+      body: jsonEncode({'code': code, 'byteLength': bytes.length}),
     );
-    return AdminGallery.fromJson(_decode(response) as Map<String, dynamic>);
+    final ticket = _ImageUploadTicket.fromJson(
+      _decode(response) as Map<String, dynamic>,
+    );
+    if (ticket.path.isEmpty || ticket.uploadUrl.isEmpty) {
+      throw const AdminException('Could not prepare the image upload.');
+    }
+
+    final upload = await http.put(
+      Uri.parse(ticket.uploadUrl),
+      headers: const {'Content-Type': 'image/webp'},
+      body: bytes,
+    );
+    if (upload.statusCode < 200 || upload.statusCode >= 300) {
+      throw AdminException(_uploadError(upload));
+    }
+
+    final galleries = await getGallery();
+    return galleries.where((gallery) => gallery.code == code).firstOrNull ??
+        (throw const AdminException(
+          'The image uploaded, but its gallery could not be refreshed.',
+        ));
+  }
+
+  String _uploadError(http.Response response) {
+    try {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic> && data['message'] is String) {
+        return data['message'] as String;
+      }
+    } on FormatException {
+      // Storage can return an empty or non-JSON error response.
+    }
+    return 'Supabase could not upload the image.';
   }
 
   Future<AdminGallery> setThumbnail(String code, String name) async {

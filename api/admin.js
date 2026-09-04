@@ -12,8 +12,9 @@ const allowedFields = [
 ];
 const sessionLifetimeMs = 8 * 60 * 60 * 1000;
 const imageNamePattern = /^(thumbnail|pimage\d+|\d+)\.webp$/i;
-// Base64 adds about one-third overhead, so this remains below Vercel's body limit.
-const maxImageBytes = 3 * 1024 * 1024;
+// Image bytes upload directly to Supabase through a short-lived signed URL,
+// rather than through Vercel's much smaller request-body limit.
+const maxImageBytes = 10 * 1024 * 1024;
 const supabaseUrl =
   process.env.SUPABASE_URL || 'https://dddriininznavwrsrgww.supabase.co';
 
@@ -270,6 +271,31 @@ async function uploadImage(code, imageBase64) {
   });
 }
 
+async function createImageUploadTicket(code, byteLength) {
+  if (!Number.isInteger(byteLength) || byteLength < 1 || byteLength > maxImageBytes) {
+    throw new Error('Converted WebP images must be smaller than 10 MB.');
+  }
+  const images = await listImages(code);
+  const nextNumber = images
+    .map((image) => Number(/^pimage(\d+)\.webp$/i.exec(image.name)?.[1] || 0))
+    .reduce((largest, value) => Math.max(largest, value), 0) + 1;
+  const name = `pimage${nextNumber}.webp`;
+  const path = `${code}/${name}`;
+  const signed = await supabaseFetch(
+    `/storage/v1/object/upload/sign/product_images/${encodeURIComponent(code)}/${name}`,
+    { method: 'POST', body: JSON.stringify({}) },
+  );
+  if (!signed?.url || typeof signed.url !== 'string') {
+    throw new Error('Supabase could not prepare an image upload.');
+  }
+  return {
+    path,
+    uploadUrl: signed.url.startsWith('http')
+      ? signed.url
+      : `${supabaseUrl}/storage/v1${signed.url}`,
+  };
+}
+
 async function deleteImage(code, name) {
   if (!validImageName(name)) throw new Error('Invalid image name.');
   await supabaseFetch('/storage/v1/object/product_images', {
@@ -334,6 +360,18 @@ module.exports = async (req, res) => {
       }
       await uploadImage(code, body.imageBase64);
       return json(res, 201, imageGallery(code, await listImages(code)));
+    }
+
+    if (action === 'image_upload_ticket' && req.method === 'POST') {
+      const code = String(body.code || '');
+      if (!validProductCode(code)) {
+        return json(res, 400, { error: 'A valid product code is required.' });
+      }
+      return json(
+        res,
+        201,
+        await createImageUploadTicket(code, Number(body.byteLength)),
+      );
     }
 
     if (action === 'image_thumbnail' && req.method === 'POST') {

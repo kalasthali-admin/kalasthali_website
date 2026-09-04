@@ -123,7 +123,11 @@ class _AdminPageState extends State<AdminPage> {
       if (product == null) {
         final created = await _service.create(result.product);
         if (result.images.isNotEmpty) {
-          await _uploadNewProductImages(created.code, result.images);
+          await _uploadNewProductImages(
+            created.code,
+            result.images,
+            result.thumbnailIndex,
+          );
         }
       } else {
         await _service.update(product.code, result.product);
@@ -185,6 +189,7 @@ class _AdminPageState extends State<AdminPage> {
   Future<void> _uploadNewProductImages(
     String code,
     List<_PendingImage> images,
+    int thumbnailIndex,
   ) async {
     final status = ValueNotifier<_ImageUploadStatus>(
       const _ImageUploadStatus.processing('Preparing product images...'),
@@ -195,20 +200,32 @@ class _AdminPageState extends State<AdminPage> {
       builder: (_) => _ImageUploadDialog(status: status),
     );
     try {
+      AdminGallery? uploadedGallery;
       for (var index = 0; index < images.length; index += 1) {
         final image = images[index];
         status.value = _ImageUploadStatus.processing(
           'Converting image ${index + 1} of ${images.length} to WebP...',
         );
         final webpBytes = await convertImageToWebp(image.bytes, image.mimeType);
-        if (webpBytes.length > 3 * 1024 * 1024) {
-          throw StateError('The converted WebP must be smaller than 3 MB.');
+        if (webpBytes.length > AdminService.maxImageBytes) {
+          throw StateError('The converted WebP must be smaller than 10 MB.');
         }
         status.value = _ImageUploadStatus.processing(
           'Uploading image ${index + 1} of ${images.length}...',
         );
-        _replaceGallery(await _service.uploadImage(code, webpBytes));
+        uploadedGallery = await _service.uploadImage(code, webpBytes);
       }
+      if (uploadedGallery != null) {
+        status.value = const _ImageUploadStatus.processing(
+          'Setting the storefront thumbnail...',
+        );
+        // New product images are uploaded in order as pimage1, pimage2, etc.
+        uploadedGallery = await _service.setThumbnail(
+          code,
+          'pimage${thumbnailIndex + 1}.webp',
+        );
+      }
+      if (uploadedGallery != null) _replaceGallery(uploadedGallery);
       status.value = const _ImageUploadStatus.success();
       await dialog;
     } catch (error) {
@@ -241,8 +258,8 @@ class _AdminPageState extends State<AdminPage> {
     );
     try {
       final webpBytes = await convertImageToWebp(bytes, inputMime);
-      if (webpBytes.length > 3 * 1024 * 1024) {
-        throw StateError('The converted WebP must be smaller than 3 MB.');
+      if (webpBytes.length > AdminService.maxImageBytes) {
+        throw StateError('The converted WebP must be smaller than 10 MB.');
       }
       final gallery = await _service.uploadImage(code, webpBytes);
       _replaceGallery(gallery);
@@ -657,8 +674,10 @@ class _AdminDashboard extends StatelessWidget {
                         .where((entry) => entry.code == product.code)
                         .firstOrNull;
                     return Padding(
+                      key: ValueKey('admin-product-${product.code}'),
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _ProductAdminCard(
+                        key: ValueKey(product.code),
                         product: product,
                         gallery: productGallery,
                         onEdit: () => onEdit(product),
@@ -681,6 +700,7 @@ class _ProductAdminCard extends StatelessWidget {
     required this.gallery,
     required this.onEdit,
     required this.onDelete,
+    super.key,
   });
   final Product product;
   final AdminGallery? gallery;
@@ -706,7 +726,10 @@ class _ProductAdminCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _ProductThumbnail(image: thumbnail),
+              _ProductThumbnail(
+                key: ValueKey('${product.code}-${thumbnail?.url ?? 'empty'}'),
+                image: thumbnail,
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -754,7 +777,7 @@ class _ProductAdminCard extends StatelessWidget {
 }
 
 class _ProductThumbnail extends StatelessWidget {
-  const _ProductThumbnail({this.image});
+  const _ProductThumbnail({this.image, super.key});
   final AdminGalleryImage? image;
 
   @override
@@ -1041,10 +1064,15 @@ class _PendingImage {
 }
 
 class _ProductEditorResult {
-  const _ProductEditorResult({required this.product, required this.images});
+  const _ProductEditorResult({
+    required this.product,
+    required this.images,
+    required this.thumbnailIndex,
+  });
 
   final Map<String, dynamic> product;
   final List<_PendingImage> images;
+  final int thumbnailIndex;
 }
 
 class _ProductEditor extends StatefulWidget {
@@ -1072,6 +1100,7 @@ class _ProductEditorState extends State<_ProductEditor> {
   late final Map<String, TextEditingController> fields;
   late bool isPopular;
   final List<_PendingImage> pendingImages = [];
+  var thumbnailIndex = 0;
 
   @override
   void initState() {
@@ -1112,6 +1141,7 @@ class _ProductEditorState extends State<_ProductEditor> {
           'is_popular': isPopular,
         },
         images: List.unmodifiable(pendingImages),
+        thumbnailIndex: thumbnailIndex,
       ),
     );
   }
@@ -1125,6 +1155,7 @@ class _ProductEditorState extends State<_ProductEditor> {
     );
     if (!mounted || result == null) return;
     setState(() {
+      final selectFirstNewImage = pendingImages.isEmpty;
       for (final file in result.files) {
         final bytes = file.bytes;
         if (bytes == null) continue;
@@ -1137,8 +1168,20 @@ class _ProductEditorState extends State<_ProductEditor> {
           ),
         );
       }
+      if (selectFirstNewImage && pendingImages.isNotEmpty) thumbnailIndex = 0;
     });
   }
+
+  void _removePendingImage(int index) => setState(() {
+    pendingImages.removeAt(index);
+    if (pendingImages.isEmpty) {
+      thumbnailIndex = 0;
+    } else if (index < thumbnailIndex) {
+      thumbnailIndex -= 1;
+    } else if (index == thumbnailIndex) {
+      thumbnailIndex = thumbnailIndex.clamp(0, pendingImages.length - 1);
+    }
+  });
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -1209,7 +1252,7 @@ class _ProductEditorState extends State<_ProductEditor> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Choose PNG or JPEG images now. They will be converted to WebP and uploaded after this product is created.',
+                  'Choose PNG or JPEG images now, then star one as the storefront thumbnail. They will be converted to WebP and uploaded after this product is created.',
                   style: GoogleFonts.blinker(fontSize: 15),
                 ),
                 const SizedBox(height: 10),
@@ -1232,11 +1275,46 @@ class _ProductEditorState extends State<_ProductEditor> {
                         children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(10),
-                            child: Image.memory(
-                              pendingImages[index].bytes,
-                              width: 72,
-                              height: 100,
-                              fit: BoxFit.cover,
+                            child: RepaintBoundary(
+                              child: Image.memory(
+                                pendingImages[index].bytes,
+                                width: 72,
+                                height: 100,
+                                fit: BoxFit.cover,
+                                // The original can be up to 10 MiB, but this
+                                // preview is only 72x100 logical pixels.
+                                cacheWidth: 144,
+                                cacheHeight: 200,
+                                filterQuality: FilterQuality.low,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            left: 0,
+                            top: 0,
+                            child: Material(
+                              color: thumbnailIndex == index
+                                  ? const Color(0xFF5B351A)
+                                  : const Color(0xE9FEF5E6),
+                              borderRadius: const BorderRadius.only(
+                                bottomRight: Radius.circular(10),
+                              ),
+                              child: IconButton(
+                                iconSize: 18,
+                                tooltip: thumbnailIndex == index
+                                    ? 'Storefront thumbnail'
+                                    : 'Use as storefront thumbnail',
+                                onPressed: () =>
+                                    setState(() => thumbnailIndex = index),
+                                icon: Icon(
+                                  thumbnailIndex == index
+                                      ? Icons.star
+                                      : Icons.star_outline,
+                                  color: thumbnailIndex == index
+                                      ? const Color(0xFFFEF5E6)
+                                      : null,
+                                ),
+                              ),
                             ),
                           ),
                           Positioned(
@@ -1248,9 +1326,7 @@ class _ProductEditorState extends State<_ProductEditor> {
                               child: IconButton(
                                 iconSize: 18,
                                 tooltip: 'Remove image',
-                                onPressed: () => setState(
-                                  () => pendingImages.removeAt(index),
-                                ),
+                                onPressed: () => _removePendingImage(index),
                                 icon: const Icon(Icons.close),
                               ),
                             ),
