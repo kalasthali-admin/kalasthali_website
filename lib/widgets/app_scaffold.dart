@@ -122,6 +122,13 @@ class _DesktopNavigation extends StatelessWidget {
           isActive: currentRoute == '/collections',
         ),
         const SizedBox(width: 10),
+        _HeaderButton(
+          label: 'CART',
+          onTap: () => _goTo(context, '/cart'),
+          isActive: currentRoute == '/cart',
+          icon: Icons.shopping_cart_outlined,
+        ),
+        const SizedBox(width: 10),
         _AccountHeaderButton(isActive: currentRoute == '/account'),
       ],
     );
@@ -247,11 +254,13 @@ class _HeaderButton extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.isActive = false,
+    this.icon,
   });
 
   final String label;
   final VoidCallback onTap;
   final bool isActive;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -273,6 +282,10 @@ class _HeaderButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (icon != null) ...[
+                Icon(icon, size: 19),
+                const SizedBox(width: 5),
+              ],
               Padding(
                 padding: const EdgeInsets.all(5),
                 child: Text(
@@ -389,6 +402,7 @@ const List<_NavItem> _primaryItems = [
     route: '/collections',
     icon: Icons.grid_view_outlined,
   ),
+  _NavItem(label: 'CART', route: '/cart', icon: Icons.shopping_cart_outlined),
 ];
 
 void _goTo(BuildContext context, String route) {
