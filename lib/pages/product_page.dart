@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../core/models/product.dart';
 import '../core/services/product_service.dart';
+import '../core/services/seo_service.dart';
 import '../core/services/whatsapp_order_service.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_footer.dart';
@@ -29,6 +30,7 @@ class ProductPage extends StatelessWidget {
           final product = snapshot.data;
           if (product == null)
             return const Center(child: Text('Product not found.'));
+          SeoService.setProduct(product);
           return _ProductDetails(product: product);
         },
       ),
@@ -495,7 +497,7 @@ class _ShareButtonState extends State<_ShareButton> {
     final productUrl = Uri.base
         .replace(
           path: '/product',
-          query: Uri.encodeComponent(widget.productCode),
+          queryParameters: {'code': widget.productCode},
         )
         .toString();
     await Clipboard.setData(ClipboardData(text: productUrl));

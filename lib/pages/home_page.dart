@@ -6,12 +6,18 @@ import 'package:google_fonts/google_fonts.dart';
 import '../widgets/popular_products_carousel.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_footer.dart';
+import '../core/services/seo_service.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    SeoService.setPage(
+      title: 'Kalasthali By Nisha | Handpainted Clothing',
+      description: 'Handpainted clothing crafted with art and individuality.',
+      path: '/',
+    );
     return AppScaffold(
       title: 'Home',
       currentRoute: '/home',

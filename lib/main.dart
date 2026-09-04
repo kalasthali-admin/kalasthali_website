@@ -7,6 +7,7 @@ import 'core/supabase_config.dart';
 import 'pages/collection_page.dart';
 import 'pages/contact_page.dart';
 import 'pages/home_page.dart';
+import 'pages/not_found_page.dart';
 import 'pages/about_page.dart';
 import 'pages/product_page.dart';
 import 'pages/settings_page.dart';
@@ -92,22 +93,10 @@ class KalasthaliApp extends StatelessWidget {
         }
 
         return MaterialPageRoute<void>(
-          builder: (_) => const UnknownRoutePage(),
+          builder: (_) => const NotFoundPage(),
           settings: settings,
         );
       },
-    );
-  }
-}
-
-class UnknownRoutePage extends StatelessWidget {
-  const UnknownRoutePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Page not found')),
-      body: const Center(child: Text('This page does not exist.')),
     );
   }
 }
