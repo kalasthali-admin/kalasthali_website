@@ -240,16 +240,16 @@ class _AdminPageState extends State<AdminPage> {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['png', 'jpg', 'jpeg'],
+      allowMultiple: true,
       withData: true,
     );
-    final file = result?.files.singleOrNull;
-    final bytes = file?.bytes;
-    if (bytes == null) return null;
+    final files =
+        result?.files.where((file) => file.bytes != null).toList() ??
+        const <PlatformFile>[];
+    if (files.isEmpty) return null;
     if (!mounted) return null;
-    final extension = file?.extension?.toLowerCase();
-    final inputMime = extension == 'png' ? 'image/png' : 'image/jpeg';
     final status = ValueNotifier<_ImageUploadStatus>(
-      const _ImageUploadStatus.processing('Converting image to WebP...'),
+      const _ImageUploadStatus.processing('Preparing product images...'),
     );
     final dialog = showDialog<void>(
       context: context,
@@ -257,12 +257,24 @@ class _AdminPageState extends State<AdminPage> {
       builder: (_) => _ImageUploadDialog(status: status),
     );
     try {
-      final webpBytes = await convertImageToWebp(bytes, inputMime);
-      if (webpBytes.length > AdminService.maxImageBytes) {
-        throw StateError('The converted WebP must be smaller than 10 MB.');
+      AdminGallery? gallery;
+      for (var index = 0; index < files.length; index += 1) {
+        final file = files[index];
+        final extension = file.extension?.toLowerCase();
+        final inputMime = extension == 'png' ? 'image/png' : 'image/jpeg';
+        status.value = _ImageUploadStatus.processing(
+          'Converting image ${index + 1} of ${files.length} to WebP...',
+        );
+        final webpBytes = await convertImageToWebp(file.bytes!, inputMime);
+        if (webpBytes.length > AdminService.maxImageBytes) {
+          throw StateError('The converted WebP must be smaller than 10 MB.');
+        }
+        status.value = _ImageUploadStatus.processing(
+          'Uploading image ${index + 1} of ${files.length}...',
+        );
+        gallery = await _service.uploadImage(code, webpBytes);
       }
-      final gallery = await _service.uploadImage(code, webpBytes);
-      _replaceGallery(gallery);
+      if (gallery != null) _replaceGallery(gallery);
       status.value = const _ImageUploadStatus.success();
       await dialog;
       return gallery;
@@ -917,7 +929,7 @@ class _GallerySheetState extends State<_GallerySheet> {
                   onPressed: _busy || widget.loading
                       ? null
                       : () => _apply(widget.onUpload()),
-                  tooltip: 'Upload PNG or JPEG image',
+                  tooltip: 'Upload PNG or JPEG images',
                   icon: const Icon(Icons.add_photo_alternate_outlined),
                 ),
               ],
