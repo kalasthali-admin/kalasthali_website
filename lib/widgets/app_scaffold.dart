@@ -127,6 +127,7 @@ class _DesktopNavigation extends StatelessWidget {
           onTap: () => _goTo(context, '/cart'),
           isActive: currentRoute == '/cart',
           icon: Icons.shopping_cart_outlined,
+          iconOnly: true,
         ),
         const SizedBox(width: 10),
         _AccountHeaderButton(isActive: currentRoute == '/account'),
@@ -141,8 +142,8 @@ class _ProductSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 700,
-      height: 45,
+      width: 560,
+      height: 64,
       child: TextField(
         textInputAction: TextInputAction.search,
         onSubmitted: (value) {
@@ -168,11 +169,11 @@ class _ProductSearchField extends StatelessWidget {
             fontSize: 18,
             letterSpacing: 2,
           ),
-          prefixIcon: Icon(Icons.search, size: 19),
+          prefixIcon: Icon(Icons.search, size: 30),
           prefixIconColor: Color(0xFF746D64),
           filled: true,
           fillColor: Color(0xFFE7D0AE),
-          contentPadding: EdgeInsets.symmetric(vertical: 8),
+          contentPadding: EdgeInsets.symmetric(vertical: 16),
           border: OutlineInputBorder(
             borderSide: BorderSide.none,
             borderRadius: BorderRadius.all(Radius.circular(8)),
@@ -255,12 +256,14 @@ class _HeaderButton extends StatelessWidget {
     required this.onTap,
     this.isActive = false,
     this.icon,
+    this.iconOnly = false,
   });
 
   final String label;
   final VoidCallback onTap;
   final bool isActive;
   final IconData? icon;
+  final bool iconOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -274,7 +277,10 @@ class _HeaderButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(5),
         onTap: onTap,
         child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          padding: EdgeInsets.symmetric(
+            horizontal: iconOnly ? 14 : 16,
+            vertical: iconOnly ? 13 : 11,
+          ),
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(12),
@@ -283,21 +289,22 @@ class _HeaderButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 19),
-                const SizedBox(width: 5),
+                Icon(icon, size: iconOnly ? 34 : 19),
+                if (!iconOnly) const SizedBox(width: 5),
               ],
-              Padding(
-                padding: const EdgeInsets.all(5),
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    color: Color(0xFF111111),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 2.2,
+              if (!iconOnly)
+                Padding(
+                  padding: const EdgeInsets.all(5),
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: Color(0xFF111111),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.2,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -320,10 +327,39 @@ class _AccountHeaderButton extends StatelessWidget {
       final user = snapshot.data ?? AuthService.currentUser;
       final label = user == null ? 'Log In' : AuthService.firstName(user);
       if (!compact) {
-        return _HeaderButton(
-          label: label,
-          isActive: isActive,
-          onTap: () => _goTo(context, '/account'),
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _goTo(context, '/account'),
+            child: Ink(
+              padding: const EdgeInsets.fromLTRB(12, 10, 17, 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE7D0AE),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.account_circle,
+                    size: 39,
+                    color: Color(0xFF1F1E25),
+                  ),
+                  const SizedBox(width: 11),
+                  Text(
+                    label.toUpperCase(),
+                    style: const TextStyle(
+                      color: Color(0xFF111111),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
       }
       return TextButton.icon(
