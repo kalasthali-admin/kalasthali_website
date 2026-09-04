@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -70,7 +72,10 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Future<void> _editProduct([Product? product]) async {
-    final values = await showModalBottomSheet<Map<String, dynamic>>(
+    final gallery = product == null
+        ? null
+        : _gallery.where((entry) => entry.code == product.code).firstOrNull;
+    final result = await showModalBottomSheet<_ProductEditorResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFFFEF5E6),
@@ -80,16 +85,29 @@ class _AdminPageState extends State<AdminPage> {
       builder: (_) => _ProductEditor(
         product: product,
         existingCodes: _products.map((item) => item.code).toSet(),
+        gallery: gallery,
+        onUploadImage: product == null
+            ? null
+            : () => _uploadImage(product.code),
+        onSetThumbnail: product == null
+            ? null
+            : (name) => _setThumbnail(product.code, name),
+        onDeleteImage: product == null
+            ? null
+            : (name) => _deleteImage(product.code, name),
       ),
     );
-    if (values == null) return;
+    if (result == null) return;
 
     setState(() => _loading = true);
     try {
       if (product == null) {
-        await _service.create(values);
+        final created = await _service.create(result.product);
+        if (result.images.isNotEmpty) {
+          await _uploadNewProductImages(created.code, result.images);
+        }
       } else {
-        await _service.update(product.code, values);
+        await _service.update(product.code, result.product);
       }
       await _loadDashboard();
     } on AdminException catch (error) {
@@ -136,10 +154,50 @@ class _AdminPageState extends State<AdminPage> {
 
   void _replaceGallery(AdminGallery updated) {
     setState(() {
-      _gallery = _gallery
-          .map((entry) => entry.code == updated.code ? updated : entry)
-          .toList();
+      final index = _gallery.indexWhere((entry) => entry.code == updated.code);
+      _gallery = index < 0
+          ? [..._gallery, updated]
+          : _gallery
+                .map((entry) => entry.code == updated.code ? updated : entry)
+                .toList();
     });
+  }
+
+  Future<void> _uploadNewProductImages(
+    String code,
+    List<_PendingImage> images,
+  ) async {
+    final status = ValueNotifier<_ImageUploadStatus>(
+      const _ImageUploadStatus.processing('Preparing product images...'),
+    );
+    final dialog = showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _ImageUploadDialog(status: status),
+    );
+    try {
+      for (var index = 0; index < images.length; index += 1) {
+        final image = images[index];
+        status.value = _ImageUploadStatus.processing(
+          'Converting image ${index + 1} of ${images.length} to WebP...',
+        );
+        final webpBytes = await convertImageToWebp(image.bytes, image.mimeType);
+        if (webpBytes.length > 3 * 1024 * 1024) {
+          throw StateError('The converted WebP must be smaller than 3 MB.');
+        }
+        status.value = _ImageUploadStatus.processing(
+          'Uploading image ${index + 1} of ${images.length}...',
+        );
+        _replaceGallery(await _service.uploadImage(code, webpBytes));
+      }
+      status.value = const _ImageUploadStatus.success();
+      await dialog;
+    } catch (error) {
+      status.value = _ImageUploadStatus.failure(error.toString());
+      await dialog;
+    } finally {
+      status.dispose();
+    }
   }
 
   Future<AdminGallery?> _uploadImage(String code) async {
@@ -155,7 +213,7 @@ class _AdminPageState extends State<AdminPage> {
     final extension = file?.extension?.toLowerCase();
     final inputMime = extension == 'png' ? 'image/png' : 'image/jpeg';
     final status = ValueNotifier<_ImageUploadStatus>(
-      const _ImageUploadStatus.processing(),
+      const _ImageUploadStatus.processing('Converting image to WebP...'),
     );
     final dialog = showDialog<void>(
       context: context,
@@ -225,9 +283,6 @@ class _AdminPageState extends State<AdminPage> {
               onCreate: () => _editProduct(),
               onEdit: _editProduct,
               onDelete: _deleteProduct,
-              onUploadImage: _uploadImage,
-              onSetThumbnail: _setThumbnail,
-              onDeleteImage: _deleteImage,
               onSignOut: () => setState(_service.signOut),
             ),
     );
@@ -237,9 +292,8 @@ class _AdminPageState extends State<AdminPage> {
 enum _ImageUploadPhase { processing, success, failure }
 
 class _ImageUploadStatus {
-  const _ImageUploadStatus.processing()
-    : phase = _ImageUploadPhase.processing,
-      message = '';
+  const _ImageUploadStatus.processing(this.message)
+    : phase = _ImageUploadPhase.processing;
   const _ImageUploadStatus.success()
     : phase = _ImageUploadPhase.success,
       message = '';
@@ -298,7 +352,7 @@ class _ImageUploadDialog extends StatelessWidget {
               Expanded(
                 child: Text(
                   processing
-                      ? 'Converting your image to WebP and uploading it securely.'
+                      ? current.message
                       : success
                       ? 'Your image was uploaded successfully.'
                       : current.message,
@@ -454,9 +508,6 @@ class _AdminDashboard extends StatelessWidget {
     required this.onCreate,
     required this.onEdit,
     required this.onDelete,
-    required this.onUploadImage,
-    required this.onSetThumbnail,
-    required this.onDeleteImage,
     required this.onSignOut,
   });
 
@@ -468,9 +519,6 @@ class _AdminDashboard extends StatelessWidget {
   final VoidCallback onCreate;
   final ValueChanged<Product> onEdit;
   final ValueChanged<Product> onDelete;
-  final Future<AdminGallery?> Function(String) onUploadImage;
-  final Future<AdminGallery?> Function(String code, String name) onSetThumbnail;
-  final Future<AdminGallery?> Function(String code, String name) onDeleteImage;
   final VoidCallback onSignOut;
 
   @override
@@ -515,7 +563,7 @@ class _AdminDashboard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Add, delete, or edit your listed products on the website. To view or edit product images, scroll further.',
+                  'Add, delete, or edit products and their images from one place.',
                   style: GoogleFonts.blinker(fontSize: mobile ? 16 : 18),
                 ),
                 if (error != null) ...[
@@ -545,66 +593,17 @@ class _AdminDashboard extends StatelessWidget {
                     style: GoogleFonts.blinker(fontSize: 18),
                   )
                 else
-                  ...products.map(
-                    (product) => Padding(
-                      padding: const EdgeInsets.only(bottom: 14),
-                      child: _ProductAdminCard(
-                        product: product,
-                        onEdit: () => onEdit(product),
-                        onDelete: () => onDelete(product),
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 52),
-                Text(
-                  'Product Gallery',
-                  style: GoogleFonts.dmSerifDisplay(
-                    fontSize: mobile ? 34 : 44,
-                    color: const Color(0xFF5B351A),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Upload PNG or JPEG images, choose a thumbnail, or remove images from each product folder.',
-                  style: GoogleFonts.blinker(fontSize: mobile ? 15 : 17),
-                ),
-                const SizedBox(height: 22),
-                if (loading && gallery.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(40),
-                      child: CircularProgressIndicator(),
-                    ),
-                  )
-                else
-                  ...gallery.map((entry) {
-                    final product = products
-                        .where((product) => product.code == entry.code)
+                  ...products.map((product) {
+                    final productGallery = gallery
+                        .where((entry) => entry.code == product.code)
                         .firstOrNull;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: _GalleryListTile(
-                        entry: entry,
-                        productName: product?.name ?? 'Product',
-                        onOpen: () => showModalBottomSheet<void>(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: const Color(0xFFFEF5E6),
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(28),
-                            ),
-                          ),
-                          builder: (sheetContext) => _GallerySheet(
-                            entry: entry,
-                            productName: product?.name ?? 'Product',
-                            loading: loading,
-                            onUpload: () => onUploadImage(entry.code),
-                            onSetThumbnail: (name) =>
-                                onSetThumbnail(entry.code, name),
-                            onDelete: (name) => onDeleteImage(entry.code, name),
-                          ),
-                        ),
+                      child: _ProductAdminCard(
+                        product: product,
+                        gallery: productGallery,
+                        onEdit: () => onEdit(product),
+                        onDelete: () => onDelete(product),
                       ),
                     );
                   }),
@@ -620,128 +619,106 @@ class _AdminDashboard extends StatelessWidget {
 class _ProductAdminCard extends StatelessWidget {
   const _ProductAdminCard({
     required this.product,
+    required this.gallery,
     required this.onEdit,
     required this.onDelete,
   });
   final Product product;
+  final AdminGallery? gallery;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
+  Widget build(BuildContext context) {
+    final thumbnail = gallery?.images
+        .where((image) => image.isThumbnail)
+        .firstOrNull;
+    return Material(
       color: const Color(0xFFECE7DD),
       borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: const Color(0xFFD5B48A)),
-    ),
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 620;
-        final details = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              product.name,
-              style: GoogleFonts.dmSerifDisplay(
-                fontSize: 27,
-                color: const Color(0xFF5B351A),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Code: ${product.code}  •  ${product.type}',
-              style: GoogleFonts.blinker(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              product.description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.blinker(fontSize: 16),
-            ),
-          ],
-        );
-        final actions = Wrap(
-          spacing: 8,
-          children: [
-            OutlinedButton.icon(
-              onPressed: onEdit,
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('Edit'),
-            ),
-            OutlinedButton.icon(
-              onPressed: onDelete,
-              icon: const Icon(Icons.delete_outline),
-              label: const Text('Delete'),
-            ),
-          ],
-        );
-        return compact
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [details, const SizedBox(height: 14), actions],
-              )
-            : Row(
-                children: [
-                  Expanded(child: details),
-                  const SizedBox(width: 20),
-                  actions,
-                ],
-              );
-      },
-    ),
-  );
-}
-
-class _GalleryListTile extends StatelessWidget {
-  const _GalleryListTile({
-    required this.entry,
-    required this.productName,
-    required this.onOpen,
-  });
-
-  final AdminGallery entry;
-  final String productName;
-  final VoidCallback onOpen;
-
-  @override
-  Widget build(BuildContext context) => Material(
-    color: const Color(0xFFECE7DD),
-    borderRadius: BorderRadius.circular(16),
-    child: InkWell(
-      onTap: onOpen,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFD5B48A)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.photo_library_outlined, color: Color(0xFF5B351A)),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                '${entry.code}-$productName',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.blinker(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+      child: InkWell(
+        onTap: onEdit,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFD5B48A)),
+          ),
+          child: Row(
+            children: [
+              _ProductThumbnail(image: thumbnail),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.dmSerifDisplay(
+                        fontSize: 26,
+                        color: const Color(0xFF5B351A),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${product.code}  •  ${product.type}',
+                      style: GoogleFonts.blinker(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      product.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.blinker(fontSize: 16),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            Text('${entry.images.length} images', style: GoogleFonts.blinker()),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_right),
-          ],
+              IconButton(
+                onPressed: onDelete,
+                tooltip: 'Delete product',
+                icon: const Icon(Icons.delete_outline),
+              ),
+              const Icon(Icons.chevron_right),
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _ProductThumbnail extends StatelessWidget {
+  const _ProductThumbnail({this.image});
+  final AdminGalleryImage? image;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(12),
+    child: SizedBox(
+      width: 82,
+      height: 100,
+      child: image == null
+          ? const ColoredBox(
+              color: Color(0xFFD8D0C3),
+              child: Icon(Icons.image_not_supported_outlined),
+            )
+          : Image.network(
+              image!.url,
+              fit: BoxFit.cover,
+              cacheWidth: 164,
+              webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+              errorBuilder: (_, _, _) => const ColoredBox(
+                color: Color(0xFFD8D0C3),
+                child: Icon(Icons.broken_image),
+              ),
+            ),
     ),
   );
 }
@@ -992,10 +969,40 @@ class _GalleryImageTile extends StatelessWidget {
   );
 }
 
+class _PendingImage {
+  const _PendingImage({
+    required this.bytes,
+    required this.mimeType,
+    required this.name,
+  });
+
+  final Uint8List bytes;
+  final String mimeType;
+  final String name;
+}
+
+class _ProductEditorResult {
+  const _ProductEditorResult({required this.product, required this.images});
+
+  final Map<String, dynamic> product;
+  final List<_PendingImage> images;
+}
+
 class _ProductEditor extends StatefulWidget {
-  const _ProductEditor({this.product, required this.existingCodes});
+  const _ProductEditor({
+    this.product,
+    required this.existingCodes,
+    this.gallery,
+    this.onUploadImage,
+    this.onSetThumbnail,
+    this.onDeleteImage,
+  });
   final Product? product;
   final Set<String> existingCodes;
+  final AdminGallery? gallery;
+  final Future<AdminGallery?> Function()? onUploadImage;
+  final Future<AdminGallery?> Function(String)? onSetThumbnail;
+  final Future<AdminGallery?> Function(String)? onDeleteImage;
 
   @override
   State<_ProductEditor> createState() => _ProductEditorState();
@@ -1005,6 +1012,7 @@ class _ProductEditorState extends State<_ProductEditor> {
   final formKey = GlobalKey<FormState>();
   late final Map<String, TextEditingController> fields;
   late bool isPopular;
+  final List<_PendingImage> pendingImages = [];
 
   @override
   void initState() {
@@ -1034,12 +1042,42 @@ class _ProductEditorState extends State<_ProductEditor> {
 
   void _save() {
     if (!formKey.currentState!.validate()) return;
-    Navigator.pop(context, {
-      for (final entry in fields.entries)
-        entry.key: entry.value.text.trim().isEmpty
-            ? null
-            : entry.value.text.trim(),
-      'is_popular': isPopular,
+    Navigator.pop(
+      context,
+      _ProductEditorResult(
+        product: {
+          for (final entry in fields.entries)
+            entry.key: entry.value.text.trim().isEmpty
+                ? null
+                : entry.value.text.trim(),
+          'is_popular': isPopular,
+        },
+        images: List.unmodifiable(pendingImages),
+      ),
+    );
+  }
+
+  Future<void> _selectPendingImages() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['png', 'jpg', 'jpeg'],
+      allowMultiple: true,
+      withData: true,
+    );
+    if (!mounted || result == null) return;
+    setState(() {
+      for (final file in result.files) {
+        final bytes = file.bytes;
+        if (bytes == null) continue;
+        final extension = file.extension?.toLowerCase();
+        pendingImages.add(
+          _PendingImage(
+            bytes: bytes,
+            mimeType: extension == 'png' ? 'image/png' : 'image/jpeg',
+            name: file.name,
+          ),
+        );
+      }
     });
   }
 
@@ -1077,10 +1115,6 @@ class _ProductEditorState extends State<_ProductEditor> {
                   color: const Color(0xFF5B351A),
                 ),
               ),
-              Text(
-                "To modify product images, exit from this menu & check product images section below the product list",
-                style: GoogleFonts.blinker(color: Colors.black, fontSize: 14),
-              ),
               const SizedBox(height: 18),
               _EditorField(
                 controller: fields['code']!,
@@ -1106,6 +1140,106 @@ class _ProductEditorState extends State<_ProductEditor> {
                     ? 'Letters, numbers, hyphens and underscores only.'
                     : 'Product codes cannot be changed after creation.',
               ),
+              if (widget.product == null) ...[
+                Text(
+                  'Product images',
+                  style: GoogleFonts.dmSerifDisplay(
+                    fontSize: 25,
+                    color: const Color(0xFF5B351A),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Choose PNG or JPEG images now. They will be converted to WebP and uploaded after this product is created.',
+                  style: GoogleFonts.blinker(fontSize: 15),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _selectPendingImages,
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  label: Text(
+                    pendingImages.isEmpty ? 'Choose images' : 'Add more images',
+                  ),
+                ),
+                if (pendingImages.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 100,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: pendingImages.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 10),
+                      itemBuilder: (_, index) => Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.memory(
+                              pendingImages[index].bytes,
+                              width: 72,
+                              height: 100,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Material(
+                              color: const Color(0xE9FEF5E6),
+                              borderRadius: BorderRadius.circular(99),
+                              child: IconButton(
+                                iconSize: 18,
+                                tooltip: 'Remove image',
+                                onPressed: () => setState(
+                                  () => pendingImages.removeAt(index),
+                                ),
+                                icon: const Icon(Icons.close),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 18),
+              ] else ...[
+                Text(
+                  'Product images',
+                  style: GoogleFonts.dmSerifDisplay(
+                    fontSize: 25,
+                    color: const Color(0xFF5B351A),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                OutlinedButton.icon(
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: const Color(0xFFFEF5E6),
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(28),
+                      ),
+                    ),
+                    builder: (_) => _GallerySheet(
+                      entry:
+                          widget.gallery ??
+                          AdminGallery(
+                            code: widget.product!.code,
+                            images: const [],
+                          ),
+                      productName: fields['name']!.text,
+                      loading: false,
+                      onUpload: widget.onUploadImage!,
+                      onSetThumbnail: widget.onSetThumbnail!,
+                      onDelete: widget.onDeleteImage!,
+                    ),
+                  ),
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text('Manage product images'),
+                ),
+                const SizedBox(height: 18),
+              ],
               _EditorField(
                 controller: fields['name']!,
                 label: 'Product name',
