@@ -10,6 +10,7 @@ import 'pages/home_page.dart';
 import 'pages/not_found_page.dart';
 import 'pages/about_page.dart';
 import 'pages/account_page.dart';
+import 'pages/checkout_page.dart';
 import 'pages/product_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/admin_page.dart';
@@ -45,6 +46,7 @@ class KalasthaliApp extends StatelessWidget {
   static const String settingsRoute = '/settings';
   static const String adminRoute = '/admin';
   static const String accountRoute = '/account';
+  static const String checkoutRoute = '/checkout';
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +69,7 @@ class KalasthaliApp extends StatelessWidget {
         settingsRoute: (context) => const SettingsPage(),
         adminRoute: (context) => const AdminPage(),
         accountRoute: (context) => const AccountPage(),
+        checkoutRoute: (context) => const CheckoutPage(),
       },
       onGenerateRoute: (settings) {
         final uri = Uri.parse(settings.name ?? '/');
@@ -91,6 +94,14 @@ class KalasthaliApp extends StatelessWidget {
           final code = uri.queryParameters['code'] ?? uri.query;
           return MaterialPageRoute<void>(
             builder: (_) => ProductPage(productCode: code),
+            settings: settings,
+          );
+        }
+
+        if (uri.path == checkoutRoute) {
+          return MaterialPageRoute<void>(
+            builder: (_) =>
+                CheckoutPage(productCode: uri.queryParameters['code'] ?? ''),
             settings: settings,
           );
         }

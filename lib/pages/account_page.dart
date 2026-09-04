@@ -29,28 +29,30 @@ class AccountPage extends StatelessWidget {
           return LayoutBuilder(
             builder: (context, constraints) {
               final mobile = constraints.maxWidth < 700;
-              return SingleChildScrollView(
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        mobile ? 22 : 54,
-                        mobile ? 70 : 104,
-                        mobile ? 22 : 54,
-                        mobile ? 88 : 120,
-                      ),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 560),
-                          child: user == null
-                              ? const _AccountAuthForm()
-                              : _AccountDetails(user: user),
+              return Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          mobile ? 22 : 54,
+                          mobile ? 70 : 104,
+                          mobile ? 22 : 54,
+                          mobile ? 88 : 120,
+                        ),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 560),
+                            child: user == null
+                                ? const _AccountAuthForm()
+                                : _AccountDetails(user: user),
+                          ),
                         ),
                       ),
                     ),
-                    const AppFooter(),
-                  ],
-                ),
+                  ),
+                  const AppFooter(),
+                ],
               );
             },
           );

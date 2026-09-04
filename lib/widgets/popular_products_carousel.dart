@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/models/product.dart';
 import '../core/services/product_service.dart';
-import '../core/services/whatsapp_order_service.dart';
+import '../core/services/checkout_navigation.dart';
 
 class PopularProductsCarousel extends StatefulWidget {
   const PopularProductsCarousel({super.key});
@@ -331,10 +331,8 @@ class _DesktopProductCard extends StatelessWidget {
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton.icon(
-                          onPressed: () => WhatsAppOrderService.requestOrder(
-                            context,
-                            product,
-                          ),
+                          onPressed: () =>
+                              CheckoutNavigation.buyNow(context, product),
                           icon: const Icon(Icons.chat_outlined),
                           label: const Text('Buy Now'),
                           style: ElevatedButton.styleFrom(
@@ -476,10 +474,8 @@ class _MobileProductCard extends StatelessWidget {
                         width: double.infinity,
                         height: 40,
                         child: ElevatedButton.icon(
-                          onPressed: () => WhatsAppOrderService.requestOrder(
-                            context,
-                            product,
-                          ),
+                          onPressed: () =>
+                              CheckoutNavigation.buyNow(context, product),
                           icon: const Icon(Icons.chat_outlined),
                           label: const Text('Buy Now'),
                           style: ElevatedButton.styleFrom(
