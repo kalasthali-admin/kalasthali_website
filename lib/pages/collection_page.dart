@@ -272,7 +272,7 @@ class _CardState extends State<_Card> {
         child: GestureDetector(
           onTap: () => Navigator.pushNamed(
             context,
-            '/product?${Uri.encodeComponent(widget.product.code)}',
+            '/product?code=${Uri.encodeComponent(widget.product.code)}',
           ),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),

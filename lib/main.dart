@@ -9,6 +9,9 @@ import 'pages/contact_page.dart';
 import 'pages/home_page.dart';
 import 'pages/not_found_page.dart';
 import 'pages/about_page.dart';
+import 'pages/account_page.dart';
+import 'pages/checkout_page.dart';
+import 'pages/cart_page.dart';
 import 'pages/product_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/admin_page.dart';
@@ -43,6 +46,9 @@ class KalasthaliApp extends StatelessWidget {
   static const String productRoute = '/product';
   static const String settingsRoute = '/settings';
   static const String adminRoute = '/admin';
+  static const String accountRoute = '/account';
+  static const String checkoutRoute = '/checkout';
+  static const String cartRoute = '/cart';
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +70,9 @@ class KalasthaliApp extends StatelessWidget {
         productRoute: (context) => const ProductPage(),
         settingsRoute: (context) => const SettingsPage(),
         adminRoute: (context) => const AdminPage(),
+        accountRoute: (context) => const AccountPage(),
+        checkoutRoute: (context) => const CheckoutPage(),
+        cartRoute: (context) => const CartPage(),
       },
       onGenerateRoute: (settings) {
         final uri = Uri.parse(settings.name ?? '/');
@@ -88,6 +97,14 @@ class KalasthaliApp extends StatelessWidget {
           final code = uri.queryParameters['code'] ?? uri.query;
           return MaterialPageRoute<void>(
             builder: (_) => ProductPage(productCode: code),
+            settings: settings,
+          );
+        }
+
+        if (uri.path == checkoutRoute) {
+          return MaterialPageRoute<void>(
+            builder: (_) =>
+                CheckoutPage(productCode: uri.queryParameters['code'] ?? ''),
             settings: settings,
           );
         }

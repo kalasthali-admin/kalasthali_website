@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../core/services/auth_service.dart';
+
 const double _desktopHeaderBreakpoint = 850;
 const double _headerSearchBreakpoint = 1200;
+const double _desktopHeaderControlHeight = 64;
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -46,6 +49,7 @@ class AppScaffold extends StatelessWidget {
         backgroundColor: logoBackground,
         actions: isMobile
             ? const [
+                _AccountHeaderButton(compact: true),
                 Padding(
                   padding: EdgeInsets.only(right: 12),
                   child: EndDrawerButton(
@@ -118,6 +122,16 @@ class _DesktopNavigation extends StatelessWidget {
           onTap: () => _goTo(context, '/collections'),
           isActive: currentRoute == '/collections',
         ),
+        const SizedBox(width: 10),
+        _HeaderButton(
+          label: 'CART',
+          onTap: () => _goTo(context, '/cart'),
+          isActive: currentRoute == '/cart',
+          icon: Icons.shopping_cart_outlined,
+          iconOnly: true,
+        ),
+        const SizedBox(width: 10),
+        _AccountHeaderButton(isActive: currentRoute == '/account'),
       ],
     );
   }
@@ -129,8 +143,8 @@ class _ProductSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 700,
-      height: 45,
+      width: 560,
+      height: _desktopHeaderControlHeight,
       child: TextField(
         textInputAction: TextInputAction.search,
         onSubmitted: (value) {
@@ -156,11 +170,11 @@ class _ProductSearchField extends StatelessWidget {
             fontSize: 18,
             letterSpacing: 2,
           ),
-          prefixIcon: Icon(Icons.search, size: 19),
+          prefixIcon: Icon(Icons.search, size: 30),
           prefixIconColor: Color(0xFF746D64),
           filled: true,
           fillColor: Color(0xFFE7D0AE),
-          contentPadding: EdgeInsets.symmetric(vertical: 8),
+          contentPadding: EdgeInsets.symmetric(vertical: 16),
           border: OutlineInputBorder(
             borderSide: BorderSide.none,
             borderRadius: BorderRadius.all(Radius.circular(8)),
@@ -228,6 +242,8 @@ class _NavigationDrawer extends StatelessWidget {
                   _goTo(context, item.route!);
                 },
               ),
+            const Divider(),
+            const _DrawerAccountItem(),
           ],
         ),
       ),
@@ -240,11 +256,15 @@ class _HeaderButton extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.isActive = false,
+    this.icon,
+    this.iconOnly = false,
   });
 
   final String label;
   final VoidCallback onTap;
   final bool isActive;
+  final IconData? icon;
+  final bool iconOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -255,10 +275,11 @@ class _HeaderButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          height: _desktopHeaderControlHeight,
+          padding: EdgeInsets.symmetric(horizontal: iconOnly ? 17 : 22),
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(12),
@@ -266,24 +287,140 @@ class _HeaderButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(5),
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    color: Color(0xFF111111),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 2.2,
+              if (icon != null) ...[
+                Icon(icon, size: iconOnly ? 34 : 19),
+                if (!iconOnly) const SizedBox(width: 5),
+              ],
+              if (!iconOnly)
+                Padding(
+                  padding: const EdgeInsets.all(5),
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: Color(0xFF111111),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.2,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _AccountHeaderButton extends StatelessWidget {
+  const _AccountHeaderButton({this.compact = false, this.isActive = false});
+
+  final bool compact;
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder(
+    stream: AuthService.userChanges,
+    initialData: AuthService.currentUser,
+    builder: (context, snapshot) {
+      final user = snapshot.data ?? AuthService.currentUser;
+      final label = user == null ? 'Log In' : AuthService.firstName(user);
+      if (!compact) {
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _goTo(context, '/account'),
+            child: Ink(
+              height: _desktopHeaderControlHeight,
+              padding: const EdgeInsets.fromLTRB(12, 0, 17, 0),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE7D0AE),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.account_circle,
+                    size: 39,
+                    color: Color(0xFF1F1E25),
+                  ),
+                  const SizedBox(width: 11),
+                  Text(
+                    label.toUpperCase(),
+                    style: const TextStyle(
+                      color: Color(0xFF111111),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+      return TextButton.icon(
+        onPressed: () => _goTo(context, '/account'),
+        icon: Icon(user == null ? Icons.login : Icons.person_outline, size: 18),
+        label: Text(
+          label,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Color(0xFF1F1E25),
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+          ),
+        ),
+        style: TextButton.styleFrom(
+          foregroundColor: const Color(0xFF1F1E25),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          maximumSize: const Size(112, 48),
+        ),
+      );
+    },
+  );
+}
+
+class _DrawerAccountItem extends StatelessWidget {
+  const _DrawerAccountItem();
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder(
+    stream: AuthService.userChanges,
+    initialData: AuthService.currentUser,
+    builder: (context, snapshot) {
+      final user = snapshot.data ?? AuthService.currentUser;
+      final label = user == null
+          ? 'LOG IN / SIGN UP'
+          : AuthService.firstName(user);
+      return ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        leading: Icon(
+          user == null ? Icons.login_outlined : Icons.person_outline,
+          color: const Color(0xFF1F1E25),
+        ),
+        title: Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF1F1E25),
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.2,
+          ),
+        ),
+        subtitle: user == null || user.email == null
+            ? null
+            : Text(user.email!, overflow: TextOverflow.ellipsis),
+        onTap: () {
+          Navigator.of(context).pop();
+          _goTo(context, '/account');
+        },
+      );
+    },
+  );
 }
 
 class _NavItem {
@@ -301,212 +438,8 @@ const List<_NavItem> _primaryItems = [
     route: '/collections',
     icon: Icons.grid_view_outlined,
   ),
+  _NavItem(label: 'CART', route: '/cart', icon: Icons.shopping_cart_outlined),
 ];
-
-Future<void> _showLoginSheet(BuildContext context) {
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: const Color(0xFFFEF5E6),
-    barrierColor: Colors.black54,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-    ),
-    builder: (context) {
-      return Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 20,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 28,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 52,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD8C7B0),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Log In',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1F1E25),
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'This is a placeholder sign-in sheet for now. We can wire it to a real auth flow next.',
-              style: TextStyle(
-                fontSize: 16,
-                height: 1.5,
-                color: Color(0xFF4B463E),
-              ),
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Email',
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF914B0D),
-                  side: const BorderSide(color: Color(0xFF914B0D), width: 2),
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                onPressed: () => _showCreateAccountSheet(context),
-                child: const Text('Create account'),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF914B0D),
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Continue'),
-              ),
-            ),
-          ],
-        ),
-      );
-    },
-  );
-}
-
-Future<void> _showCreateAccountSheet(BuildContext context) {
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: const Color(0xFFFEF5E6),
-    barrierColor: Colors.black54,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-    ),
-    builder: (context) {
-      return Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 20,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 28,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 52,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD8C7B0),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Create Account',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1F1E25),
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Use your email address and a password to get started.',
-              style: TextStyle(
-                fontSize: 16,
-                height: 1.5,
-                color: Color(0xFF4B463E),
-              ),
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                labelText: 'Email',
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF914B0D),
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                onPressed: () {},
-                child: const Text('Create account'),
-              ),
-            ),
-          ],
-        ),
-      );
-    },
-  );
-}
 
 void _goTo(BuildContext context, String route) {
   if (ModalRoute.of(context)?.settings.name == route) {

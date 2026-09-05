@@ -6,7 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/models/product.dart';
 import '../core/services/product_service.dart';
 import '../core/services/seo_service.dart';
-import '../core/services/whatsapp_order_service.dart';
+import '../core/services/checkout_navigation.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_footer.dart';
 
@@ -421,8 +421,7 @@ class _PurchasePanel extends StatelessWidget {
             child: _PurchaseButton(
               label: 'Buy Now',
               icon: Icons.chat_outlined,
-              onPressed: () =>
-                  WhatsAppOrderService.requestOrder(context, product),
+              onPressed: () => CheckoutNavigation.buyNow(context, product),
             ),
           ),
         ),
