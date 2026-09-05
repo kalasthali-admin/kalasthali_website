@@ -4,8 +4,10 @@ Source code for Kalasthali Website (kalasthali.co)
 # Product prerendering
 
 Vercel runs `node scripts/prerender-products.cjs` after the Flutter build.
-Set `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` in the Vercel build environment
-(the existing server-only `SUPABASE_SERVICE_ROLE_KEY` is also supported).
+Set `SUPABASE_URL` and one readable Supabase key in the Vercel build
+environment. Supported key names are `SUPABASE_PUBLISHABLE_KEY`,
+`SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `VITE_SUPABASE_ANON_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SERVICE_KEY`, or `SUPABASE_API_KEY`.
 The key is used only to fetch products and is never written into generated HTML.
 
 Each `/product?code=CODE` request is rewritten to a static product document with

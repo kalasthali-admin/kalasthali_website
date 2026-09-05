@@ -3,6 +3,8 @@ const path = require('node:path');
 
 const origin = 'https://kalasthali.co';
 const escape = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const firstEnv = (names) => names.map(name => process.env[name]).find(value => value && value.trim());
+const visibleEnvNames = (names) => names.filter(name => Boolean(process.env[name]));
 
 function render(template, product, storageUrl) {
   if (!/^[A-Za-z0-9_-]+$/.test(product.code)) throw new Error('Unsupported product code');
@@ -26,13 +28,26 @@ function render(template, product, storageUrl) {
 }
 
 async function main() {
-  const storageUrl = (process.env.SUPABASE_URL || 'https://dddriininznavwrsrgww.supabase.co').replace(/\/$/, '');
-  const key = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) throw new Error('Set SUPABASE_PUBLISHABLE_KEY or SUPABASE_SERVICE_ROLE_KEY for product prerendering.');
+  const urlEnvNames = ['SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'VITE_SUPABASE_URL'];
+  const keyEnvNames = [
+    'SUPABASE_PUBLISHABLE_KEY',
+    'SUPABASE_ANON_KEY',
+    'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+    'VITE_SUPABASE_ANON_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'SUPABASE_SERVICE_KEY',
+    'SUPABASE_API_KEY',
+  ];
+  const storageUrl = (firstEnv(urlEnvNames) || 'https://dddriininznavwrsrgww.supabase.co').replace(/\/$/, '');
+  const key = firstEnv(keyEnvNames);
+  if (!key) {
+    const visibleNames = visibleEnvNames([...urlEnvNames, ...keyEnvNames]);
+    throw new Error(`Set one Supabase key for product prerendering. Checked: ${keyEnvNames.join(', ')}. Visible Supabase env names: ${visibleNames.length ? visibleNames.join(', ') : 'none'}.`);
+  }
   const products = [];
   for (let offset = 0; ; ) {
     const response = await fetch(`${storageUrl}/rest/v1/products?select=code,name,description,specifications,price,type&order=code.asc&limit=500&offset=${offset}`, {
-      headers:{apikey:key}, signal:AbortSignal.timeout(30000),
+      headers:{apikey:key, Authorization:`Bearer ${key}`}, signal:AbortSignal.timeout(30000),
     });
     if (!response.ok) throw new Error(`Product fetch failed (${response.status})`);
     const rows = await response.json();
