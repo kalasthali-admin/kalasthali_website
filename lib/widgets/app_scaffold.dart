@@ -4,7 +4,7 @@ import '../core/services/auth_service.dart';
 
 const double _desktopHeaderBreakpoint = 850;
 const double _headerSearchBreakpoint = 1200;
-const double _desktopHeaderControlHeight = 64;
+const double _desktopHeaderControlHeight = 45;
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -49,7 +49,6 @@ class AppScaffold extends StatelessWidget {
         backgroundColor: logoBackground,
         actions: isMobile
             ? const [
-                _AccountHeaderButton(compact: true),
                 Padding(
                   padding: EdgeInsets.only(right: 12),
                   child: EndDrawerButton(
@@ -125,7 +124,7 @@ class _DesktopNavigation extends StatelessWidget {
         const SizedBox(width: 10),
         _HeaderButton(
           label: 'CART',
-          onTap: () => _goTo(context, '/cart'),
+          onTap: () => _goToCart(context),
           isActive: currentRoute == '/cart',
           icon: Icons.shopping_cart_outlined,
           iconOnly: true,
@@ -239,6 +238,10 @@ class _NavigationDrawer extends StatelessWidget {
                 ),
                 onTap: () {
                   Navigator.of(context).pop();
+                  if (item.route == '/cart') {
+                    _goToCart(context);
+                    return;
+                  }
                   _goTo(context, item.route!);
                 },
               ),
@@ -269,7 +272,7 @@ class _HeaderButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final backgroundColor = isActive
-        ? const Color(0xFFE2C7A0)
+        ? const Color(0xFFE7D0AE)
         : const Color(0xFFE7D0AE);
 
     return Material(
@@ -313,9 +316,8 @@ class _HeaderButton extends StatelessWidget {
 }
 
 class _AccountHeaderButton extends StatelessWidget {
-  const _AccountHeaderButton({this.compact = false, this.isActive = false});
+  const _AccountHeaderButton({this.isActive = false});
 
-  final bool compact;
   final bool isActive;
 
   @override
@@ -325,59 +327,39 @@ class _AccountHeaderButton extends StatelessWidget {
     builder: (context, snapshot) {
       final user = snapshot.data ?? AuthService.currentUser;
       final label = user == null ? 'Log In' : AuthService.firstName(user);
-      if (!compact) {
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => _goTo(context, '/account'),
-            child: Ink(
-              height: _desktopHeaderControlHeight,
-              padding: const EdgeInsets.fromLTRB(12, 0, 17, 0),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE7D0AE),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.account_circle,
-                    size: 39,
-                    color: Color(0xFF1F1E25),
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _goTo(context, '/account'),
+          child: Ink(
+            height: _desktopHeaderControlHeight,
+            padding: const EdgeInsets.fromLTRB(12, 0, 17, 0),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE7D0AE),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.account_circle,
+                  size: 39,
+                  color: Color(0xFF1F1E25),
+                ),
+                const SizedBox(width: 11),
+                Text(
+                  label.toUpperCase(),
+                  style: const TextStyle(
+                    color: Color(0xFF111111),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2.2,
                   ),
-                  const SizedBox(width: 11),
-                  Text(
-                    label.toUpperCase(),
-                    style: const TextStyle(
-                      color: Color(0xFF111111),
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2.2,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        );
-      }
-      return TextButton.icon(
-        onPressed: () => _goTo(context, '/account'),
-        icon: Icon(user == null ? Icons.login : Icons.person_outline, size: 18),
-        label: Text(
-          label,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: Color(0xFF1F1E25),
-            fontWeight: FontWeight.w700,
-            fontSize: 13,
-          ),
-        ),
-        style: TextButton.styleFrom(
-          foregroundColor: const Color(0xFF1F1E25),
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          maximumSize: const Size(112, 48),
         ),
       );
     },
@@ -447,4 +429,8 @@ void _goTo(BuildContext context, String route) {
   }
 
   Navigator.pushReplacementNamed(context, route);
+}
+
+void _goToCart(BuildContext context) {
+  _goTo(context, AuthService.currentUser == null ? '/account' : '/cart');
 }

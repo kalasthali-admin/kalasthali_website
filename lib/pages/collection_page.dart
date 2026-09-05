@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/models/product.dart';
+import '../core/services/checkout_navigation.dart';
 import '../core/services/product_service.dart';
 import '../core/services/seo_service.dart';
+import '../widgets/cart_quantity_button.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_footer.dart';
 
@@ -187,9 +189,9 @@ class _CollectionPageState extends State<CollectionPage> {
                               gridDelegate:
                                   SliverGridDelegateWithFixedCrossAxisCount(
                                     crossAxisCount: mobile ? 2 : 3,
-                                    crossAxisSpacing: mobile ? 28 : 10,
-                                    mainAxisSpacing: mobile ? 28 : 10,
-                                    childAspectRatio: mobile ? .58 : .64,
+                                    crossAxisSpacing: mobile ? 14 : 10,
+                                    mainAxisSpacing: mobile ? 20 : 10,
+                                    childAspectRatio: mobile ? .5 : .55,
                                   ),
                               itemCount: filtered.length,
                               itemBuilder: (_, i) =>
@@ -276,7 +278,7 @@ class _CardState extends State<_Card> {
           ),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.all(10),
+            padding: EdgeInsets.all(isDesktop ? 10 : 8),
             decoration: BoxDecoration(
               color: const Color(0xFFECE7DD),
               borderRadius: BorderRadius.circular(20),
@@ -302,7 +304,7 @@ class _CardState extends State<_Card> {
                 : Column(
                     children: [
                       Expanded(child: image),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       details,
                     ],
                   ),
@@ -318,27 +320,77 @@ class _CardDetails extends StatelessWidget {
   final Product product;
   final bool compact;
   @override
+  Widget build(BuildContext context) => SizedBox(
+    width: double.infinity,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          product.name,
+          textWidthBasis: TextWidthBasis.parent,
+          maxLines: 2,
+          overflow: TextOverflow.clip,
+          softWrap: true,
+          textAlign: TextAlign.left,
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: compact ? 14 : 20,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          product.price?.startsWith('₹') == true
+              ? product.price!
+              : '₹${product.price ?? '-'}',
+          textAlign: TextAlign.left,
+          style: GoogleFonts.blinker(fontSize: 24),
+        ),
+        const SizedBox(height: 12),
+        _CollectionCardActions(product: product, compact: compact),
+      ],
+    ),
+  );
+}
+
+class _CollectionCardActions extends StatelessWidget {
+  const _CollectionCardActions({required this.product, required this.compact});
+
+  final Product product;
+  final bool compact;
+
+  @override
   Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    mainAxisAlignment: MainAxisAlignment.center,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Text(
-        product.name,
-        maxLines: 2,
-        overflow: TextOverflow.clip,
-        softWrap: true,
-        style: GoogleFonts.dmSerifDisplay(
-          fontSize: compact ? 14 : 20,
-          fontWeight: FontWeight.bold,
-          color: const Color(0xFF5B351A),
+      SizedBox(
+        height: compact ? 34 : 38,
+        child: CartQuantityButton(
+          product: product,
+          height: compact ? 34 : 38,
+          compact: compact,
         ),
       ),
       const SizedBox(height: 8),
-      Text(
-        product.price?.startsWith('₹') == true
-            ? product.price!
-            : '₹${product.price ?? '-'}',
-        style: GoogleFonts.blinker(fontSize: 24),
+      SizedBox(
+        height: compact ? 34 : 38,
+        child: FilledButton.icon(
+          onPressed: () => CheckoutNavigation.buyNow(context, product),
+          icon: Icon(Icons.shopping_bag_outlined, size: compact ? 15 : 17),
+          label: const Text('Buy Now'),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFA35710),
+            padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            textStyle: GoogleFonts.blinker(
+              fontSize: compact ? 13 : 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
       ),
     ],
   );

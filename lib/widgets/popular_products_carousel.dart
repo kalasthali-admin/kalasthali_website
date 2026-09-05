@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/models/product.dart';
 import '../core/services/product_service.dart';
 import '../core/services/checkout_navigation.dart';
+import 'cart_quantity_button.dart';
 
 class PopularProductsCarousel extends StatefulWidget {
   const PopularProductsCarousel({super.key});
@@ -153,7 +154,7 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
                 // Carousel
                 Expanded(
                   child: SizedBox(
-                    height: isDesktop ? 500 : 590,
+                    height: isDesktop ? 500 : 635,
                     child: Stack(
                       children: [
                         PageView.builder(
@@ -330,6 +331,12 @@ class _DesktopProductCard extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         height: 48,
+                        child: CartQuantityButton(product: product, height: 48),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
                         child: ElevatedButton.icon(
                           onPressed: () =>
                               CheckoutNavigation.buyNow(context, product),
@@ -473,6 +480,16 @@ class _MobileProductCard extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         height: 40,
+                        child: CartQuantityButton(
+                          product: product,
+                          height: 40,
+                          compact: true,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 40,
                         child: ElevatedButton.icon(
                           onPressed: () =>
                               CheckoutNavigation.buyNow(context, product),
@@ -530,7 +547,10 @@ class _ProductImage extends StatelessWidget {
 }
 
 void _openProduct(BuildContext context, String productCode) {
-  Navigator.pushNamed(context, '/product?code=${Uri.encodeComponent(productCode)}');
+  Navigator.pushNamed(
+    context,
+    '/product?code=${Uri.encodeComponent(productCode)}',
+  );
 }
 
 class _ProductImageError extends StatelessWidget {

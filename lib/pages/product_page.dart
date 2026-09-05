@@ -9,6 +9,7 @@ import '../core/services/seo_service.dart';
 import '../core/services/checkout_navigation.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/app_footer.dart';
+import '../widgets/cart_quantity_button.dart';
 
 class ProductPage extends StatelessWidget {
   const ProductPage({this.productCode = '', super.key});
@@ -387,46 +388,86 @@ class _CopyBlock extends StatelessWidget {
 class _PurchasePanel extends StatelessWidget {
   const _PurchasePanel({required this.product});
   final Product product;
+
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
-    decoration: BoxDecoration(
-      border: Border.all(color: const Color(0xFFA35710), width: 1.5),
-      borderRadius: BorderRadius.circular(15),
-    ),
-    child: Row(
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              product.price?.startsWith('₹') == true
-                  ? product.price!
-                  : '₹${product.price ?? '-'}',
-              style: GoogleFonts.blinker(fontSize: 35),
-            ),
-            // Text(
-            //   'Price',
-            //   style: GoogleFonts.blinker(
-            //     fontSize: 18,
-            //     color: Colors.grey.shade700,
-            //   ),
-            // ),
-          ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final stack = constraints.maxWidth < 650;
+      final price = Text(
+        product.price?.startsWith('₹') == true
+            ? product.price!
+            : '₹${product.price ?? '-'}',
+        style: GoogleFonts.blinker(fontSize: 35),
+      );
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFFA35710), width: 1.5),
+          borderRadius: BorderRadius.circular(15),
         ),
-        Spacer(),
-        Padding(
-          padding: EdgeInsetsGeometry.symmetric(vertical: 5, horizontal: 10),
-          child: Center(
-            child: _PurchaseButton(
-              label: 'Buy Now',
-              icon: Icons.chat_outlined,
-              onPressed: () => CheckoutNavigation.buyNow(context, product),
-            ),
+        child: stack
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  price,
+                  const SizedBox(height: 12),
+                  _PurchaseActions(product: product),
+                ],
+              )
+            : Row(
+                children: [
+                  price,
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 5,
+                      horizontal: 10,
+                    ),
+                    child: Center(child: _PurchaseActions(product: product)),
+                  ),
+                ],
+              ),
+      );
+    },
+  );
+}
+
+class _PurchaseActions extends StatelessWidget {
+  const _PurchaseActions({required this.product});
+
+  final Product product;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 380;
+      final buttons = [
+        SizedBox(
+          width: compact ? double.infinity : 180,
+          child: CartQuantityButton(
+            product: product,
+            height: 56,
+            compact: compact,
           ),
         ),
-      ],
-    ),
+        _PurchaseButton(
+          label: 'Buy Now',
+          icon: Icons.shopping_bag_outlined,
+          compact: compact,
+          onPressed: () => CheckoutNavigation.buyNow(context, product),
+        ),
+      ];
+      if (compact) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [buttons[0], const SizedBox(height: 10), buttons[1]],
+        );
+      }
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [buttons[0], const SizedBox(width: 10), buttons[1]],
+      );
+    },
   );
 }
 
@@ -435,30 +476,47 @@ class _PurchaseButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.icon,
+    this.compact = false,
   });
   final String label;
   final Future<void> Function() onPressed;
   final IconData? icon;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 200,
-    height: 60,
-    child: _button(onPressed: () => onPressed()),
-  );
-
-  Widget _button({required VoidCallback onPressed}) => FilledButton(
-    onPressed: onPressed,
-    style: FilledButton.styleFrom(
-      backgroundColor: const Color(0xFFA35710),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    width: compact ? double.infinity : 180,
+    height: 56,
+    child: FilledButton(
+      onPressed: () => onPressed(),
+      style: FilledButton.styleFrom(
+        backgroundColor: const Color(0xFFA35710),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      child: _PurchaseButtonLabel(label: label, icon: icon),
     ),
+  );
+}
+
+class _PurchaseButtonLabel extends StatelessWidget {
+  const _PurchaseButtonLabel({required this.label, this.icon});
+
+  final String label;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+    fit: BoxFit.scaleDown,
     child: Row(
+      mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
-        Text(label, style: GoogleFonts.blinker(fontSize: 20)),
+        Text(
+          label,
+          style: GoogleFonts.blinker(fontSize: 20, fontWeight: FontWeight.w600),
+        ),
       ],
     ),
   );

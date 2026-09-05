@@ -14,7 +14,7 @@ class AccountPage extends StatelessWidget {
   Widget build(BuildContext context) {
     SeoService.setPage(
       title: 'Account | Kalasthali By Nisha',
-      description: 'Sign in to your Kalasthali account.',
+      description: 'Sign in to your account.',
       path: '/account',
     );
     return AppScaffold(
@@ -151,7 +151,7 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
           Text(
             _signUp
                 ? 'Save your details now for a smoother checkout later.'
-                : 'Log in to access your Kalasthali account.',
+                : 'Log in to access your account.',
             style: GoogleFonts.blinker(fontSize: 18, height: 1.3),
           ),
           const SizedBox(height: 26),
@@ -303,20 +303,65 @@ class _AccountDetailsState extends State<_AccountDetails> {
               as List)
           .cast<Map<String, dynamic>>();
 
-  Future<void> _refresh() async =>
-      setState(() => _addresses = _loadAddresses());
+  void _refresh() {
+    setState(() {
+      _addresses = _loadAddresses();
+    });
+  }
 
   Future<void> _select(String id) async {
     await Supabase.instance.client
         .from('user_addresses')
         .update({'is_selected': true})
         .eq('id', id);
-    await _refresh();
+    _refresh();
+  }
+
+  Future<void> _showAddressSheet([Map<String, dynamic>? address]) async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) =>
+          _AddressEditorSheet(userId: widget.user.id, address: address),
+    );
+    if (saved == true) _refresh();
   }
 
   Future<void> _delete(String id) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFFFEF5E6),
+        title: Text(
+          'Delete address?',
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: 30,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        content: Text(
+          'This saved address will be removed from your account.',
+          style: GoogleFonts.blinker(fontSize: 17),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFA35710),
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
     await Supabase.instance.client.from('user_addresses').delete().eq('id', id);
-    await _refresh();
+    _refresh();
   }
 
   @override
@@ -343,34 +388,40 @@ class _AccountDetailsState extends State<_AccountDetails> {
       const SizedBox(height: 10),
       const Divider(color: Color(0xFF9A8267), thickness: 1),
       const SizedBox(height: 26),
+      _ProfileInfoGrid(
+        email: widget.user.email ?? 'No email address',
+        phone: 'Not added',
+      ),
+      const SizedBox(height: 38),
       Row(
         children: [
           Expanded(
-            child: _ProfileValue(
-              label: 'EMAIL',
-              value: widget.user.email ?? 'No email address',
+            child: Text(
+              'SAVED ADDRESSES',
+              style: GoogleFonts.blinker(
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+              ),
             ),
           ),
-          const Expanded(
-            child: _ProfileValue(label: 'PHONE NUMBER', value: 'Not added'),
+          _AddressActionButton(
+            label: 'ADD ADDRESS',
+            icon: Icons.add,
+            onPressed: () => _showAddressSheet(),
           ),
         ],
-      ),
-      const SizedBox(height: 38),
-      Text(
-        'SAVED ADDRESSES',
-        style: GoogleFonts.blinker(fontWeight: FontWeight.w800, fontSize: 15),
       ),
       const SizedBox(height: 14),
       FutureBuilder<List<Map<String, dynamic>>>(
         future: _addresses,
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const CircularProgressIndicator();
-          if (snapshot.data!.isEmpty)
+          if (snapshot.data!.isEmpty) {
             return Text(
-              'No saved addresses yet. Add one during checkout.',
+              'No saved addresses yet.',
               style: GoogleFonts.blinker(fontSize: 17),
             );
+          }
           return Column(
             children: snapshot.data!
                 .map(
@@ -379,6 +430,7 @@ class _AccountDetailsState extends State<_AccountDetails> {
                     child: _AddressCard(
                       address: address,
                       onSelect: _select,
+                      onEdit: _showAddressSheet,
                       onDelete: _delete,
                     ),
                   ),
@@ -408,83 +460,482 @@ class _ProfileValue extends StatelessWidget {
   );
 }
 
+class _ProfileInfoGrid extends StatelessWidget {
+  const _ProfileInfoGrid({required this.email, required this.phone});
+
+  final String email;
+  final String phone;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      if (constraints.maxWidth < 620) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ProfileValue(label: 'EMAIL', value: email),
+            const SizedBox(height: 22),
+            _ProfileValue(label: 'PHONE NUMBER', value: phone),
+          ],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: _ProfileValue(label: 'EMAIL', value: email),
+          ),
+          Expanded(
+            child: _ProfileValue(label: 'PHONE NUMBER', value: phone),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 class _AddressCard extends StatelessWidget {
   const _AddressCard({
     required this.address,
     required this.onSelect,
+    required this.onEdit,
     required this.onDelete,
   });
   final Map<String, dynamic> address;
   final ValueChanged<String> onSelect, onDelete;
+  final ValueChanged<Map<String, dynamic>> onEdit;
+
   @override
   Widget build(BuildContext context) {
     final selected = address['is_selected'] == true;
     final id = address['id'] as String;
-    return Container(
-      width: 640,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFD5B48A)),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [BoxShadow(color: Color(0x182D1E12), blurRadius: 10)],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  address['receiver_name'] ?? '',
-                  style: GoogleFonts.blinker(fontSize: 16),
-                ),
-                Text(
-                  address['address_line1'] ?? '',
-                  style: GoogleFonts.blinker(fontSize: 15),
-                ),
-                if ((address['address_line2'] ?? '').toString().isNotEmpty)
-                  Text(
-                    address['address_line2'],
-                    style: GoogleFonts.blinker(fontSize: 15),
-                  ),
-                Text(
-                  '${address['city'] ?? ''}, ${address['state_pincode'] ?? ''}',
-                  style: GoogleFonts.blinker(fontSize: 15),
-                ),
-                Text(
-                  address['country'] ?? 'India',
-                  style: GoogleFonts.blinker(fontSize: 15),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  address['phone_number'] ?? '',
-                  style: GoogleFonts.blinker(fontSize: 15),
-                ),
-              ],
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 700),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFECE7DD),
+          border: Border.all(color: const Color(0xFFD5B48A)),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A2D1E12),
+              blurRadius: 12,
+              offset: Offset(0, 5),
             ),
-          ),
-          Column(
-            children: [
-              FilledButton(
-                onPressed: selected ? null : () => onSelect(id),
-                child: Text(selected ? 'SELECTED' : 'SELECT THIS ADDRESS'),
-              ),
-              Row(
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pushNamed(context, '/checkout'),
-                    child: const Text('EDIT'),
-                  ),
-                  TextButton(
-                    onPressed: () => onDelete(id),
-                    child: const Text('DELETE'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final stackActions = constraints.maxWidth < 520;
+            final details = _AddressDetails(address: address);
+            final actions = _AddressCardActions(
+              selected: selected,
+              onSelect: () => onSelect(id),
+              onEdit: () => onEdit(address),
+              onDelete: () => onDelete(id),
+            );
+            if (stackActions) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [details, const SizedBox(height: 16), actions],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(child: details),
+                const SizedBox(width: 22),
+                SizedBox(width: 260, child: actions),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 }
+
+class _AddressDetails extends StatelessWidget {
+  const _AddressDetails({required this.address});
+
+  final Map<String, dynamic> address;
+
+  @override
+  Widget build(BuildContext context) {
+    final line2 = (address['address_line2'] ?? '').toString().trim();
+    final city = (address['city'] ?? '').toString().trim();
+    final statePincode = (address['state_pincode'] ?? '').toString().trim();
+    final locationLine = [
+      if (city.isNotEmpty) city,
+      if (statePincode.isNotEmpty) statePincode,
+    ].join(', ');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          address['receiver_name'] ?? '',
+          style: GoogleFonts.blinker(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            height: 1.1,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(address['address_line1'] ?? '', style: _addressTextStyle()),
+        if (line2.isNotEmpty) Text(line2, style: _addressTextStyle()),
+        if (locationLine.isNotEmpty)
+          Text(locationLine, style: _addressTextStyle()),
+        Text(address['country'] ?? 'India', style: _addressTextStyle()),
+        const SizedBox(height: 14),
+        Text(address['phone_number'] ?? '', style: _addressTextStyle()),
+      ],
+    );
+  }
+}
+
+class _AddressCardActions extends StatelessWidget {
+  const _AddressCardActions({
+    required this.selected,
+    required this.onSelect,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final bool selected;
+  final VoidCallback onSelect;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      FilledButton(
+        onPressed: selected ? null : onSelect,
+        style: FilledButton.styleFrom(
+          backgroundColor: selected
+              ? const Color(0xFFC3A07D)
+              : const Color(0xFFA35710),
+          disabledBackgroundColor: const Color(0xFFA35710),
+          foregroundColor: Colors.white,
+          disabledForegroundColor: Colors.white,
+          minimumSize: const Size.fromHeight(48),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          textStyle: GoogleFonts.blinker(
+            fontSize: 17,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        child: Text(selected ? 'SELECTED' : 'SELECT THIS ADDRESS'),
+      ),
+      const SizedBox(height: 10),
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: onEdit,
+              icon: const Icon(Icons.edit_outlined, size: 16),
+              label: const Text('EDIT'),
+              style: _smallActionStyle(),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline, size: 16),
+              label: const Text('DELETE'),
+              style: _smallActionStyle(),
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+class _AddressActionButton extends StatelessWidget {
+  const _AddressActionButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton.icon(
+    onPressed: onPressed,
+    icon: Icon(icon, size: 18),
+    label: Text(label),
+    style: OutlinedButton.styleFrom(
+      foregroundColor: const Color(0xFF5B351A),
+      side: const BorderSide(color: Color(0xFF8C684D), width: 1.2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+      textStyle: GoogleFonts.blinker(
+        fontSize: 14,
+        fontWeight: FontWeight.w800,
+        letterSpacing: .4,
+      ),
+    ),
+  );
+}
+
+class _AddressEditorSheet extends StatefulWidget {
+  const _AddressEditorSheet({required this.userId, this.address});
+
+  final String userId;
+  final Map<String, dynamic>? address;
+
+  @override
+  State<_AddressEditorSheet> createState() => _AddressEditorSheetState();
+}
+
+class _AddressEditorSheetState extends State<_AddressEditorSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _name;
+  late final TextEditingController _phone;
+  late final TextEditingController _line1;
+  late final TextEditingController _line2;
+  late final TextEditingController _city;
+  late final TextEditingController _statePincode;
+  var _saving = false;
+
+  bool get _editing => widget.address != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final address = widget.address;
+    _name = TextEditingController(text: address?['receiver_name'] ?? '');
+    _phone = TextEditingController(text: address?['phone_number'] ?? '');
+    _line1 = TextEditingController(text: address?['address_line1'] ?? '');
+    _line2 = TextEditingController(text: address?['address_line2'] ?? '');
+    _city = TextEditingController(text: address?['city'] ?? '');
+    _statePincode = TextEditingController(
+      text: address?['state_pincode'] ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _phone.dispose();
+    _line1.dispose();
+    _line2.dispose();
+    _city.dispose();
+    _statePincode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    final values = {
+      'user_id': widget.userId,
+      'receiver_name': _name.text.trim(),
+      'phone_number': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+      'address_line1': _line1.text.trim(),
+      'address_line2': _line2.text.trim().isEmpty ? null : _line2.text.trim(),
+      'city': _city.text.trim(),
+      'state_pincode': _statePincode.text.trim(),
+      'country': 'India',
+    };
+    try {
+      final table = Supabase.instance.client.from('user_addresses');
+      if (_editing) {
+        await table.update(values).eq('id', widget.address!['id']);
+      } else {
+        await table.insert(values);
+      }
+      if (mounted) Navigator.pop(context, true);
+    } on PostgrestException catch (error) {
+      if (mounted) _showSheetError(error.message);
+    } catch (_) {
+      if (mounted) _showSheetError('Could not save this address.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _showSheetError(String message) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .9,
+        ),
+        decoration: const BoxDecoration(
+          color: Color(0xFFFEF5E6),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(28, 14, 28, 28),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 48,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD4B89C),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  Text(
+                    _editing ? 'Edit address' : 'Add address',
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 38,
+                      color: const Color(0xFF5B351A),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _AddressFormField(
+                    controller: _name,
+                    label: 'Receiver name',
+                    textCapitalization: TextCapitalization.words,
+                    required: true,
+                  ),
+                  _AddressFormField(
+                    controller: _phone,
+                    label: 'Phone number',
+                    keyboardType: TextInputType.phone,
+                  ),
+                  _AddressFormField(
+                    controller: _line1,
+                    label: 'Address line 1',
+                    required: true,
+                  ),
+                  _AddressFormField(
+                    controller: _line2,
+                    label: 'Address line 2',
+                  ),
+                  _AddressFormField(
+                    controller: _city,
+                    label: 'City',
+                    textCapitalization: TextCapitalization.words,
+                    required: true,
+                  ),
+                  _AddressFormField(
+                    controller: _statePincode,
+                    label: 'State with pincode',
+                    textCapitalization: TextCapitalization.words,
+                    required: true,
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: FilledButton(
+                      onPressed: _saving ? null : _save,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFA35710),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              _editing ? 'Save changes' : 'Save address',
+                              style: GoogleFonts.blinker(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AddressFormField extends StatelessWidget {
+  const _AddressFormField({
+    required this.controller,
+    required this.label,
+    this.required = false,
+    this.keyboardType,
+    this.textCapitalization = TextCapitalization.none,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final bool required;
+  final TextInputType? keyboardType;
+  final TextCapitalization textCapitalization;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      textCapitalization: textCapitalization,
+      validator: required
+          ? (value) => value == null || value.trim().isEmpty
+                ? '$label is required.'
+                : null
+          : null,
+      style: GoogleFonts.blinker(fontSize: 17),
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: const Color(0xFFFFF4E3),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF9A8267)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFA35710), width: 1.5),
+        ),
+      ),
+    ),
+  );
+}
+
+TextStyle _addressTextStyle() => GoogleFonts.blinker(
+  fontSize: 16,
+  height: 1.08,
+  color: const Color(0xFF111111),
+);
+
+ButtonStyle _smallActionStyle() => OutlinedButton.styleFrom(
+  foregroundColor: const Color(0xFF5B351A),
+  side: const BorderSide(color: Color(0xFF8C684D)),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+  minimumSize: const Size.fromHeight(42),
+  textStyle: GoogleFonts.blinker(fontSize: 14, fontWeight: FontWeight.w700),
+);
