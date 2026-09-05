@@ -4,6 +4,7 @@ import '../core/services/auth_service.dart';
 
 const double _desktopHeaderBreakpoint = 850;
 const double _headerSearchBreakpoint = 1200;
+const double _desktopHeaderControlHeight = 64;
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -143,7 +144,7 @@ class _ProductSearchField extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: 560,
-      height: 64,
+      height: _desktopHeaderControlHeight,
       child: TextField(
         textInputAction: TextInputAction.search,
         onSubmitted: (value) {
@@ -274,13 +275,11 @@ class _HeaderButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Ink(
-          padding: EdgeInsets.symmetric(
-            horizontal: iconOnly ? 14 : 16,
-            vertical: iconOnly ? 13 : 11,
-          ),
+          height: _desktopHeaderControlHeight,
+          padding: EdgeInsets.symmetric(horizontal: iconOnly ? 17 : 22),
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(12),
@@ -333,7 +332,8 @@ class _AccountHeaderButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             onTap: () => _goTo(context, '/account'),
             child: Ink(
-              padding: const EdgeInsets.fromLTRB(12, 10, 17, 10),
+              height: _desktopHeaderControlHeight,
+              padding: const EdgeInsets.fromLTRB(12, 0, 17, 0),
               decoration: BoxDecoration(
                 color: const Color(0xFFE7D0AE),
                 borderRadius: BorderRadius.circular(12),
