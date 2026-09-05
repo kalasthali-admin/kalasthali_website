@@ -4,6 +4,15 @@
   "outputDirectory": "build/web",
   "rewrites": [
     {
+      "source": "/product",
+      "has": [{"type": "query", "key": "code", "value": "(?<productCode>[A-Za-z0-9_-]+)"}],
+      "destination": "/prerendered/:productCode.html"
+    },
+    {
+      "source": "/api/sitemap",
+      "destination": "/sitemap.xml"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

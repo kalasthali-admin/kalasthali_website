@@ -530,7 +530,7 @@ class _ProductImage extends StatelessWidget {
 }
 
 void _openProduct(BuildContext context, String productCode) {
-  Navigator.pushNamed(context, '/product?${Uri.encodeComponent(productCode)}');
+  Navigator.pushNamed(context, '/product?code=${Uri.encodeComponent(productCode)}');
 }
 
 class _ProductImageError extends StatelessWidget {
