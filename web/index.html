@@ -395,8 +395,14 @@
               try {
                 const verifyResponse = await fetch('/api/verify-payment', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(response)
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + payload.accessToken
+                  },
+                  body: JSON.stringify({
+                    ...response,
+                    sale: payload.sale || {}
+                  })
                 });
                 const verification = await verifyResponse.json().catch(function () { return {}; });
                 if (!verifyResponse.ok || !verification.success) {

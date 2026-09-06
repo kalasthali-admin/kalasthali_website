@@ -14,6 +14,7 @@ class PaymentService {
     String? customerEmail,
     String? customerContact,
     Map<String, Object?> notes = const {},
+    Map<String, Object?> sale = const {},
   }) {
     if (amountPaise < 100) {
       throw ArgumentError('Amount must be at least 100 paise.');
@@ -26,6 +27,7 @@ class PaymentService {
       customerEmail: customerEmail,
       customerContact: customerContact,
       notes: notes,
+      sale: sale,
     );
   }
 }

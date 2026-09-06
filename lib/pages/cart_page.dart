@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/models/order_success_details.dart';
 import '../core/responsive.dart';
+import '../core/services/auth_service.dart';
 import '../core/services/cart_service.dart';
 import '../core/services/payment_service.dart';
 import '../core/services/product_service.dart';
@@ -91,45 +93,44 @@ class _CartPageState extends State<CartPage> {
             final mobile = useCompactLayout(context, breakpoint: 900);
             return SingleChildScrollView(
               primary: true,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: IntrinsicHeight(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            mobile ? 22 : 32,
-                            mobile ? 58 : 72,
-                            mobile ? 22 : 32,
-                            mobile ? 78 : 96,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      mobile ? 22 : 32,
+                      mobile ? 58 : 72,
+                      mobile ? 22 : 32,
+                      mobile ? 78 : 96,
+                    ),
+                    child: loading
+                        ? SizedBox(
+                            height: constraints.maxHeight * .55,
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        : items.isEmpty
+                        ? SizedBox(
+                            height: constraints.maxHeight * .55,
+                            child: _EmptyCart(),
+                          )
+                        : Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1180),
+                              child: _CartContent(
+                                items: items,
+                                addresses: _addresses,
+                                loadingAddresses: _addressesLoading,
+                                updatingAddress: _addressUpdating,
+                                mobile: mobile,
+                                onQuantityChanged: _setQuantity,
+                                onAddressSelected: _selectAddress,
+                              ),
+                            ),
                           ),
-                          child: loading
-                              ? const Center(child: CircularProgressIndicator())
-                              : items.isEmpty
-                              ? _EmptyCart()
-                              : Center(
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxWidth: 1180,
-                                    ),
-                                    child: _CartContent(
-                                      items: items,
-                                      addresses: _addresses,
-                                      loadingAddresses: _addressesLoading,
-                                      updatingAddress: _addressUpdating,
-                                      mobile: mobile,
-                                      onQuantityChanged: _setQuantity,
-                                      onAddressSelected: _selectAddress,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                      ),
-                      const AppFooter(),
-                    ],
                   ),
-                ),
+                  const AppFooter(),
+                ],
               ),
             );
           },
@@ -569,14 +570,47 @@ class _CartSummaryState extends State<_CartSummary> {
         receipt: 'cart_${DateTime.now().millisecondsSinceEpoch}',
         description: 'Kalasthali cart order',
         customerName: address['receiver_name'] as String?,
+        customerEmail: AuthService.currentUser?.email,
         customerContact: address['phone_number'] as String?,
         notes: {
           'source': 'cart',
           'address_id': address['id'],
           'items': widget.items.map((item) => item.code).join(','),
         },
+        sale: {
+          'product': widget.items.map(_cartItemLine).join('\n'),
+          'amount': subtotal,
+          'product_code': widget.items.first.code,
+          'user_address': _addressLines(address),
+          'customer_email': AuthService.currentUser?.email,
+          'customer_phone': address['phone_number'],
+          'items': widget.items.map(_cartItemJson).toList(),
+        },
       );
-      _showMessage('Payment verified: ${result.paymentId}');
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(
+        context,
+        '/order-success',
+        arguments: OrderSuccessDetails(
+          orderId: result.orderId,
+          paymentId: result.paymentId,
+          address: _addressLines(address),
+          contactTarget:
+              (address['phone_number'] as String?) ??
+              AuthService.currentUser?.email ??
+              'your registered contact',
+          items: [
+            for (final item in widget.items)
+              OrderSuccessItem(
+                name: item.product?.name ?? item.productName,
+                code: item.code,
+                quantity: item.quantity,
+                amount:
+                    (_priceNumber(item.product?.price) ?? 0) * item.quantity,
+              ),
+          ],
+        ),
+      );
     } catch (error) {
       _showMessage(error.toString().replaceFirst('Exception: ', ''));
     } finally {
@@ -820,3 +854,37 @@ int? _priceNumber(String? price) {
 }
 
 String _money(int? value) => value == null ? '-' : '₹$value';
+
+String _cartItemLine(UserCartItem item) {
+  final price = _priceNumber(item.product?.price) ?? 0;
+  final total = price * item.quantity;
+  return '${item.product?.name ?? item.productName} (${item.code}) x ${item.quantity} - ₹$total';
+}
+
+Map<String, Object?> _cartItemJson(UserCartItem item) {
+  final price = _priceNumber(item.product?.price) ?? 0;
+  return {
+    'product_name': item.product?.name ?? item.productName,
+    'product_code': item.code,
+    'product_type': item.product?.type,
+    'size': item.size,
+    'quantity': item.quantity,
+    'unit_price': price,
+    'line_total': price * item.quantity,
+  };
+}
+
+String _addressLines(Map<String, dynamic> address) {
+  final cityState = [
+    address['city'],
+    address['state_pincode'],
+  ].whereType<String>().where((line) => line.trim().isNotEmpty).join(', ');
+  return [
+    address['receiver_name'],
+    address['address_line1'],
+    address['address_line2'],
+    cityState,
+    address['country'] ?? 'India',
+    address['phone_number'],
+  ].whereType<String>().where((line) => line.trim().isNotEmpty).join('\n');
+}

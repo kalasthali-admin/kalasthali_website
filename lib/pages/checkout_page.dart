@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/models/order_success_details.dart';
 import '../core/models/product.dart';
 import '../core/responsive.dart';
 import '../core/services/auth_service.dart';
@@ -542,8 +543,47 @@ class _PaymentPanelState extends State<_PaymentPanel> {
           'product_name': widget.product.name,
           'address_id': widget.address?['id'],
         },
+        sale: {
+          'product': widget.product.name,
+          'amount': amount,
+          'product_code': widget.product.code,
+          'user_address': _addressLines(widget.address!),
+          'customer_email': AuthService.currentUser?.email,
+          'customer_phone': widget.address?['phone_number'],
+          'items': [
+            {
+              'product_name': widget.product.name,
+              'product_code': widget.product.code,
+              'product_type': widget.product.type,
+              'quantity': 1,
+              'unit_price': amount,
+              'line_total': amount,
+            },
+          ],
+        },
       );
-      _showMessage('Payment verified: ${result.paymentId}');
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(
+        context,
+        '/order-success',
+        arguments: OrderSuccessDetails(
+          orderId: result.orderId,
+          paymentId: result.paymentId,
+          address: _addressLines(widget.address!),
+          contactTarget:
+              (widget.address?['phone_number'] as String?) ??
+              AuthService.currentUser?.email ??
+              'your registered contact',
+          items: [
+            OrderSuccessItem(
+              name: widget.product.name,
+              code: widget.product.code,
+              quantity: 1,
+              amount: amount,
+            ),
+          ],
+        ),
+      );
     } catch (error) {
       _showMessage(error.toString().replaceFirst('Exception: ', ''));
     } finally {

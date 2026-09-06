@@ -16,6 +16,7 @@ Future<PaymentResult> pay({
   String? customerEmail,
   String? customerContact,
   Map<String, Object?> notes = const {},
+  Map<String, Object?> sale = const {},
 }) async {
   final session = Supabase.instance.client.auth.currentSession;
   final accessToken = session?.accessToken;
@@ -38,6 +39,7 @@ Future<PaymentResult> pay({
     'customerContact': customerContact,
     'accessToken': accessToken,
     'notes': notes,
+    'sale': sale,
   }.jsify();
   final promise = payments.callMethodVarArgs<JSPromise<JSAny?>>(
     'payWithRazorpay'.toJS,

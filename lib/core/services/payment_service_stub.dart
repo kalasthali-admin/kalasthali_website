@@ -8,6 +8,7 @@ Future<PaymentResult> pay({
   String? customerEmail,
   String? customerContact,
   Map<String, Object?> notes = const {},
+  Map<String, Object?> sale = const {},
 }) {
   throw UnsupportedError('Razorpay Checkout is available on web builds only.');
 }

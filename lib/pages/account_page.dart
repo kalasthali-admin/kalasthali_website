@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -289,11 +291,13 @@ class _AccountDetails extends StatefulWidget {
 
 class _AccountDetailsState extends State<_AccountDetails> {
   late Future<List<Map<String, dynamic>>> _addresses;
+  late Future<List<Map<String, dynamic>>> _orders;
 
   @override
   void initState() {
     super.initState();
     _addresses = _loadAddresses();
+    _orders = _loadOrders();
   }
 
   Future<List<Map<String, dynamic>>> _loadAddresses() async =>
@@ -305,9 +309,19 @@ class _AccountDetailsState extends State<_AccountDetails> {
               as List)
           .cast<Map<String, dynamic>>();
 
+  Future<List<Map<String, dynamic>>> _loadOrders() async =>
+      (await Supabase.instance.client
+                  .from('sales')
+                  .select()
+                  .eq('user', widget.user.id)
+                  .order('paid_at', ascending: false)
+              as List)
+          .cast<Map<String, dynamic>>();
+
   void _refresh() {
     setState(() {
       _addresses = _loadAddresses();
+      _orders = _loadOrders();
     });
   }
 
@@ -438,6 +452,33 @@ class _AccountDetailsState extends State<_AccountDetails> {
                   ),
                 )
                 .toList(),
+          );
+        },
+      ),
+      const SizedBox(height: 34),
+      Text(
+        'ORDERS',
+        style: GoogleFonts.blinker(fontWeight: FontWeight.w800, fontSize: 15),
+      ),
+      const SizedBox(height: 14),
+      FutureBuilder<List<Map<String, dynamic>>>(
+        future: _orders,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const CircularProgressIndicator();
+          if (snapshot.data!.isEmpty) {
+            return Text(
+              'No orders placed yet.',
+              style: GoogleFonts.blinker(fontSize: 17),
+            );
+          }
+          return Column(
+            children: [
+              for (final order in snapshot.data!)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 18),
+                  child: _OrderCard(order: order),
+                ),
+            ],
           );
         },
       ),
@@ -655,6 +696,250 @@ class _AddressCardActions extends StatelessWidget {
       ),
     ],
   );
+}
+
+class _OrderCard extends StatelessWidget {
+  const _OrderCard({required this.order});
+
+  final Map<String, dynamic> order;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = _orderItems(order);
+    final isStack = items.length > 1;
+    final amount = order['amount'];
+    final paidAt = DateTime.tryParse((order['paid_at'] ?? '').toString());
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 760),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFECE7DD),
+          border: Border.all(color: const Color(0xFFD5B48A)),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A2D1E12),
+              blurRadius: 12,
+              offset: Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.fromLTRB(18, 8, 14, 8),
+            childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+            iconColor: const Color(0xFF5B351A),
+            collapsedIconColor: const Color(0xFF5B351A),
+            title: Text(
+              isStack ? 'Cart order' : items.first.name,
+              style: GoogleFonts.dmSerifDisplay(
+                fontSize: 25,
+                color: const Color(0xFF5B351A),
+              ),
+            ),
+            subtitle: Text(
+              [
+                'Order ${order['order_id']}',
+                if (paidAt != null) _dateLabel(paidAt),
+              ].join(' • '),
+              style: GoogleFonts.blinker(fontSize: 14),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '₹${amount ?? '-'}',
+                  style: GoogleFonts.blinker(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.expand_more),
+              ],
+            ),
+            children: [
+              if (isStack)
+                _OrderItemStack(items: items)
+              else
+                _SingleOrderLine(item: items.first),
+              const SizedBox(height: 18),
+              _InvoicePanel(order: order, items: items),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrderItemStack extends StatelessWidget {
+  const _OrderItemStack({required this.items});
+
+  final List<_InvoiceItem> items;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      for (final item in items)
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEF5E6),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFD5B48A)),
+          ),
+          child: _SingleOrderLine(item: item),
+        ),
+    ],
+  );
+}
+
+class _SingleOrderLine extends StatelessWidget {
+  const _SingleOrderLine({required this.item});
+
+  final _InvoiceItem item;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              item.name,
+              style: GoogleFonts.dmSerifDisplay(
+                fontSize: 21,
+                color: const Color(0xFF5B351A),
+              ),
+            ),
+            Text(
+              [
+                item.code,
+                if (item.size?.isNotEmpty == true) 'Size ${item.size}',
+                'Qty ${item.quantity}',
+              ].join(' • '),
+              style: GoogleFonts.blinker(fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+      Text(
+        '₹${item.lineTotal}',
+        style: GoogleFonts.blinker(fontSize: 19, fontWeight: FontWeight.w700),
+      ),
+    ],
+  );
+}
+
+class _InvoicePanel extends StatelessWidget {
+  const _InvoicePanel({required this.order, required this.items});
+
+  final Map<String, dynamic> order;
+  final List<_InvoiceItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final paidAt = DateTime.tryParse((order['paid_at'] ?? '').toString());
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF5E6),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF8C684D), width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Invoice',
+                  style: GoogleFonts.dmSerifDisplay(
+                    fontSize: 30,
+                    color: const Color(0xFF5B351A),
+                  ),
+                ),
+              ),
+              Text(
+                paidAt == null ? '' : _dateLabel(paidAt),
+                style: GoogleFonts.blinker(fontSize: 14),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Bill from: Kalasthali By Nisha',
+            style: GoogleFonts.blinker(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Bill to:',
+            style: GoogleFonts.blinker(fontWeight: FontWeight.w700),
+          ),
+          Text(
+            order['user_address']?.toString() ?? '',
+            style: GoogleFonts.blinker(fontSize: 14, height: 1.12),
+          ),
+          const SizedBox(height: 16),
+          const Divider(color: Color(0xFFD5B48A)),
+          for (final item in items)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${item.name} x ${item.quantity}',
+                      style: GoogleFonts.blinker(fontSize: 15),
+                    ),
+                  ),
+                  Text(
+                    '₹${item.lineTotal}',
+                    style: GoogleFonts.blinker(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+          const Divider(color: Color(0xFFD5B48A)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Amount paid',
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: 24,
+                  color: const Color(0xFF5B351A),
+                ),
+              ),
+              Text(
+                '₹${order['amount'] ?? '-'}',
+                style: GoogleFonts.blinker(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Payment ID: ${order['razorpay_payment_id'] ?? 'Pending'}',
+            style: GoogleFonts.blinker(
+              fontSize: 13,
+              color: const Color(0xFF746D64),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _AddressActionButton extends StatelessWidget {
@@ -941,3 +1226,77 @@ ButtonStyle _smallActionStyle() => OutlinedButton.styleFrom(
   minimumSize: const Size.fromHeight(42),
   textStyle: GoogleFonts.blinker(fontSize: 14, fontWeight: FontWeight.w700),
 );
+
+class _InvoiceItem {
+  const _InvoiceItem({
+    required this.name,
+    required this.code,
+    required this.quantity,
+    required this.lineTotal,
+    this.size,
+  });
+
+  final String name;
+  final String code;
+  final int quantity;
+  final int lineTotal;
+  final String? size;
+}
+
+List<_InvoiceItem> _orderItems(Map<String, dynamic> order) {
+  final rawItems = _decodeItems(order['items']);
+  if (rawItems.isEmpty) {
+    return [
+      _InvoiceItem(
+        name: (order['product'] ?? 'Order item').toString(),
+        code: (order['product_code'] ?? '').toString(),
+        quantity: 1,
+        lineTotal: _intValue(order['amount']),
+      ),
+    ];
+  }
+  return rawItems.map((item) {
+    final quantity = _intValue(item['quantity'], fallback: 1);
+    final lineTotal = _intValue(
+      item['line_total'],
+      fallback: _intValue(item['unit_price']) * quantity,
+    );
+    return _InvoiceItem(
+      name: (item['product_name'] ?? item['name'] ?? 'Order item').toString(),
+      code: (item['product_code'] ?? item['code'] ?? '').toString(),
+      quantity: quantity,
+      lineTotal: lineTotal,
+      size: item['size']?.toString(),
+    );
+  }).toList();
+}
+
+List<Map<String, dynamic>> _decodeItems(Object? value) {
+  if (value is List) {
+    return value
+        .whereType<Map>()
+        .map((item) => item.cast<String, dynamic>())
+        .toList();
+  }
+  if (value is String && value.trim().isNotEmpty) {
+    try {
+      final decoded = jsonDecode(value);
+      if (decoded is List) {
+        return decoded
+            .whereType<Map>()
+            .map((item) => item.cast<String, dynamic>())
+            .toList();
+      }
+    } catch (_) {}
+  }
+  return const [];
+}
+
+int _intValue(Object? value, {int fallback = 0}) {
+  if (value is int) return value;
+  if (value is num) return value.round();
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+String _dateLabel(DateTime date) =>
+    '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';

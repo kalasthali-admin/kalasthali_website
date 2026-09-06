@@ -4,10 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 
 import 'core/supabase_config.dart';
+import 'core/models/order_success_details.dart';
 import 'pages/collection_page.dart';
 import 'pages/contact_page.dart';
 import 'pages/home_page.dart';
 import 'pages/not_found_page.dart';
+import 'pages/order_success_page.dart';
 import 'pages/about_page.dart';
 import 'pages/account_page.dart';
 import 'pages/checkout_page.dart';
@@ -49,6 +51,7 @@ class KalasthaliApp extends StatelessWidget {
   static const String accountRoute = '/account';
   static const String checkoutRoute = '/checkout';
   static const String cartRoute = '/cart';
+  static const String orderSuccessRoute = '/order-success';
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +76,7 @@ class KalasthaliApp extends StatelessWidget {
         accountRoute: (context) => const AccountPage(),
         checkoutRoute: (context) => const CheckoutPage(),
         cartRoute: (context) => const CartPage(),
+        orderSuccessRoute: (context) => const OrderSuccessPage(),
       },
       onGenerateRoute: (settings) {
         final uri = Uri.parse(settings.name ?? '/');
@@ -105,6 +109,17 @@ class KalasthaliApp extends StatelessWidget {
           return MaterialPageRoute<void>(
             builder: (_) =>
                 CheckoutPage(productCode: uri.queryParameters['code'] ?? ''),
+            settings: settings,
+          );
+        }
+
+        if (uri.path == orderSuccessRoute) {
+          return MaterialPageRoute<void>(
+            builder: (_) => OrderSuccessPage(
+              details: settings.arguments is OrderSuccessDetails
+                  ? settings.arguments as OrderSuccessDetails
+                  : null,
+            ),
             settings: settings,
           );
         }
