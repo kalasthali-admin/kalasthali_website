@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../core/models/product.dart';
+import '../core/responsive.dart';
 import '../core/services/checkout_navigation.dart';
 import '../core/services/product_service.dart';
 import '../core/services/seo_service.dart';
-import '../widgets/cart_quantity_button.dart';
-import '../widgets/app_scaffold.dart';
 import '../widgets/app_footer.dart';
+import '../widgets/app_scaffold.dart';
+import '../widgets/cart_quantity_button.dart';
 
 class CollectionPage extends StatefulWidget {
   const CollectionPage({this.initialCategory, this.initialSearch, super.key});
@@ -63,7 +65,7 @@ class _CollectionPageState extends State<CollectionPage> {
             return const Center(child: CircularProgressIndicator());
           return LayoutBuilder(
             builder: (context, box) {
-              final mobile = box.maxWidth < 700;
+              final mobile = useCompactLayout(context, breakpoint: 700);
               final query = search.text.toLowerCase();
               final categories =
                   snap.data!
@@ -92,14 +94,14 @@ class _CollectionPageState extends State<CollectionPage> {
                   .toList();
               final productContent = Padding(
                 padding: EdgeInsets.fromLTRB(
-                  mobile ? 20 : 44,
+                  mobile ? 20 : 14,
                   mobile ? 66 : 88,
-                  mobile ? 20 : 44,
+                  mobile ? 20 : 14,
                   100,
                 ),
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 900),
+                    constraints: const BoxConstraints(maxWidth: 1280),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -182,16 +184,16 @@ class _CollectionPageState extends State<CollectionPage> {
                           const Text('No products found.')
                         else
                           ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 900),
+                            constraints: const BoxConstraints(maxWidth: 1280),
                             child: GridView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
                               gridDelegate:
                                   SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: mobile ? 2 : 3,
-                                    crossAxisSpacing: mobile ? 14 : 10,
-                                    mainAxisSpacing: mobile ? 20 : 10,
-                                    childAspectRatio: mobile ? .5 : .55,
+                                    crossAxisCount: mobile ? 2 : 4,
+                                    crossAxisSpacing: mobile ? 14 : 14,
+                                    mainAxisSpacing: mobile ? 20 : 18,
+                                    childAspectRatio: mobile ? .5 : .52,
                                   ),
                               itemCount: filtered.length,
                               itemBuilder: (_, i) =>
@@ -208,7 +210,10 @@ class _CollectionPageState extends State<CollectionPage> {
                 return Column(
                   children: [
                     Expanded(
-                      child: SingleChildScrollView(child: productContent),
+                      child: SingleChildScrollView(
+                        primary: true,
+                        child: productContent,
+                      ),
                     ),
                     const AppFooter(),
                   ],
@@ -216,6 +221,7 @@ class _CollectionPageState extends State<CollectionPage> {
               }
 
               return SingleChildScrollView(
+                primary: true,
                 child: Column(children: [productContent, const AppFooter()]),
               );
             },
@@ -247,7 +253,7 @@ class _CardState extends State<_Card> {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final horizontal = constraints.maxWidth >= 360;
-      final isDesktop = MediaQuery.sizeOf(context).width >= 700;
+      final isDesktop = !useCompactLayout(context, breakpoint: 700);
       final image = ClipRRect(
         borderRadius: BorderRadius.circular(13),
         child: FutureBuilder<String>(

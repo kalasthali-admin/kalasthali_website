@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../core/responsive.dart';
 import '../core/services/auth_service.dart';
 
 const double _desktopHeaderBreakpoint = 850;
 const double _headerSearchBreakpoint = 1200;
 const double _desktopHeaderControlHeight = 45;
 
-class AppScaffold extends StatelessWidget {
+class AppScaffold extends StatefulWidget {
   const AppScaffold({
     required this.title,
     required this.currentRoute,
@@ -21,20 +23,71 @@ class AppScaffold extends StatelessWidget {
   final bool centerBody;
 
   @override
+  State<AppScaffold> createState() => _AppScaffoldState();
+}
+
+class _AppScaffoldState extends State<AppScaffold> {
+  final ScrollController _scrollController = ScrollController();
+  final FocusNode _scrollFocusNode = FocusNode(debugLabel: 'app-scroll-focus');
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _scrollFocusNode.dispose();
+    super.dispose();
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent || !_scrollController.hasClients) {
+      return KeyEventResult.ignored;
+    }
+
+    final key = event.logicalKey;
+    final position = _scrollController.position;
+    final viewport = position.viewportDimension;
+    final current = position.pixels;
+    final delta = switch (key) {
+      LogicalKeyboardKey.arrowDown => 80.0,
+      LogicalKeyboardKey.arrowUp => -80.0,
+      LogicalKeyboardKey.pageDown => viewport * .85,
+      LogicalKeyboardKey.pageUp => -viewport * .85,
+      LogicalKeyboardKey.home => -double.infinity,
+      LogicalKeyboardKey.end => double.infinity,
+      _ => null,
+    };
+    if (delta == null) return KeyEventResult.ignored;
+
+    final target = delta.isInfinite
+        ? (delta.isNegative
+              ? position.minScrollExtent
+              : position.maxScrollExtent)
+        : (current + delta).clamp(
+            position.minScrollExtent,
+            position.maxScrollExtent,
+          );
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+    );
+    return KeyEventResult.handled;
+  }
+
+  @override
   Widget build(BuildContext context) {
     const logoBackground = Color(0xFFFEF5E6);
-    final screenSize = MediaQuery.sizeOf(context);
-    final screenWidth = screenSize.width;
     // Landscape phones can be wide enough for a desktop breakpoint but do not
     // have enough horizontal room for the full search/navigation row.
-    final isMobile =
-        screenWidth < _desktopHeaderBreakpoint || screenSize.height < 600;
+    final isMobile = useCompactLayout(
+      context,
+      breakpoint: _desktopHeaderBreakpoint,
+    );
     final logoHeight = isMobile ? 58.0 : 70.0;
 
     return Scaffold(
       backgroundColor: Color.fromRGBO(231, 226, 215, 1),
       endDrawer: isMobile
-          ? _NavigationDrawer(currentRoute: currentRoute)
+          ? _NavigationDrawer(currentRoute: widget.currentRoute)
           : null,
       appBar: AppBar(
         elevation: 5,
@@ -88,12 +141,21 @@ class AppScaffold extends StatelessWidget {
                 ),
               ),
             ),
-            if (!isMobile) _DesktopNavigation(currentRoute: currentRoute),
+            if (!isMobile)
+              _DesktopNavigation(currentRoute: widget.currentRoute),
             SizedBox(width: isMobile ? 12 : 24),
           ],
         ),
       ),
-      body: centerBody ? Center(child: body) : body,
+      body: Focus(
+        focusNode: _scrollFocusNode,
+        autofocus: true,
+        onKeyEvent: _handleKeyEvent,
+        child: PrimaryScrollController(
+          controller: _scrollController,
+          child: widget.centerBody ? Center(child: widget.body) : widget.body,
+        ),
+      ),
     );
   }
 }

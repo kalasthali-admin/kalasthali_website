@@ -4,11 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/models/product.dart';
+import '../core/responsive.dart';
+import '../core/services/checkout_navigation.dart';
 import '../core/services/product_service.dart';
 import '../core/services/seo_service.dart';
-import '../core/services/checkout_navigation.dart';
-import '../widgets/app_scaffold.dart';
 import '../widgets/app_footer.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/cart_quantity_button.dart';
 
 class ProductPage extends StatelessWidget {
@@ -52,8 +53,10 @@ class _ProductDetails extends StatelessWidget {
             screenSize.height > screenSize.width && screenSize.width < 1100;
         // Portrait tablets need the stacked composition too; the two-column
         // layout leaves both the gallery and product copy too narrow there.
-        final mobile = constraints.maxWidth < 800 || tabletPortrait;
+        final mobile =
+            useCompactLayout(context, breakpoint: 800) || tabletPortrait;
         return SingleChildScrollView(
+          primary: true,
           child: Column(
             children: [
               Padding(

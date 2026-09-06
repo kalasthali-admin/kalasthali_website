@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/models/product.dart';
+import '../core/responsive.dart';
 import '../core/services/admin_service.dart';
 import '../core/services/image_upload_converter.dart';
 import '../widgets/app_scaffold.dart';
@@ -575,7 +576,7 @@ class _AdminDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final mobile = constraints.maxWidth < 700;
+      final mobile = useCompactLayout(context, breakpoint: 700);
       final searchQuery = productSearch.text.trim().toLowerCase();
       final visibleProducts = products.where((product) {
         if (searchQuery.isEmpty) return true;
@@ -585,6 +586,7 @@ class _AdminDashboard extends StatelessWidget {
             .contains(searchQuery);
       }).toList();
       return SingleChildScrollView(
+        primary: true,
         padding: EdgeInsets.fromLTRB(
           mobile ? 18 : 42,
           mobile ? 34 : 56,

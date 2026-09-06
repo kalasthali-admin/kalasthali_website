@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/responsive.dart';
 import '../core/services/auth_service.dart';
 import '../core/services/seo_service.dart';
 import '../widgets/app_footer.dart';
@@ -28,11 +29,12 @@ class AccountPage extends StatelessWidget {
           final user = snapshot.data ?? AuthService.currentUser;
           return LayoutBuilder(
             builder: (context, constraints) {
-              final mobile = constraints.maxWidth < 700;
+              final mobile = useCompactLayout(context, breakpoint: 700);
               return Column(
                 children: [
                   Expanded(
                     child: SingleChildScrollView(
+                      primary: true,
                       child: Padding(
                         padding: EdgeInsets.fromLTRB(
                           mobile ? 22 : 54,

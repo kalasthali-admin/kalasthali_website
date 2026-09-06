@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../core/responsive.dart';
 import '../core/services/seo_service.dart';
 import '../widgets/app_footer.dart';
 import '../widgets/app_scaffold.dart';
@@ -22,8 +23,9 @@ class NotFoundPage extends StatelessWidget {
       centerBody: false,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final mobile = constraints.maxWidth < 700;
+          final mobile = useCompactLayout(context, breakpoint: 700);
           return SingleChildScrollView(
+            primary: true,
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: Column(

@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../core/models/product.dart';
 import '../core/models/user_account.dart';
+import '../core/responsive.dart';
 import '../core/services/auth_service.dart';
 import '../core/services/product_service.dart';
 import '../core/services/user_account_service.dart';
@@ -61,8 +62,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
         final user = AuthService.currentUser;
         return LayoutBuilder(
           builder: (context, constraints) {
-            final mobile = constraints.maxWidth < 800;
+            final mobile = useCompactLayout(context, breakpoint: 800);
             return SingleChildScrollView(
+              primary: true,
               child: Column(
                 children: [
                   Padding(

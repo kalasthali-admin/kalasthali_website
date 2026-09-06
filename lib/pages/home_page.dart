@@ -3,10 +3,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../widgets/popular_products_carousel.dart';
-import '../widgets/app_scaffold.dart';
-import '../widgets/app_footer.dart';
+import '../core/responsive.dart';
 import '../core/services/seo_service.dart';
+import '../widgets/app_footer.dart';
+import '../widgets/app_scaffold.dart';
+import '../widgets/popular_products_carousel.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -24,9 +25,10 @@ class HomePage extends StatelessWidget {
       centerBody: false,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final isMobile = constraints.maxWidth < 700;
+          final isMobile = useCompactLayout(context, breakpoint: 700);
 
           return SingleChildScrollView(
+            primary: true,
             child: Column(
               children: [
                 Padding(
@@ -163,7 +165,7 @@ class _ShopByCategory extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 700;
+        final isMobile = useCompactLayout(context, breakpoint: 700);
         final showThreeColumns = constraints.maxWidth >= 1200;
         final tileWidth = isMobile
             ? constraints.maxWidth - 32

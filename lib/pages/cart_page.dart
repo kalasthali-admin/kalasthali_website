@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/responsive.dart';
 import '../core/services/cart_service.dart';
 import '../core/services/product_service.dart';
 import '../widgets/app_footer.dart';
@@ -86,7 +87,7 @@ class _CartPageState extends State<CartPage> {
         final items = snapshot.data ?? const <UserCartItem>[];
         return LayoutBuilder(
           builder: (context, constraints) {
-            final mobile = constraints.maxWidth < 900;
+            final mobile = useCompactLayout(context, breakpoint: 900);
             return Column(
               children: [
                 Expanded(
@@ -95,6 +96,7 @@ class _CartPageState extends State<CartPage> {
                       : items.isEmpty
                       ? _EmptyCart()
                       : SingleChildScrollView(
+                          primary: true,
                           padding: EdgeInsets.fromLTRB(
                             mobile ? 22 : 32,
                             mobile ? 58 : 72,

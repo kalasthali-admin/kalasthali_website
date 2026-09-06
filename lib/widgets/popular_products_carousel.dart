@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../core/models/product.dart';
-import '../core/services/product_service.dart';
+import '../core/responsive.dart';
 import '../core/services/checkout_navigation.dart';
+import '../core/services/product_service.dart';
 import 'cart_quantity_button.dart';
 
 class PopularProductsCarousel extends StatefulWidget {
@@ -33,9 +35,9 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    final viewportFraction = MediaQuery.sizeOf(context).width >= 700
-        ? 0.5
-        : 0.86;
+    final viewportFraction = useCompactLayout(context, breakpoint: 700)
+        ? 0.86
+        : 0.5;
     if (_viewportFraction == viewportFraction) {
       return;
     }
@@ -106,7 +108,7 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= 1200;
-    final showsTwoCards = screenWidth >= 700;
+    final showsTwoCards = !useCompactLayout(context, breakpoint: 700);
     final carouselWidth = isDesktop
         ? (screenWidth > 1656 ? 1600.0 : screenWidth - 56)
         : (screenWidth > 0 ? screenWidth : 360.0);
