@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../core/models/product.dart';
 import '../core/responsive.dart';
-import '../core/services/checkout_navigation.dart';
 import '../core/services/product_service.dart';
 import 'cart_quantity_button.dart';
 
@@ -335,24 +334,6 @@ class _DesktopProductCard extends StatelessWidget {
                         height: 48,
                         child: CartQuantityButton(product: product, height: 48),
                       ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton.icon(
-                          onPressed: () =>
-                              CheckoutNavigation.buyNow(context, product),
-                          icon: const Icon(Icons.chat_outlined),
-                          label: const Text('Buy Now'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF914B0D),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ],
@@ -486,24 +467,6 @@ class _MobileProductCard extends StatelessWidget {
                           product: product,
                           height: 40,
                           compact: true,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 40,
-                        child: ElevatedButton.icon(
-                          onPressed: () =>
-                              CheckoutNavigation.buyNow(context, product),
-                          icon: const Icon(Icons.chat_outlined),
-                          label: const Text('Buy Now'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF914B0D),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
                         ),
                       ),
                     ],

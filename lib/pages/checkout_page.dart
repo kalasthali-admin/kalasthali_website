@@ -614,7 +614,7 @@ class _PaymentPanelState extends State<_PaymentPanel> {
         ),
         const SizedBox(height: 10),
         Text(
-          'Pay securely with Razorpay Standard Checkout.',
+          'You will now be redirected to the payment gateway.',
           style: GoogleFonts.blinker(fontSize: 18, height: 1.3),
         ),
         const SizedBox(height: 18),
