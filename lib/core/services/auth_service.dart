@@ -6,6 +6,7 @@ class AuthService {
   static final _auth = Supabase.instance.client.auth;
 
   static User? get currentUser => _auth.currentUser;
+  static Session? get currentSession => _auth.currentSession;
   static Stream<User?> get userChanges =>
       _auth.onAuthStateChange.map((state) => state.session?.user);
 

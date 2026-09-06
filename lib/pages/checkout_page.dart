@@ -5,6 +5,7 @@ import '../core/models/product.dart';
 import '../core/models/user_account.dart';
 import '../core/responsive.dart';
 import '../core/services/auth_service.dart';
+import '../core/services/payment_service.dart';
 import '../core/services/product_service.dart';
 import '../core/services/user_account_service.dart';
 import '../widgets/app_footer.dart';
@@ -117,12 +118,16 @@ class _CheckoutContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final order = _OrderSummary(product: product);
     final detailPanel = userId == null
-        ? const Column(
+        ? Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _SignInForCheckout(),
-              SizedBox(height: 20),
-              _PaymentPanel(canContinue: false),
+              const _SignInForCheckout(),
+              const SizedBox(height: 20),
+              _PaymentPanel(
+                product: product,
+                account: null,
+                canContinue: false,
+              ),
             ],
           )
         : FutureBuilder<UserAccount?>(
@@ -139,7 +144,11 @@ class _CheckoutContent extends StatelessWidget {
                     onSetAddress: () => onSetDeliveryAddress(snapshot.data),
                   ),
                   const SizedBox(height: 20),
-                  _PaymentPanel(canContinue: deliveryAddressReady),
+                  _PaymentPanel(
+                    product: product,
+                    account: snapshot.data,
+                    canContinue: deliveryAddressReady,
+                  ),
                 ],
               );
             },
@@ -382,9 +391,61 @@ class _DeliveryPanel extends StatelessWidget {
   );
 }
 
-class _PaymentPanel extends StatelessWidget {
-  const _PaymentPanel({required this.canContinue});
+class _PaymentPanel extends StatefulWidget {
+  const _PaymentPanel({
+    required this.product,
+    required this.account,
+    required this.canContinue,
+  });
+
+  final Product product;
+  final UserAccount? account;
   final bool canContinue;
+
+  @override
+  State<_PaymentPanel> createState() => _PaymentPanelState();
+}
+
+class _PaymentPanelState extends State<_PaymentPanel> {
+  var _paying = false;
+
+  Future<void> _pay() async {
+    final amount = _priceNumber(widget.product.price);
+    if (amount == null || amount <= 0) {
+      _showMessage('This product does not have a valid price yet.');
+      return;
+    }
+    if (!widget.canContinue || _paying) return;
+
+    setState(() => _paying = true);
+    try {
+      final result = await PaymentService.pay(
+        amountPaise: amount * 100,
+        receipt:
+            '${widget.product.code}_${DateTime.now().millisecondsSinceEpoch}',
+        description: widget.product.name,
+        customerName: widget.account?.receiverName,
+        customerEmail: AuthService.currentUser?.email,
+        notes: {
+          'source': 'buy_now',
+          'product_code': widget.product.code,
+          'product_name': widget.product.name,
+        },
+      );
+      _showMessage('Payment verified: ${result.paymentId}');
+    } catch (error) {
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _paying = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) => Container(
@@ -402,7 +463,7 @@ class _PaymentPanel extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Text(
-          'Secure Razorpay payment will be available here shortly.',
+          'Pay securely with Razorpay Standard Checkout.',
           style: GoogleFonts.blinker(fontSize: 18, height: 1.3),
         ),
         const SizedBox(height: 18),
@@ -410,17 +471,20 @@ class _PaymentPanel extends StatelessWidget {
           width: double.infinity,
           height: 50,
           child: FilledButton(
-            onPressed: !canContinue
-                ? null
-                : () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Payment setup is coming soon.'),
-                    ),
-                  ),
+            onPressed: !widget.canContinue || _paying ? null : _pay,
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFA35710),
             ),
-            child: const Text('Continue to payment'),
+            child: _paying
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text('Continue to payment'),
           ),
         ),
       ],
@@ -583,3 +647,8 @@ BoxDecoration _panelDecoration() => BoxDecoration(
     BoxShadow(color: Color(0x1F2D1E12), blurRadius: 14, offset: Offset(0, 6)),
   ],
 );
+
+int? _priceNumber(String? price) {
+  if (price == null) return null;
+  return int.tryParse(price.replaceAll(RegExp(r'[^0-9]'), ''));
+}

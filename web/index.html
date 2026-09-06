@@ -346,6 +346,80 @@
       window.setTimeout(function () { skeleton.remove(); }, 200);
     });
   </script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script>
+    window.KalasthaliPayments = {
+      payWithRazorpay: async function (payload) {
+        if (!window.Razorpay) {
+          throw new Error('Razorpay Checkout could not be loaded.');
+        }
+
+        const orderResponse = await fetch('/api/create-order', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + payload.accessToken
+          },
+          body: JSON.stringify({
+            amount: payload.amount,
+            currency: payload.currency || 'INR',
+            receipt: payload.receipt,
+            notes: payload.notes || {}
+          })
+        });
+        const order = await orderResponse.json().catch(function () { return {}; });
+        if (!orderResponse.ok) {
+          throw new Error(order.error || 'Could not create payment order.');
+        }
+
+        return new Promise(function (resolve, reject) {
+          const checkout = new window.Razorpay({
+            key: order.key_id,
+            amount: order.amount,
+            currency: order.currency,
+            name: 'Kalasthali By Nisha',
+            description: payload.description || 'Kalasthali order',
+            order_id: order.order_id,
+            prefill: {
+              name: payload.customerName || '',
+              email: payload.customerEmail || '',
+              contact: payload.customerContact || ''
+            },
+            theme: { color: '#A35710' },
+            modal: {
+              ondismiss: function () {
+                reject(new Error('Payment was cancelled.'));
+              }
+            },
+            handler: async function (response) {
+              try {
+                const verifyResponse = await fetch('/api/verify-payment', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(response)
+                });
+                const verification = await verifyResponse.json().catch(function () { return {}; });
+                if (!verifyResponse.ok || !verification.success) {
+                  throw new Error(verification.error || 'Payment verification failed.');
+                }
+                resolve(verification);
+              } catch (error) {
+                reject(error);
+              }
+            }
+          });
+
+          checkout.on('payment.failed', function (response) {
+            const message = response &&
+              response.error &&
+              (response.error.description || response.error.reason);
+            reject(new Error(message || 'Payment failed. Please try again.'));
+          });
+          checkout.open();
+        });
+      }
+    };
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/responsive.dart';
 import '../core/services/cart_service.dart';
+import '../core/services/payment_service.dart';
 import '../core/services/product_service.dart';
 import '../widgets/app_footer.dart';
 import '../widgets/app_scaffold.dart';
@@ -528,11 +529,58 @@ class _CartSummary extends StatefulWidget {
 }
 
 class _CartSummaryState extends State<_CartSummary> {
+  var _paying = false;
+
   int get subtotal => widget.items.fold(
     0,
     (total, item) =>
         total + ((_priceNumber(item.product?.price) ?? 0) * item.quantity),
   );
+
+  Map<String, dynamic>? get selectedAddress {
+    if (widget.addresses.isEmpty) return null;
+    return widget.addresses.firstWhere(
+      (address) => address['is_selected'] == true,
+      orElse: () => widget.addresses.first,
+    );
+  }
+
+  Future<void> _pay() async {
+    final address = selectedAddress;
+    if (address == null) {
+      _showMessage('Add or select a delivery address before ordering.');
+      return;
+    }
+    if (subtotal <= 0 || _paying) return;
+
+    setState(() => _paying = true);
+    try {
+      final result = await PaymentService.pay(
+        amountPaise: subtotal * 100,
+        receipt: 'cart_${DateTime.now().millisecondsSinceEpoch}',
+        description: 'Kalasthali cart order',
+        customerName: address['receiver_name'] as String?,
+        customerContact: address['phone_number'] as String?,
+        notes: {
+          'source': 'cart',
+          'address_id': address['id'],
+          'items': widget.items.map((item) => item.code).join(','),
+        },
+      );
+      _showMessage('Payment verified: ${result.paymentId}');
+    } catch (error) {
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _paying = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) => Container(
@@ -604,19 +652,23 @@ class _CartSummaryState extends State<_CartSummary> {
             width: 240,
             height: 56,
             child: FilledButton(
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Checkout is coming soon.')),
-              ),
+              onPressed: _paying || widget.updatingAddress ? null : _pay,
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFFA35710),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              child: Text(
-                'Order Now',
-                style: GoogleFonts.blinker(fontSize: 24),
-              ),
+              child: _paying
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text('Order Now', style: GoogleFonts.blinker(fontSize: 24)),
             ),
           ),
         ),
