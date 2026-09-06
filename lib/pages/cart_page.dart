@@ -89,39 +89,48 @@ class _CartPageState extends State<CartPage> {
         return LayoutBuilder(
           builder: (context, constraints) {
             final mobile = useCompactLayout(context, breakpoint: 900);
-            return Column(
-              children: [
-                Expanded(
-                  child: loading
-                      ? const Center(child: CircularProgressIndicator())
-                      : items.isEmpty
-                      ? _EmptyCart()
-                      : SingleChildScrollView(
-                          primary: true,
+            return SingleChildScrollView(
+              primary: true,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Padding(
                           padding: EdgeInsets.fromLTRB(
                             mobile ? 22 : 32,
                             mobile ? 58 : 72,
                             mobile ? 22 : 32,
                             mobile ? 78 : 96,
                           ),
-                          child: Center(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 1180),
-                              child: _CartContent(
-                                items: items,
-                                addresses: _addresses,
-                                loadingAddresses: _addressesLoading,
-                                updatingAddress: _addressUpdating,
-                                mobile: mobile,
-                                onQuantityChanged: _setQuantity,
-                                onAddressSelected: _selectAddress,
-                              ),
-                            ),
-                          ),
+                          child: loading
+                              ? const Center(child: CircularProgressIndicator())
+                              : items.isEmpty
+                              ? _EmptyCart()
+                              : Center(
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 1180,
+                                    ),
+                                    child: _CartContent(
+                                      items: items,
+                                      addresses: _addresses,
+                                      loadingAddresses: _addressesLoading,
+                                      updatingAddress: _addressUpdating,
+                                      mobile: mobile,
+                                      onQuantityChanged: _setQuantity,
+                                      onAddressSelected: _selectAddress,
+                                    ),
+                                  ),
+                                ),
                         ),
+                      ),
+                      const AppFooter(),
+                    ],
+                  ),
                 ),
-                const AppFooter(),
-              ],
+              ),
             );
           },
         );

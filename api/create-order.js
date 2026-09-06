@@ -26,12 +26,15 @@ function razorpayClient() {
 
 async function authenticatedUser(req) {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_API_KEY;
-  if (!token || !anonKey) return null;
+  const supabaseKey =
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_API_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!token || !supabaseKey) return null;
 
   const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: {
-      apikey: anonKey,
+      apikey: supabaseKey,
       Authorization: `Bearer ${token}`,
     },
   });
