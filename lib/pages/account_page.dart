@@ -32,33 +32,31 @@ class AccountPage extends StatelessWidget {
           return LayoutBuilder(
             builder: (context, constraints) {
               final mobile = useCompactLayout(context, breakpoint: 700);
-              return Column(
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      primary: true,
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          mobile ? 22 : 54,
-                          mobile ? 70 : 104,
-                          mobile ? 22 : 54,
-                          mobile ? 88 : 120,
-                        ),
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: user == null ? 560 : 1100,
-                            ),
-                            child: user == null
-                                ? const _AccountAuthForm()
-                                : _AccountDetails(user: user),
+              return SingleChildScrollView(
+                primary: true,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        mobile ? 22 : 54,
+                        mobile ? 70 : 104,
+                        mobile ? 22 : 54,
+                        mobile ? 88 : 120,
+                      ),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: user == null ? 560 : 1100,
                           ),
+                          child: user == null
+                              ? const _AccountAuthForm()
+                              : _AccountDetails(user: user),
                         ),
                       ),
                     ),
-                  ),
-                  const AppFooter(),
-                ],
+                    const AppFooter(),
+                  ],
+                ),
               );
             },
           );

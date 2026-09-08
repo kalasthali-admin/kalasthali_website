@@ -100,7 +100,7 @@ class _CartPageState extends State<CartPage> {
                       mobile ? 22 : 32,
                       mobile ? 58 : 72,
                       mobile ? 22 : 32,
-                      mobile ? 78 : 96,
+                      mobile ? 78 : 250,
                     ),
                     child: loading
                         ? SizedBox(
@@ -129,6 +129,7 @@ class _CartPageState extends State<CartPage> {
                             ),
                           ),
                   ),
+                  //Spacer(),
                   const AppFooter(),
                 ],
               ),
