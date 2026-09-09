@@ -48,7 +48,63 @@ function compactText(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
 
-async function insertSale({ userId, orderId, paymentId, sale }) {
+function normaliseItems(value, amount, productCode) {
+  if (!Array.isArray(value) || value.length === 0) {
+    const error = new Error('At least one sale item is required.');
+    error.status = 400;
+    throw error;
+  }
+
+  const items = value.map((item) => {
+    const productName = compactText(item?.product_name);
+    const itemProductCode = compactText(item?.product_code);
+    const quantity = Number(item?.quantity);
+    const unitPrice = Number(item?.unit_price);
+    const lineTotal = Number(item?.line_total);
+
+    if (
+      !productName ||
+      !itemProductCode ||
+      !Number.isSafeInteger(quantity) ||
+      quantity < 1 ||
+      !Number.isSafeInteger(unitPrice) ||
+      unitPrice < 0 ||
+      !Number.isSafeInteger(lineTotal) ||
+      lineTotal < 0 ||
+      lineTotal !== unitPrice * quantity
+    ) {
+      const error = new Error('Invalid sale item details.');
+      error.status = 400;
+      throw error;
+    }
+
+    return {
+      product_name: productName,
+      product_code: itemProductCode,
+      quantity,
+      unit_price: unitPrice,
+      line_total: lineTotal,
+      // Keep the deployed receipt function compatible while it is updated.
+      price: unitPrice,
+      amount: lineTotal,
+    };
+  });
+
+  const itemTotal = items.reduce((total, item) => total + item.line_total, 0);
+  if (
+    !items.some((item) => item.product_code === productCode) ||
+    !Number.isSafeInteger(itemTotal) ||
+    itemTotal !== amount
+  ) {
+    const error = new Error('Sale item total does not match the order amount.');
+    error.status = 400;
+    throw error;
+  }
+
+  return items;
+}
+
+async function insertSale({ userId, userEmail, orderId, paymentId, sale }) {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('Supabase service role key is not configured.');
   }
@@ -56,16 +112,23 @@ async function insertSale({ userId, orderId, paymentId, sale }) {
   const product = compactText(sale.product);
   const productCode = compactText(sale.product_code);
   const userAddress = compactText(sale.user_address);
-  const customerEmail = compactText(sale.customer_email, null);
+  const customerEmail = compactText(sale.customer_email, compactText(userEmail, null));
   const customerPhone = compactText(sale.customer_phone, null);
-  const items = Array.isArray(sale.items) ? sale.items : null;
   const amount = Number(sale.amount);
 
-  if (!product || !productCode || !userAddress || !Number.isInteger(amount)) {
+  if (
+    !product ||
+    !productCode ||
+    !userAddress ||
+    !customerEmail ||
+    !Number.isSafeInteger(amount) ||
+    amount < 1
+  ) {
     const error = new Error('Missing sale fields.');
     error.status = 400;
     throw error;
   }
+  const items = normaliseItems(sale.items, amount, productCode);
 
   const response = await fetch(`${supabaseUrl}/rest/v1/sales`, {
     method: 'POST',
@@ -86,6 +149,7 @@ async function insertSale({ userId, orderId, paymentId, sale }) {
       customer_email: customerEmail,
       customer_phone: customerPhone,
       items,
+      invoice_sent_at: null,
     }),
   });
 
@@ -96,6 +160,12 @@ async function insertSale({ userId, orderId, paymentId, sale }) {
       message = JSON.parse(text).message || message;
     } catch (_) {}
     throw new Error(message);
+  }
+
+  if (response.status === 409) {
+    console.info('Verified sale already exists.', { orderId });
+  } else {
+    console.info('Recorded verified sale.', { orderId });
   }
 }
 
@@ -132,6 +202,7 @@ module.exports = async function handler(req, res) {
   try {
     await insertSale({
       userId: user.id,
+      userEmail: user.email,
       orderId,
       paymentId,
       sale: readBody(req).sale || {},
