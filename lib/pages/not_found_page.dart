@@ -24,30 +24,27 @@ class NotFoundPage extends StatelessWidget {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final mobile = useCompactLayout(context, breakpoint: 700);
-          return SingleChildScrollView(
+          return CustomScrollView(
             primary: true,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      mobile ? 24 : 54,
-                      mobile ? 74 : 110,
-                      mobile ? 24 : 54,
-                      mobile ? 92 : 140,
-                    ),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 720),
-                        child: _NotFoundContent(mobile: mobile),
-                      ),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    mobile ? 24 : 54,
+                    mobile ? 74 : 110,
+                    mobile ? 24 : 54,
+                    mobile ? 92 : 140,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: _NotFoundContent(mobile: mobile),
                     ),
                   ),
-                  const AppFooter(),
-                ],
+                ),
               ),
-            ),
+              const AppFooterSliver(),
+            ],
           );
         },
       ),
@@ -110,7 +107,7 @@ class _NotFoundContent extends StatelessWidget {
           FilledButton(
             onPressed: () => Navigator.of(
               context,
-            ).pushNamedAndRemoveUntil('/home', (route) => false),
+            ).pushNamedAndRemoveUntil('/', (route) => false),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFA35710),
               minimumSize: const Size(180, 52),

@@ -8,6 +8,7 @@ import '../core/responsive.dart';
 import '../core/services/auth_service.dart';
 import '../core/services/payment_service.dart';
 import '../core/services/product_service.dart';
+import 'order_success_page.dart';
 import '../widgets/app_footer.dart';
 import '../widgets/app_scaffold.dart';
 
@@ -25,6 +26,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Future<List<Map<String, dynamic>>>? _addresses;
   String? _addressesUserId;
   var _addressUpdating = false;
+  OrderSuccessDetails? _orderSuccess;
 
   @override
   void initState() {
@@ -70,67 +72,76 @@ class _CheckoutPageState extends State<CheckoutPage> {
     Navigator.pushNamed(context, '/account');
   }
 
+  void _showOrderSuccess(OrderSuccessDetails details) {
+    setState(() => _orderSuccess = details);
+  }
+
   @override
   Widget build(BuildContext context) => AppScaffold(
     title: 'Checkout',
     currentRoute: '/checkout',
     centerBody: false,
-    body: FutureBuilder<Product?>(
-      future: _product,
-      builder: (context, productSnapshot) {
-        if (productSnapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final product = productSnapshot.data;
-        if (product == null) {
-          return const Center(
-            child: Text('This product is no longer available.'),
-          );
-        }
-        return StreamBuilder<User?>(
-          stream: AuthService.userChanges,
-          initialData: AuthService.currentUser,
-          builder: (context, userSnapshot) {
-            final user = userSnapshot.data ?? AuthService.currentUser;
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final mobile = useCompactLayout(context, breakpoint: 800);
-                return SingleChildScrollView(
-                  primary: true,
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          mobile ? 22 : 54,
-                          mobile ? 62 : 88,
-                          mobile ? 22 : 54,
-                          mobile ? 76 : 110,
-                        ),
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 1160),
-                            child: _CheckoutContent(
-                              product: product,
-                              user: user,
-                              addresses: _addressesFor(user),
-                              addressUpdating: _addressUpdating,
-                              mobile: mobile,
-                              onAddressSelected: _selectAddress,
-                              onAddAddress: _goToAccountAddresses,
+    body: _orderSuccess != null
+        ? OrderSuccessView(details: _orderSuccess!)
+        : FutureBuilder<Product?>(
+            future: _product,
+            builder: (context, productSnapshot) {
+              if (productSnapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final product = productSnapshot.data;
+              if (product == null) {
+                return const Center(
+                  child: Text('This product is no longer available.'),
+                );
+              }
+              return StreamBuilder<User?>(
+                stream: AuthService.userChanges,
+                initialData: AuthService.currentUser,
+                builder: (context, userSnapshot) {
+                  final user = userSnapshot.data ?? AuthService.currentUser;
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final mobile = useCompactLayout(context, breakpoint: 800);
+                      return CustomScrollView(
+                        primary: true,
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                mobile ? 22 : 54,
+                                mobile ? 62 : 88,
+                                mobile ? 22 : 54,
+                                mobile ? 76 : 110,
+                              ),
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 1160,
+                                  ),
+                                  child: _CheckoutContent(
+                                    product: product,
+                                    user: user,
+                                    addresses: _addressesFor(user),
+                                    addressUpdating: _addressUpdating,
+                                    mobile: mobile,
+                                    onAddressSelected: _selectAddress,
+                                    onAddAddress: _goToAccountAddresses,
+                                    onOrderCompleted: _showOrderSuccess,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                      const AppFooter(),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
-        );
-      },
-    ),
+                          const AppFooterSliver(),
+                        ],
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          ),
   );
 }
 
@@ -143,6 +154,7 @@ class _CheckoutContent extends StatelessWidget {
     required this.mobile,
     required this.onAddressSelected,
     required this.onAddAddress,
+    required this.onOrderCompleted,
   });
 
   final Product product;
@@ -152,6 +164,7 @@ class _CheckoutContent extends StatelessWidget {
   final bool mobile;
   final ValueChanged<String> onAddressSelected;
   final VoidCallback onAddAddress;
+  final ValueChanged<OrderSuccessDetails> onOrderCompleted;
 
   @override
   Widget build(BuildContext context) {
@@ -166,6 +179,7 @@ class _CheckoutContent extends StatelessWidget {
                 product: product,
                 address: null,
                 canContinue: false,
+                onOrderCompleted: onOrderCompleted,
               ),
             ],
           )
@@ -190,6 +204,7 @@ class _CheckoutContent extends StatelessWidget {
                     product: product,
                     address: selectedAddress,
                     canContinue: deliveryAddressReady,
+                    onOrderCompleted: onOrderCompleted,
                   ),
                 ],
               );
@@ -506,11 +521,13 @@ class _PaymentPanel extends StatefulWidget {
     required this.product,
     required this.address,
     required this.canContinue,
+    required this.onOrderCompleted,
   });
 
   final Product product;
   final Map<String, dynamic>? address;
   final bool canContinue;
+  final ValueChanged<OrderSuccessDetails> onOrderCompleted;
 
   @override
   State<_PaymentPanel> createState() => _PaymentPanelState();
@@ -563,10 +580,8 @@ class _PaymentPanelState extends State<_PaymentPanel> {
         },
       );
       if (!mounted) return;
-      Navigator.pushReplacementNamed(
-        context,
-        '/order-success',
-        arguments: OrderSuccessDetails(
+      widget.onOrderCompleted(
+        OrderSuccessDetails(
           orderId: result.orderId,
           paymentId: result.paymentId,
           address: _addressLines(widget.address!),

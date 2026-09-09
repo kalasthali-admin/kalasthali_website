@@ -4,6 +4,11 @@
   "outputDirectory": "build/web",
   "redirects": [
     {
+      "source": "/home",
+      "destination": "/",
+      "permanent": true
+    },
+    {
       "source": "/:path*",
       "has": [
         {

@@ -21,17 +21,17 @@ class HomePage extends StatelessWidget {
     );
     return AppScaffold(
       title: 'Home',
-      currentRoute: '/home',
+      currentRoute: '/',
       centerBody: false,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isMobile = useCompactLayout(context, breakpoint: 700);
 
-          return SingleChildScrollView(
+          return CustomScrollView(
             primary: true,
-            child: Column(
-              children: [
-                Padding(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
                   padding: EdgeInsets.fromLTRB(
                     isMobile ? 0 : 28,
                     isMobile ? 0 : 30,
@@ -54,9 +54,9 @@ class HomePage extends StatelessWidget {
                     ],
                   ),
                 ),
-                const AppFooter(),
-              ],
-            ),
+              ),
+              const AppFooterSliver(),
+            ],
           );
         },
       ),

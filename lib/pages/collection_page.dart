@@ -206,23 +206,12 @@ class _CollectionPageState extends State<CollectionPage> {
                 ),
               );
 
-              if (filtered.isEmpty) {
-                return Column(
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        primary: true,
-                        child: productContent,
-                      ),
-                    ),
-                    const AppFooter(),
-                  ],
-                );
-              }
-
-              return SingleChildScrollView(
+              return CustomScrollView(
                 primary: true,
-                child: Column(children: [productContent, const AppFooter()]),
+                slivers: [
+                  SliverToBoxAdapter(child: productContent),
+                  const AppFooterSliver(),
+                ],
               );
             },
           );

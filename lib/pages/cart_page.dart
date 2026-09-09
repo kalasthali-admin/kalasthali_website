@@ -8,6 +8,7 @@ import '../core/services/auth_service.dart';
 import '../core/services/cart_service.dart';
 import '../core/services/payment_service.dart';
 import '../core/services/product_service.dart';
+import 'order_success_page.dart';
 import '../widgets/app_footer.dart';
 import '../widgets/app_scaffold.dart';
 
@@ -23,6 +24,7 @@ class _CartPageState extends State<CartPage> {
   List<Map<String, dynamic>> _addresses = const [];
   var _addressesLoading = true;
   var _addressUpdating = false;
+  OrderSuccessDetails? _orderSuccess;
 
   @override
   void initState() {
@@ -78,66 +80,74 @@ class _CartPageState extends State<CartPage> {
     }
   }
 
+  void _showOrderSuccess(OrderSuccessDetails details) {
+    setState(() => _orderSuccess = details);
+  }
+
   @override
   Widget build(BuildContext context) => AppScaffold(
     title: 'Cart',
     currentRoute: '/cart',
     centerBody: false,
-    body: FutureBuilder<List<UserCartItem>>(
-      future: _items,
-      builder: (context, snapshot) {
-        final loading = snapshot.connectionState != ConnectionState.done;
-        final items = snapshot.data ?? const <UserCartItem>[];
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final mobile = useCompactLayout(context, breakpoint: 900);
-            return SingleChildScrollView(
-              primary: true,
-              child: Column(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      mobile ? 22 : 32,
-                      mobile ? 58 : 72,
-                      mobile ? 22 : 32,
-                      mobile ? 78 : 250,
-                    ),
-                    child: loading
-                        ? SizedBox(
-                            height: constraints.maxHeight * .55,
-                            child: const Center(
-                              child: CircularProgressIndicator(),
-                            ),
-                          )
-                        : items.isEmpty
-                        ? SizedBox(
-                            height: constraints.maxHeight * .55,
-                            child: _EmptyCart(),
-                          )
-                        : Center(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 1180),
-                              child: _CartContent(
-                                items: items,
-                                addresses: _addresses,
-                                loadingAddresses: _addressesLoading,
-                                updatingAddress: _addressUpdating,
-                                mobile: mobile,
-                                onQuantityChanged: _setQuantity,
-                                onAddressSelected: _selectAddress,
-                              ),
-                            ),
+    body: _orderSuccess != null
+        ? OrderSuccessView(details: _orderSuccess!)
+        : FutureBuilder<List<UserCartItem>>(
+            future: _items,
+            builder: (context, snapshot) {
+              final loading = snapshot.connectionState != ConnectionState.done;
+              final items = snapshot.data ?? const <UserCartItem>[];
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  final mobile = useCompactLayout(context, breakpoint: 900);
+                  return CustomScrollView(
+                    primary: true,
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            mobile ? 22 : 32,
+                            mobile ? 58 : 72,
+                            mobile ? 22 : 32,
+                            mobile ? 78 : 80,
                           ),
-                  ),
-                  //Spacer(),
-                  const AppFooter(),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    ),
+                          child: loading
+                              ? SizedBox(
+                                  height: constraints.maxHeight * .55,
+                                  child: const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              : items.isEmpty
+                              ? SizedBox(
+                                  height: constraints.maxHeight * .55,
+                                  child: _EmptyCart(),
+                                )
+                              : Center(
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 1180,
+                                    ),
+                                    child: _CartContent(
+                                      items: items,
+                                      addresses: _addresses,
+                                      loadingAddresses: _addressesLoading,
+                                      updatingAddress: _addressUpdating,
+                                      mobile: mobile,
+                                      onQuantityChanged: _setQuantity,
+                                      onAddressSelected: _selectAddress,
+                                      onOrderCompleted: _showOrderSuccess,
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const AppFooterSliver(),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
   );
 }
 
@@ -150,6 +160,7 @@ class _CartContent extends StatelessWidget {
     required this.mobile,
     required this.onQuantityChanged,
     required this.onAddressSelected,
+    required this.onOrderCompleted,
   });
 
   final List<UserCartItem> items;
@@ -159,6 +170,7 @@ class _CartContent extends StatelessWidget {
   final bool mobile;
   final void Function(String code, int quantity) onQuantityChanged;
   final ValueChanged<String> onAddressSelected;
+  final ValueChanged<OrderSuccessDetails> onOrderCompleted;
 
   @override
   Widget build(BuildContext context) {
@@ -168,6 +180,7 @@ class _CartContent extends StatelessWidget {
       loadingAddress: loadingAddresses,
       updatingAddress: updatingAddress,
       onAddressSelected: onAddressSelected,
+      onOrderCompleted: onOrderCompleted,
     );
 
     final list = Column(
@@ -527,6 +540,7 @@ class _CartSummary extends StatefulWidget {
     required this.loadingAddress,
     required this.updatingAddress,
     required this.onAddressSelected,
+    required this.onOrderCompleted,
   });
 
   final List<UserCartItem> items;
@@ -534,6 +548,7 @@ class _CartSummary extends StatefulWidget {
   final bool loadingAddress;
   final bool updatingAddress;
   final ValueChanged<String> onAddressSelected;
+  final ValueChanged<OrderSuccessDetails> onOrderCompleted;
 
   @override
   State<_CartSummary> createState() => _CartSummaryState();
@@ -589,10 +604,8 @@ class _CartSummaryState extends State<_CartSummary> {
         },
       );
       if (!mounted) return;
-      Navigator.pushReplacementNamed(
-        context,
-        '/order-success',
-        arguments: OrderSuccessDetails(
+      widget.onOrderCompleted(
+        OrderSuccessDetails(
           orderId: result.orderId,
           paymentId: result.paymentId,
           address: _addressLines(address),

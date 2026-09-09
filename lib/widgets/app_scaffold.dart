@@ -128,7 +128,7 @@ class _AppScaffoldState extends State<AppScaffold> {
                     overlayColor: const WidgetStatePropertyAll(
                       Colors.transparent,
                     ),
-                    onTap: () => _goTo(context, '/home'),
+                    onTap: () => _goTo(context, '/'),
                     child: Padding(
                       padding: const EdgeInsets.all(10),
                       child: Image.asset(
@@ -476,7 +476,7 @@ class _NavItem {
 }
 
 const List<_NavItem> _primaryItems = [
-  _NavItem(label: 'HOME', route: '/home', icon: Icons.home_outlined),
+  _NavItem(label: 'HOME', route: '/', icon: Icons.home_outlined),
   _NavItem(
     label: 'COLLECTION',
     route: '/collections',

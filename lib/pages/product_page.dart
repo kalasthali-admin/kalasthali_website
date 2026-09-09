@@ -55,11 +55,11 @@ class _ProductDetails extends StatelessWidget {
         // layout leaves both the gallery and product copy too narrow there.
         final mobile =
             useCompactLayout(context, breakpoint: 800) || tabletPortrait;
-        return SingleChildScrollView(
+        return CustomScrollView(
           primary: true,
-          child: Column(
-            children: [
-              Padding(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
                 padding: EdgeInsets.fromLTRB(
                   mobile ? 22 : 54,
                   mobile ? 70 : 72,
@@ -75,9 +75,9 @@ class _ProductDetails extends StatelessWidget {
                   ),
                 ),
               ),
-              const AppFooter(),
-            ],
-          ),
+            ),
+            const AppFooterSliver(),
+          ],
         );
       },
     );

@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/responsive.dart';
 import '../core/services/auth_service.dart';
+import '../core/services/product_service.dart';
 import '../core/services/seo_service.dart';
 import '../widgets/app_footer.dart';
 import '../widgets/app_scaffold.dart';
@@ -32,16 +33,16 @@ class AccountPage extends StatelessWidget {
           return LayoutBuilder(
             builder: (context, constraints) {
               final mobile = useCompactLayout(context, breakpoint: 700);
-              return SingleChildScrollView(
+              return CustomScrollView(
                 primary: true,
-                child: Column(
-                  children: [
-                    Padding(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
                       padding: EdgeInsets.fromLTRB(
                         mobile ? 22 : 54,
                         mobile ? 70 : 104,
                         mobile ? 22 : 54,
-                        mobile ? 88 : 120,
+                        mobile ? 88 : 200,
                       ),
                       child: Center(
                         child: ConstrainedBox(
@@ -54,9 +55,9 @@ class AccountPage extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const AppFooter(),
-                  ],
-                ),
+                  ),
+                  const AppFooterSliver(),
+                ],
               );
             },
           );
@@ -462,6 +463,12 @@ class _AccountDetailsState extends State<_AccountDetails> {
       FutureBuilder<List<Map<String, dynamic>>>(
         future: _orders,
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Text(
+              'Could not load your orders. Please refresh and try again.',
+              style: GoogleFonts.blinker(fontSize: 17),
+            );
+          }
           if (!snapshot.hasData) return const CircularProgressIndicator();
           if (snapshot.data!.isEmpty) {
             return Text(
@@ -704,68 +711,75 @@ class _OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = _orderItems(order);
-    final isStack = items.length > 1;
-    final amount = order['amount'];
     final paidAt = DateTime.tryParse((order['paid_at'] ?? '').toString());
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 760),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFFECE7DD),
-          border: Border.all(color: const Color(0xFFD5B48A)),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x1A2D1E12),
-              blurRadius: 12,
-              offset: Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Theme(
-          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-          child: ExpansionTile(
-            tilePadding: const EdgeInsets.fromLTRB(18, 8, 14, 8),
-            childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-            iconColor: const Color(0xFF5B351A),
-            collapsedIconColor: const Color(0xFF5B351A),
-            title: Text(
-              isStack ? 'Cart order' : items.first.name,
-              style: GoogleFonts.dmSerifDisplay(
-                fontSize: 25,
-                color: const Color(0xFF5B351A),
-              ),
-            ),
-            subtitle: Text(
-              [
-                'Order ${order['order_id']}',
-                if (paidAt != null) _dateLabel(paidAt),
-              ].join(' • '),
-              style: GoogleFonts.blinker(fontSize: 14),
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
+          onTap: () => _showOrderSheet(context, order, items),
+          child: Ink(
+            padding: const EdgeInsets.all(16),
+            decoration: _orderCardDecoration(),
+            child: Row(
               children: [
-                Text(
-                  '₹${amount ?? '-'}',
-                  style: GoogleFonts.blinker(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
+                _OrderLead(items: items),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        items.length == 1 ? items.first.name : 'Cart order',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.dmSerifDisplay(
+                          fontSize: 24,
+                          color: const Color(0xFF5B351A),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        items.length == 1
+                            ? 'Qty ${items.first.quantity}'
+                            : '${items.length} items purchased',
+                        style: GoogleFonts.blinker(fontSize: 16),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        [
+                          'Order ${order['order_id']}',
+                          if (paidAt != null) _dateLabel(paidAt),
+                        ].join(' • '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.blinker(
+                          fontSize: 13,
+                          color: const Color(0xFF746D64),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                const Icon(Icons.expand_more),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '₹${order['amount'] ?? '-'}',
+                      style: GoogleFonts.blinker(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Icon(Icons.chevron_right, color: Color(0xFF5B351A)),
+                  ],
+                ),
               ],
             ),
-            children: [
-              if (isStack)
-                _OrderItemStack(items: items)
-              else
-                _SingleOrderLine(item: items.first),
-              const SizedBox(height: 18),
-              _InvoicePanel(order: order, items: items),
-            ],
           ),
         ),
       ),
@@ -773,65 +787,189 @@ class _OrderCard extends StatelessWidget {
   }
 }
 
-class _OrderItemStack extends StatelessWidget {
-  const _OrderItemStack({required this.items});
+BoxDecoration _orderCardDecoration() => BoxDecoration(
+  color: const Color(0xFFECE7DD),
+  border: Border.all(color: const Color(0xFFD5B48A)),
+  borderRadius: BorderRadius.circular(16),
+  boxShadow: const [
+    BoxShadow(color: Color(0x1A2D1E12), blurRadius: 12, offset: Offset(0, 5)),
+  ],
+);
 
+class _OrderLead extends StatelessWidget {
+  const _OrderLead({required this.items});
   final List<_InvoiceItem> items;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      for (final item in items)
-        Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFEF5E6),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFD5B48A)),
-          ),
-          child: _SingleOrderLine(item: item),
+  Widget build(BuildContext context) {
+    if (items.length > 1) {
+      return Container(
+        width: 92,
+        height: 104,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0xFFD6BFA6),
+          borderRadius: BorderRadius.circular(12),
         ),
-    ],
-  );
-}
-
-class _SingleOrderLine extends StatelessWidget {
-  const _SingleOrderLine({required this.item});
-
-  final _InvoiceItem item;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              item.name,
+              '${items.length}',
               style: GoogleFonts.dmSerifDisplay(
-                fontSize: 21,
+                fontSize: 36,
                 color: const Color(0xFF5B351A),
               ),
             ),
-            Text(
-              [
-                item.code,
-                if (item.size?.isNotEmpty == true) 'Size ${item.size}',
-                'Qty ${item.quantity}',
-              ].join(' • '),
-              style: GoogleFonts.blinker(fontSize: 14),
-            ),
+            Text('ITEMS', style: GoogleFonts.blinker(fontSize: 12)),
           ],
         ),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 92,
+        height: 104,
+        child: FutureBuilder<String>(
+          future: ProductService().getProductImageUrlAsync(items.first.code),
+          builder: (context, snapshot) {
+            final url = snapshot.data;
+            return url == null || url.isEmpty
+                ? const ColoredBox(color: Color(0xFFD8D0C3))
+                : Image.network(
+                    url,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) =>
+                        const ColoredBox(color: Color(0xFFD8D0C3)),
+                  );
+          },
+        ),
       ),
-      Text(
-        '₹${item.lineTotal}',
-        style: GoogleFonts.blinker(fontSize: 19, fontWeight: FontWeight.w700),
+    );
+  }
+}
+
+void _showOrderSheet(
+  BuildContext context,
+  Map<String, dynamic> order,
+  List<_InvoiceItem> items,
+) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => _OrderDetailsSheet(order: order, items: items),
+  );
+}
+
+class _OrderDetailsSheet extends StatelessWidget {
+  const _OrderDetailsSheet({required this.order, required this.items});
+  final Map<String, dynamic> order;
+  final List<_InvoiceItem> items;
+
+  @override
+  Widget build(BuildContext context) => DraggableScrollableSheet(
+    initialChildSize: .78,
+    minChildSize: .45,
+    maxChildSize: .94,
+    builder: (context, scrollController) => Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFFEF5E6),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-    ],
+      child: ListView(
+        controller: scrollController,
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        children: [
+          Center(
+            child: Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFF9A8267),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Order details',
+            style: GoogleFonts.dmSerifDisplay(
+              fontSize: 34,
+              color: const Color(0xFF5B351A),
+            ),
+          ),
+          const SizedBox(height: 16),
+          for (final item in items) _OrderSheetItem(item: item),
+          const SizedBox(height: 18),
+          _InvoicePanel(order: order, items: items),
+        ],
+      ),
+    ),
+  );
+}
+
+class _OrderSheetItem extends StatelessWidget {
+  const _OrderSheetItem({required this.item});
+  final _InvoiceItem item;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xFFECE7DD),
+      border: Border.all(color: const Color(0xFFD5B48A)),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.name,
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: 22,
+                  color: const Color(0xFF5B351A),
+                ),
+              ),
+              Text(
+                [
+                  item.code,
+                  if (item.size?.isNotEmpty == true) 'Size ${item.size}',
+                  'Qty ${item.quantity}',
+                ].join(' • '),
+                style: GoogleFonts.blinker(fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: item.code.isEmpty
+                    ? null
+                    : () {
+                        final navigator = Navigator.of(context);
+                        navigator.pop();
+                        navigator.pushNamed(
+                          Uri(
+                            path: '/product',
+                            queryParameters: {'code': item.code},
+                          ).toString(),
+                        );
+                      },
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('VIEW PRODUCT'),
+              ),
+            ],
+          ),
+        ),
+        Text(
+          '₹${item.lineTotal}',
+          style: GoogleFonts.blinker(fontSize: 19, fontWeight: FontWeight.w700),
+        ),
+      ],
+    ),
   );
 }
 

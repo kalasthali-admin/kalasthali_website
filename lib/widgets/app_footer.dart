@@ -77,6 +77,17 @@ class AppFooter extends StatelessWidget {
   }
 }
 
+class AppFooterSliver extends StatelessWidget {
+  const AppFooterSliver({super.key});
+
+  @override
+  Widget build(BuildContext context) => SliverFillRemaining(
+    fillOverscroll: true,
+    hasScrollBody: false,
+    child: const Column(children: [Spacer(), AppFooter()]),
+  );
+}
+
 class _FooterLink extends StatelessWidget {
   const _FooterLink({
     required this.label,
