@@ -123,6 +123,25 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _loading = true;
+      _message = null;
+    });
+    try {
+      final launched = await AuthService.signInWithGoogle();
+      if (!launched && mounted) {
+        setState(() {
+          _message = 'Could not open Google sign-in. Please try again.';
+        });
+      }
+    } on AuthException catch (error) {
+      if (mounted) setState(() => _message = error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(28),
@@ -225,6 +244,30 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
                     ),
             ),
           ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              const Expanded(child: Divider()),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'OR',
+                  style: GoogleFonts.blinker(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF746D64),
+                  ),
+                ),
+              ),
+              const Expanded(child: Divider()),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Center(
+            child: _GoogleAuthButton(
+              onPressed: _loading ? null : _signInWithGoogle,
+            ),
+          ),
           const SizedBox(height: 10),
           Center(
             child: TextButton(
@@ -246,6 +289,74 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
       ),
     ),
   );
+}
+
+class _GoogleAuthButton extends StatefulWidget {
+  const _GoogleAuthButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  State<_GoogleAuthButton> createState() => _GoogleAuthButtonState();
+}
+
+class _GoogleAuthButtonState extends State<_GoogleAuthButton> {
+  var _hovered = false;
+  var _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null;
+    final lifted = enabled && _hovered && !_pressed;
+    return Semantics(
+      button: true,
+      label: 'Continue with Google',
+      child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() {
+          _hovered = false;
+          _pressed = false;
+        }),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: widget.onPressed,
+            onHover: (value) => setState(() => _hovered = value),
+            onHighlightChanged: (value) => setState(() => _pressed = value),
+            child: AnimatedScale(
+              duration: const Duration(milliseconds: 140),
+              scale: _pressed ? .98 : (lifted ? 1.025 : 1),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 140),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: lifted
+                      ? const [
+                          BoxShadow(
+                            color: Color(0x332D1E12),
+                            blurRadius: 12,
+                            offset: Offset(0, 5),
+                          ),
+                        ]
+                      : const [],
+                ),
+                child: Opacity(
+                  opacity: enabled ? 1 : .55,
+                  child: Image.asset(
+                    'lib/assets/google_auth_ico.png',
+                    height: 52,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _AuthField extends StatelessWidget {

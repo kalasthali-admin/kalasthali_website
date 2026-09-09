@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
@@ -9,6 +10,11 @@ class AuthService {
   static Session? get currentSession => _auth.currentSession;
   static Stream<User?> get userChanges =>
       _auth.onAuthStateChange.map((state) => state.session?.user);
+
+  static Future<bool> signInWithGoogle() => _auth.signInWithOAuth(
+    OAuthProvider.google,
+    redirectTo: kIsWeb ? '${Uri.base.origin}/account' : null,
+  );
 
   static String firstName(User user) {
     final metadata = user.userMetadata ?? const <String, dynamic>{};
