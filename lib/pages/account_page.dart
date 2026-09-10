@@ -399,9 +399,12 @@ class _AccountDetails extends StatefulWidget {
   State<_AccountDetails> createState() => _AccountDetailsState();
 }
 
+enum _AccountSection { dashboard, profile, addresses, orders, help }
+
 class _AccountDetailsState extends State<_AccountDetails> {
   late Future<List<Map<String, dynamic>>> _addresses;
   late Future<List<Map<String, dynamic>>> _orders;
+  var _section = _AccountSection.dashboard;
 
   @override
   void initState() {
@@ -490,8 +493,37 @@ class _AccountDetailsState extends State<_AccountDetails> {
     _refresh();
   }
 
+  Future<void> _showProfileEditor() async {
+    final controller = TextEditingController(
+      text: AuthService.firstName(widget.user),
+    );
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ProfileEditorSheet(controller: controller),
+    );
+    controller.dispose();
+    if (saved == true && mounted) setState(() {});
+  }
+
+  void _open(_AccountSection section) => setState(() => _section = section);
+
+  void _backToDashboard() =>
+      setState(() => _section = _AccountSection.dashboard);
+
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) {
+    return switch (_section) {
+      _AccountSection.dashboard => _buildDashboard(context),
+      _AccountSection.profile => _buildProfile(context),
+      _AccountSection.addresses => _buildAddresses(context),
+      _AccountSection.orders => _buildOrders(context),
+      _AccountSection.help => _buildHelp(context),
+    };
+  }
+
+  Widget _buildDashboard(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Row(
@@ -500,44 +532,111 @@ class _AccountDetailsState extends State<_AccountDetails> {
             child: Text(
               'Hello, ${AuthService.firstName(widget.user)}',
               style: GoogleFonts.dmSerifDisplay(
-                fontSize: 40,
+                fontSize: 52,
                 color: const Color(0xFF5B351A),
               ),
             ),
           ),
           OutlinedButton(
             onPressed: () => Supabase.instance.client.auth.signOut(),
+            style: _sectionActionStyle(),
             child: const Text('LOG OUT'),
           ),
         ],
       ),
-      const SizedBox(height: 10),
-      const Divider(color: Color(0xFF9A8267), thickness: 1),
-      const SizedBox(height: 26),
+      const SizedBox(height: 12),
+      const _AccountDivider(),
+      const SizedBox(height: 62),
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final singleColumn = constraints.maxWidth < 620;
+          final tiles = [
+            _AccountMenuTile(
+              title: 'ACCOUNT',
+              description: 'Edit your account details.',
+              icon: Icons.assignment_ind_outlined,
+              onTap: () => _open(_AccountSection.profile),
+            ),
+            _AccountMenuTile(
+              title: 'SAVED ADDRESSES',
+              description:
+                  'Add, edit or delete saved addresses for your orders.',
+              icon: Icons.add_home_work_outlined,
+              onTap: () => _open(_AccountSection.addresses),
+            ),
+            _AccountMenuTile(
+              title: 'ORDERS',
+              description: 'View products ordered by you.',
+              icon: Icons.inventory_2_outlined,
+              onTap: () => _open(_AccountSection.orders),
+            ),
+            _AccountMenuTile(
+              title: 'HELP',
+              description:
+                  'Connect with us for assistance regarding a product.',
+              icon: Icons.help_outline_rounded,
+              onTap: () => _open(_AccountSection.help),
+            ),
+          ];
+          if (singleColumn) {
+            return Column(
+              children: [
+                for (final tile in tiles) ...[tile, const SizedBox(height: 18)],
+              ],
+            );
+          }
+          return Wrap(
+            spacing: 38,
+            runSpacing: 42,
+            children: [
+              for (final tile in tiles)
+                SizedBox(width: (constraints.maxWidth - 38) / 2, child: tile),
+            ],
+          );
+        },
+      ),
+    ],
+  );
+
+  Widget _buildProfile(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _BackButton(onPressed: _backToDashboard),
+      const SizedBox(height: 22),
+      _SectionTitle(
+        title: 'Account',
+        action: OutlinedButton(
+          onPressed: _showProfileEditor,
+          style: _sectionActionStyle(),
+          child: const Text('EDIT'),
+        ),
+      ),
+      const SizedBox(height: 42),
+      _ProfileValue(label: 'NAME', value: AuthService.firstName(widget.user)),
+      const SizedBox(height: 42),
       _ProfileInfoGrid(
         email: widget.user.email ?? 'No email address',
-        phone: 'Not added',
+        phone: widget.user.phone?.isNotEmpty == true
+            ? widget.user.phone!
+            : 'Not added',
       ),
-      const SizedBox(height: 38),
-      Row(
-        children: [
-          Expanded(
-            child: Text(
-              'SAVED ADDRESSES',
-              style: GoogleFonts.blinker(
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-              ),
-            ),
-          ),
-          _AddressActionButton(
-            label: 'ADD ADDRESS',
-            icon: Icons.add,
-            onPressed: () => _showAddressSheet(),
-          ),
-        ],
+    ],
+  );
+
+  Widget _buildAddresses(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _BackButton(onPressed: _backToDashboard),
+      const SizedBox(height: 22),
+      _SectionTitle(
+        title: 'Saved Addresses',
+        action: _AddressActionButton(
+          label: 'ADD ADDRESS',
+          icon: Icons.add,
+          onPressed: () => _showAddressSheet(),
+        ),
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 62),
       FutureBuilder<List<Map<String, dynamic>>>(
         future: _addresses,
         builder: (context, snapshot) {
@@ -545,32 +644,44 @@ class _AccountDetailsState extends State<_AccountDetails> {
           if (snapshot.data!.isEmpty) {
             return Text(
               'No saved addresses yet.',
-              style: GoogleFonts.blinker(fontSize: 17),
+              style: GoogleFonts.blinker(fontSize: 18),
             );
           }
-          return Column(
-            children: snapshot.data!
-                .map(
-                  (address) => Padding(
-                    padding: const EdgeInsets.only(bottom: 18),
-                    child: _AddressCard(
-                      address: address,
-                      onSelect: _select,
-                      onEdit: _showAddressSheet,
-                      onDelete: _delete,
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 720;
+              return Wrap(
+                spacing: 46,
+                runSpacing: 28,
+                children: [
+                  for (final address in snapshot.data!)
+                    SizedBox(
+                      width: wide
+                          ? (constraints.maxWidth - 46) / 2
+                          : constraints.maxWidth,
+                      child: _AddressCard(
+                        address: address,
+                        onSelect: _select,
+                        onEdit: _showAddressSheet,
+                        onDelete: _delete,
+                      ),
                     ),
-                  ),
-                )
-                .toList(),
+                ],
+              );
+            },
           );
         },
       ),
-      const SizedBox(height: 34),
-      Text(
-        'ORDERS',
-        style: GoogleFonts.blinker(fontWeight: FontWeight.w800, fontSize: 15),
-      ),
-      const SizedBox(height: 14),
+    ],
+  );
+
+  Widget _buildOrders(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _BackButton(onPressed: _backToDashboard),
+      const SizedBox(height: 22),
+      const _SectionTitle(title: 'YOUR ORDERS'),
+      const SizedBox(height: 62),
       FutureBuilder<List<Map<String, dynamic>>>(
         future: _orders,
         builder: (context, snapshot) {
@@ -600,7 +711,162 @@ class _AccountDetailsState extends State<_AccountDetails> {
       ),
     ],
   );
+
+  Widget _buildHelp(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _BackButton(onPressed: _backToDashboard),
+      const SizedBox(height: 22),
+      const _SectionTitle(title: 'Help'),
+      const SizedBox(height: 48),
+      Container(
+        constraints: const BoxConstraints(maxWidth: 620),
+        padding: const EdgeInsets.all(28),
+        decoration: _orderCardDecoration(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'How can we help?',
+              style: GoogleFonts.dmSerifDisplay(
+                fontSize: 34,
+                color: const Color(0xFF5B351A),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'For help with a product or an existing order, contact Kalasthali By Nisha and include your order ID where applicable.',
+              style: GoogleFonts.blinker(fontSize: 18, height: 1.25),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 }
+
+class _AccountMenuTile extends StatelessWidget {
+  const _AccountMenuTile({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String title;
+  final String description;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Ink(
+        height: 166,
+        padding: const EdgeInsets.all(26),
+        decoration: _orderCardDecoration().copyWith(
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.blinker(
+                      fontSize: 25,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF5B351A),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: GoogleFonts.blinker(fontSize: 18, height: 1.1),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 18),
+            Icon(icon, size: 72, color: const Color(0xFFA35710)),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _BackButton extends StatelessWidget {
+  const _BackButton({required this.onPressed});
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => TextButton.icon(
+    onPressed: onPressed,
+    icon: const Icon(Icons.arrow_back, size: 22),
+    label: const Text('BACK'),
+    style: TextButton.styleFrom(
+      foregroundColor: const Color(0xFFA35710),
+      padding: EdgeInsets.zero,
+      textStyle: GoogleFonts.blinker(fontSize: 22, fontWeight: FontWeight.w800),
+    ),
+  );
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title, this.action});
+  final String title;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: GoogleFonts.dmSerifDisplay(
+                fontSize: 52,
+                color: const Color(0xFF5B351A),
+              ),
+            ),
+          ),
+          if (action case final Widget action) action,
+        ],
+      ),
+      const SizedBox(height: 12),
+      const _AccountDivider(),
+    ],
+  );
+}
+
+class _AccountDivider extends StatelessWidget {
+  const _AccountDivider();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: const [
+      Icon(Icons.diamond, size: 13, color: Color(0xFF9A8267)),
+      Expanded(child: Divider(color: Color(0xFF9A8267), thickness: 1.5)),
+      Icon(Icons.diamond, size: 13, color: Color(0xFF9A8267)),
+    ],
+  );
+}
+
+ButtonStyle _sectionActionStyle() => OutlinedButton.styleFrom(
+  foregroundColor: const Color(0xFFA35710),
+  side: const BorderSide(color: Color(0xFF6A4529), width: 1.4),
+  minimumSize: const Size(188, 56),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  textStyle: GoogleFonts.blinker(fontSize: 19, fontWeight: FontWeight.w800),
+);
 
 class _ProfileValue extends StatelessWidget {
   const _ProfileValue({required this.label, required this.value});
@@ -1217,6 +1483,125 @@ class _AddressActionButton extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _ProfileEditorSheet extends StatefulWidget {
+  const _ProfileEditorSheet({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  State<_ProfileEditorSheet> createState() => _ProfileEditorSheetState();
+}
+
+class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
+  final _formKey = GlobalKey<FormState>();
+  var _saving = false;
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(data: {'first_name': widget.controller.text.trim()}),
+      );
+      if (mounted) Navigator.pop(context, true);
+    } on AuthException catch (error) {
+      if (mounted) _showError(error.message);
+    } catch (_) {
+      if (mounted) _showError('Could not update your account.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _showError(String message) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFFEF5E6),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(28, 14, 28, 28),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 48,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD4B89C),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  Text(
+                    'Edit account',
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 38,
+                      color: const Color(0xFF5B351A),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _AddressFormField(
+                    controller: widget.controller,
+                    label: 'Name',
+                    textCapitalization: TextCapitalization.words,
+                    required: true,
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: FilledButton(
+                      onPressed: _saving ? null : _save,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFA35710),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              'Save changes',
+                              style: GoogleFonts.blinker(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _AddressEditorSheet extends StatefulWidget {

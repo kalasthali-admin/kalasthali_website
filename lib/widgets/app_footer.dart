@@ -13,14 +13,14 @@ class AppFooter extends StatelessWidget {
     final logoWidth = compactMobile ? 130.0 : (mobile ? 164.0 : 292.0);
     final iconSize = compactMobile ? 28.0 : (mobile ? 34.0 : 50.0);
     final iconGap = mobile ? 8.0 : 24.0;
-    final horizontalPadding = mobile ? 20.0 : 34.0;
+    final horizontalPadding = mobile ? 20.0 : 80.0;
 
     return Container(
       width: double.infinity,
       color: _background,
       padding: EdgeInsets.symmetric(
         horizontal: horizontalPadding,
-        vertical: mobile ? 28 : 34,
+        vertical: mobile ? 28 : 44,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,7 +63,25 @@ class AppFooter extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: mobile ? 22 : 30),
+          SizedBox(height: mobile ? 24 : 36),
+          Wrap(
+            spacing: mobile ? 18 : 30,
+            runSpacing: mobile ? 10 : 14,
+            children: const [
+              _FooterRouteLink(label: 'ABOUT', route: '/about'),
+              _FooterRouteLink(label: 'COLLECTIONS', route: '/collections'),
+              _FooterRouteLink(
+                label: 'PRIVACY POLICY',
+                route: '/privacy-policy',
+              ),
+              _FooterRouteLink(
+                label: 'TERMS OF SERVICE',
+                route: '/terms-of-service',
+              ),
+              _FooterRouteLink(label: 'REFUND POLICY', route: '/refund-policy'),
+            ],
+          ),
+          SizedBox(height: mobile ? 24 : 38),
           Text(
             'Copyright © ${DateTime.now().year} Kalasthali By Nisha',
             style: TextStyle(
@@ -132,6 +150,42 @@ class _FooterLink extends StatelessWidget {
           width: size,
           height: size,
           fit: BoxFit.contain,
+        ),
+      ),
+    ),
+  );
+}
+
+class _FooterRouteLink extends StatelessWidget {
+  const _FooterRouteLink({required this.label, required this.route});
+
+  final String label;
+  final String route;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: 'Open $label',
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(5),
+        onTap: () {
+          if (ModalRoute.of(context)?.settings.name != route) {
+            Navigator.pushReplacementNamed(context, route);
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF914B0D),
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 2.2,
+            ),
+          ),
         ),
       ),
     ),

@@ -106,7 +106,7 @@ class _CartPageState extends State<CartPage> {
                         child: Padding(
                           padding: EdgeInsets.fromLTRB(
                             mobile ? 22 : 32,
-                            mobile ? 58 : 72,
+                            mobile ? 78 : 72,
                             mobile ? 22 : 32,
                             mobile ? 78 : 80,
                           ),
@@ -203,9 +203,31 @@ class _CartContent extends StatelessWidget {
         const SizedBox(height: 8),
         const Divider(color: Color(0xFF9A8267), thickness: 1),
         const SizedBox(height: 24),
-        if (mobile)
-          Column(children: [list, const SizedBox(height: 24), summary])
-        else
+        if (mobile) ...[
+          list,
+          const SizedBox(height: 34),
+          Center(
+            child: SizedBox(
+              width: 240,
+              height: 62,
+              child: FilledButton(
+                onPressed: () => _openCheckoutSheet(context),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFA35710),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  elevation: 8,
+                  shadowColor: const Color(0x66382212),
+                ),
+                child: Text(
+                  'Checkout',
+                  style: GoogleFonts.blinker(fontSize: 28),
+                ),
+              ),
+            ),
+          ),
+        ] else
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -217,6 +239,41 @@ class _CartContent extends StatelessWidget {
       ],
     );
   }
+
+  Future<void> _openCheckoutSheet(BuildContext context) =>
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => DraggableScrollableSheet(
+          initialChildSize: .76,
+          minChildSize: .48,
+          maxChildSize: .94,
+          expand: false,
+          builder: (context, scrollController) => Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFFD6BFA6),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+            ),
+            child: SingleChildScrollView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+              child: _CartSummary(
+                items: items,
+                addresses: addresses,
+                loadingAddress: loadingAddresses,
+                updatingAddress: updatingAddress,
+                onAddressSelected: onAddressSelected,
+                onOrderCompleted: (details) {
+                  Navigator.of(sheetContext).pop();
+                  onOrderCompleted(details);
+                },
+                sheetStyle: true,
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 class _CartProductCard extends StatelessWidget {
@@ -230,19 +287,18 @@ class _CartProductCard extends StatelessWidget {
     final product = item.product;
     final price = _priceNumber(product?.price);
     final total = price == null ? null : price * item.quantity;
-    final sizes = (product?.sizes ?? item.size ?? '')
-        .split(',')
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toList();
+    final mobile = MediaQuery.sizeOf(context).width < 650;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 22),
-      padding: const EdgeInsets.all(18),
+      margin: EdgeInsets.only(bottom: mobile ? 28 : 22),
+      padding: EdgeInsets.all(mobile ? 12 : 18),
       decoration: BoxDecoration(
         color: const Color(0xFFECE7DD),
-        border: Border.all(color: const Color(0xFFD5B48A), width: 1.5),
-        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: mobile ? Colors.white : const Color(0xFFD5B48A),
+          width: mobile ? 1.4 : 1.5,
+        ),
+        borderRadius: BorderRadius.circular(mobile ? 28 : 16),
         boxShadow: const [
           BoxShadow(
             color: Color(0x1A2D1E12),
@@ -258,18 +314,14 @@ class _CartProductCard extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _CartItemLead(item: item),
-                const SizedBox(height: 18),
+                _CartItemLead(item: item, mobile: true),
+                const SizedBox(height: 20),
                 _CartItemMetrics(
                   item: item,
                   price: price,
                   total: total,
                   onQuantityChanged: onQuantityChanged,
                 ),
-                if (sizes.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  _SizeChips(sizes: sizes),
-                ],
               ],
             );
           }
@@ -301,9 +353,10 @@ class _CartProductCard extends StatelessWidget {
 }
 
 class _CartItemLead extends StatelessWidget {
-  const _CartItemLead({required this.item});
+  const _CartItemLead({required this.item, this.mobile = false});
 
   final UserCartItem item;
+  final bool mobile;
 
   @override
   Widget build(BuildContext context) {
@@ -312,8 +365,8 @@ class _CartItemLead extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: 150,
-          height: 170,
+          width: mobile ? 184 : 150,
+          height: mobile ? 258 : 170,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: FutureBuilder<String>(
@@ -340,28 +393,28 @@ class _CartItemLead extends StatelessWidget {
               Text(
                 product?.type ?? 'Product',
                 style: GoogleFonts.blinker(
-                  fontSize: 15,
+                  fontSize: mobile ? 18 : 15,
                   color: const Color(0xFF746D64),
                 ),
               ),
               Text(
                 product?.name ?? item.productName,
                 style: GoogleFonts.dmSerifDisplay(
-                  fontSize: 23,
+                  fontSize: mobile ? 31 : 23,
                   height: 1,
                   color: const Color(0xFF5B351A),
                 ),
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: mobile ? 20 : 18),
               if ((product?.sizes ?? item.size ?? '').trim().isNotEmpty) ...[
                 Text(
                   'Size',
                   style: GoogleFonts.blinker(
-                    fontSize: 14,
+                    fontSize: mobile ? 18 : 14,
                     color: const Color(0xFF746D64),
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: mobile ? 8 : 6),
                 _SizeChips(
                   sizes: (product?.sizes ?? item.size ?? '')
                       .split(',')
@@ -510,21 +563,21 @@ class _SizeChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Wrap(
-    spacing: 6,
+    spacing: 7,
     children: [
       for (final size in sizes.take(4))
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
           decoration: BoxDecoration(
             color: size == sizes.first
                 ? const Color(0xFFC38A55)
                 : const Color(0xFFD8C5AD),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(999),
           ),
           child: Text(
             size.toUpperCase(),
             style: GoogleFonts.blinker(
-              fontSize: 11,
+              fontSize: 13,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -541,6 +594,7 @@ class _CartSummary extends StatefulWidget {
     required this.updatingAddress,
     required this.onAddressSelected,
     required this.onOrderCompleted,
+    this.sheetStyle = false,
   });
 
   final List<UserCartItem> items;
@@ -549,6 +603,7 @@ class _CartSummary extends StatefulWidget {
   final bool updatingAddress;
   final ValueChanged<String> onAddressSelected;
   final ValueChanged<OrderSuccessDetails> onOrderCompleted;
+  final bool sheetStyle;
 
   @override
   State<_CartSummary> createState() => _CartSummaryState();
@@ -641,15 +696,32 @@ class _CartSummaryState extends State<_CartSummary> {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(24),
+    padding: EdgeInsets.fromLTRB(
+      widget.sheetStyle ? 32 : 24,
+      widget.sheetStyle ? 18 : 24,
+      widget.sheetStyle ? 32 : 24,
+      widget.sheetStyle ? 28 : 24,
+    ),
     decoration: BoxDecoration(
       color: const Color(0xFFD6BFA6),
       border: Border.all(color: const Color(0xFF5B351A), width: 2),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(widget.sheetStyle ? 24 : 16),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (widget.sheetStyle)
+          Center(
+            child: Container(
+              width: 46,
+              height: 5,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF8C684D),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -706,7 +778,7 @@ class _CartSummaryState extends State<_CartSummary> {
         const SizedBox(height: 28),
         Center(
           child: SizedBox(
-            width: 240,
+            width: widget.sheetStyle ? double.infinity : 240,
             height: 56,
             child: FilledButton(
               onPressed: _paying || widget.updatingAddress ? null : _pay,
