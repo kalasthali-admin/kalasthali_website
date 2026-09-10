@@ -523,80 +523,98 @@ class _AccountDetailsState extends State<_AccountDetails> {
     };
   }
 
-  Widget _buildDashboard(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Hello, ${AuthService.firstName(widget.user)}',
-              style: GoogleFonts.dmSerifDisplay(
-                fontSize: 52,
-                color: const Color(0xFF5B351A),
+  Widget _buildDashboard(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 700;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Hello, ${AuthService.firstName(widget.user)}',
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: 52,
+                  color: const Color(0xFF5B351A),
+                ),
               ),
             ),
-          ),
-          OutlinedButton(
-            onPressed: () => Supabase.instance.client.auth.signOut(),
-            style: _sectionActionStyle(),
-            child: const Text('LOG OUT'),
-          ),
-        ],
-      ),
-      const SizedBox(height: 12),
-      const _AccountDivider(),
-      const SizedBox(height: 62),
-      LayoutBuilder(
-        builder: (context, constraints) {
-          final singleColumn = constraints.maxWidth < 620;
-          final tiles = [
-            _AccountMenuTile(
-              title: 'ACCOUNT',
-              description: 'Edit your account details.',
-              icon: Icons.assignment_ind_outlined,
-              onTap: () => _open(_AccountSection.profile),
-            ),
-            _AccountMenuTile(
-              title: 'SAVED ADDRESSES',
-              description:
-                  'Add, edit or delete saved addresses for your orders.',
-              icon: Icons.add_home_work_outlined,
-              onTap: () => _open(_AccountSection.addresses),
-            ),
-            _AccountMenuTile(
-              title: 'ORDERS',
-              description: 'View products ordered by you.',
-              icon: Icons.inventory_2_outlined,
-              onTap: () => _open(_AccountSection.orders),
-            ),
-            _AccountMenuTile(
-              title: 'HELP',
-              description:
-                  'Connect with us for assistance regarding a product.',
-              icon: Icons.help_outline_rounded,
-              onTap: () => _open(_AccountSection.help),
-            ),
-          ];
-          if (singleColumn) {
-            return Column(
+            if (!compact)
+              OutlinedButton(
+                onPressed: () => Supabase.instance.client.auth.signOut(),
+                style: _sectionActionStyle(),
+                child: const Text('LOG OUT'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const _AccountDivider(),
+        const SizedBox(height: 62),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final singleColumn = constraints.maxWidth < 620;
+            final tiles = [
+              _AccountMenuTile(
+                title: 'ACCOUNT',
+                description: 'Edit your account details.',
+                icon: Icons.assignment_ind_outlined,
+                onTap: () => _open(_AccountSection.profile),
+              ),
+              _AccountMenuTile(
+                title: 'SAVED ADDRESSES',
+                description:
+                    'Add, edit or delete saved addresses for your orders.',
+                icon: Icons.add_home_work_outlined,
+                onTap: () => _open(_AccountSection.addresses),
+              ),
+              _AccountMenuTile(
+                title: 'ORDERS',
+                description: 'View products ordered by you.',
+                icon: Icons.inventory_2_outlined,
+                onTap: () => _open(_AccountSection.orders),
+              ),
+              _AccountMenuTile(
+                title: 'HELP',
+                description:
+                    'Connect with us for assistance regarding a product.',
+                icon: Icons.help_outline_rounded,
+                onTap: () => _open(_AccountSection.help),
+              ),
+            ];
+            if (singleColumn) {
+              return Column(
+                children: [
+                  for (final tile in tiles) ...[
+                    tile,
+                    const SizedBox(height: 18),
+                  ],
+                ],
+              );
+            }
+            return Wrap(
+              spacing: 38,
+              runSpacing: 42,
               children: [
-                for (final tile in tiles) ...[tile, const SizedBox(height: 18)],
+                for (final tile in tiles)
+                  SizedBox(width: (constraints.maxWidth - 38) / 2, child: tile),
               ],
             );
-          }
-          return Wrap(
-            spacing: 38,
-            runSpacing: 42,
-            children: [
-              for (final tile in tiles)
-                SizedBox(width: (constraints.maxWidth - 38) / 2, child: tile),
-            ],
-          );
-        },
-      ),
-    ],
-  );
+          },
+        ),
+        if (compact) ...[
+          const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => Supabase.instance.client.auth.signOut(),
+              style: _sectionActionStyle(),
+              child: const Text('LOG OUT'),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 
   Widget _buildProfile(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -628,15 +646,14 @@ class _AccountDetailsState extends State<_AccountDetails> {
     children: [
       _BackButton(onPressed: _backToDashboard),
       const SizedBox(height: 22),
-      _SectionTitle(
-        title: 'Saved Addresses',
-        action: _AddressActionButton(
-          label: 'ADD ADDRESS',
-          icon: Icons.add,
-          onPressed: () => _showAddressSheet(),
-        ),
+      const _SectionTitle(title: 'Saved Addresses'),
+      const SizedBox(height: 22),
+      _AddressActionButton(
+        label: 'ADD ADDRESS',
+        icon: Icons.add,
+        onPressed: () => _showAddressSheet(),
       ),
-      const SizedBox(height: 62),
+      const SizedBox(height: 38),
       FutureBuilder<List<Map<String, dynamic>>>(
         future: _addresses,
         builder: (context, snapshot) {

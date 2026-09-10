@@ -365,6 +365,7 @@ class _CollectionCardActions extends StatelessWidget {
           product: product,
           height: compact ? 34 : 38,
           compact: compact,
+          filled: false,
         ),
       ),
       const SizedBox(height: 8),

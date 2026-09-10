@@ -24,6 +24,7 @@ class _CartPageState extends State<CartPage> {
   List<Map<String, dynamic>> _addresses = const [];
   var _addressesLoading = true;
   var _addressUpdating = false;
+  var _cartUpdating = false;
   OrderSuccessDetails? _orderSuccess;
 
   @override
@@ -58,8 +59,19 @@ class _CartPageState extends State<CartPage> {
   }
 
   Future<void> _setQuantity(String code, int quantity) async {
-    await CartService.instance.setQuantity(code, quantity);
-    if (mounted) setState(_reload);
+    if (_cartUpdating) return;
+    setState(() => _cartUpdating = true);
+    try {
+      await CartService.instance.setQuantity(code, quantity);
+      final refreshedItems = await CartService.instance.loadItems();
+      if (mounted) {
+        setState(() {
+          _items = Future.value(refreshedItems);
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _cartUpdating = false);
+    }
   }
 
   Future<void> _selectAddress(String id) async {
@@ -94,7 +106,9 @@ class _CartPageState extends State<CartPage> {
         : FutureBuilder<List<UserCartItem>>(
             future: _items,
             builder: (context, snapshot) {
-              final loading = snapshot.connectionState != ConnectionState.done;
+              final loading =
+                  snapshot.connectionState != ConnectionState.done &&
+                  snapshot.data == null;
               final items = snapshot.data ?? const <UserCartItem>[];
               return LayoutBuilder(
                 builder: (context, constraints) {
@@ -132,6 +146,7 @@ class _CartPageState extends State<CartPage> {
                                       addresses: _addresses,
                                       loadingAddresses: _addressesLoading,
                                       updatingAddress: _addressUpdating,
+                                      updatingCart: _cartUpdating,
                                       mobile: mobile,
                                       onQuantityChanged: _setQuantity,
                                       onAddressSelected: _selectAddress,
@@ -157,6 +172,7 @@ class _CartContent extends StatelessWidget {
     required this.addresses,
     required this.loadingAddresses,
     required this.updatingAddress,
+    required this.updatingCart,
     required this.mobile,
     required this.onQuantityChanged,
     required this.onAddressSelected,
@@ -167,6 +183,7 @@ class _CartContent extends StatelessWidget {
   final List<Map<String, dynamic>> addresses;
   final bool loadingAddresses;
   final bool updatingAddress;
+  final bool updatingCart;
   final bool mobile;
   final void Function(String code, int quantity) onQuantityChanged;
   final ValueChanged<String> onAddressSelected;
@@ -202,6 +219,14 @@ class _CartContent extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         const Divider(color: Color(0xFF9A8267), thickness: 1),
+        if (updatingCart) ...[
+          const SizedBox(height: 8),
+          const LinearProgressIndicator(
+            minHeight: 3,
+            color: Color(0xFFA35710),
+            backgroundColor: Color(0xFFD8C5AD),
+          ),
+        ],
         const SizedBox(height: 24),
         if (mobile) ...[
           list,
@@ -246,7 +271,7 @@ class _CartContent extends StatelessWidget {
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (sheetContext) => DraggableScrollableSheet(
-          initialChildSize: .76,
+          initialChildSize: .54,
           minChildSize: .48,
           maxChildSize: .94,
           expand: false,
@@ -257,7 +282,7 @@ class _CartContent extends StatelessWidget {
             ),
             child: SingleChildScrollView(
               controller: scrollController,
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+              padding: EdgeInsets.zero,
               child: _CartSummary(
                 items: items,
                 addresses: addresses,
@@ -290,15 +315,15 @@ class _CartProductCard extends StatelessWidget {
     final mobile = MediaQuery.sizeOf(context).width < 650;
 
     return Container(
-      margin: EdgeInsets.only(bottom: mobile ? 28 : 22),
-      padding: EdgeInsets.all(mobile ? 12 : 18),
+      margin: EdgeInsets.only(bottom: mobile ? 32 : 22),
+      padding: EdgeInsets.all(mobile ? 8 : 18),
       decoration: BoxDecoration(
         color: const Color(0xFFECE7DD),
         border: Border.all(
           color: mobile ? Colors.white : const Color(0xFFD5B48A),
           width: mobile ? 1.4 : 1.5,
         ),
-        borderRadius: BorderRadius.circular(mobile ? 28 : 16),
+        borderRadius: BorderRadius.circular(mobile ? 22 : 16),
         boxShadow: const [
           BoxShadow(
             color: Color(0x1A2D1E12),
@@ -307,56 +332,192 @@ class _CartProductCard extends StatelessWidget {
           ),
         ],
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 650;
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: InkWell(
+        onTap: mobile
+            ? () => Navigator.pushNamed(
+                context,
+                '/product?code=${Uri.encodeComponent(item.code)}',
+              )
+            : null,
+        borderRadius: BorderRadius.circular(mobile ? 22 : 16),
+        splashColor: const Color(0x33A35710),
+        highlightColor: const Color(0x1AA35710),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 650;
+            if (compact) {
+              return _CompactCartProductContent(
+                item: item,
+                price: price,
+                total: total,
+                onQuantityChanged: onQuantityChanged,
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _CartItemLead(item: item, mobile: true),
-                const SizedBox(height: 20),
-                _CartItemMetrics(
-                  item: item,
-                  price: price,
-                  total: total,
-                  onQuantityChanged: onQuantityChanged,
+                SizedBox(width: 340, child: _CartItemLead(item: item)),
+                const SizedBox(width: 24),
+                Expanded(
+                  child: _CartItemMetrics(
+                    item: item,
+                    price: price,
+                    total: total,
+                    onQuantityChanged: onQuantityChanged,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                IconButton(
+                  onPressed: () => onQuantityChanged(item.code, 0),
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Remove from cart',
                 ),
               ],
             );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              SizedBox(width: 340, child: _CartItemLead(item: item)),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _CartItemMetrics(
-                  item: item,
-                  price: price,
-                  total: total,
-                  onQuantityChanged: onQuantityChanged,
-                ),
-              ),
-              const SizedBox(width: 14),
-              IconButton(
-                onPressed: () => onQuantityChanged(item.code, 0),
-                icon: const Icon(Icons.delete_outline),
-                tooltip: 'Remove from cart',
-              ),
-            ],
-          );
-        },
+          },
+        ),
       ),
     );
   }
 }
 
-class _CartItemLead extends StatelessWidget {
-  const _CartItemLead({required this.item, this.mobile = false});
+class _CompactCartProductContent extends StatelessWidget {
+  const _CompactCartProductContent({
+    required this.item,
+    required this.price,
+    required this.total,
+    required this.onQuantityChanged,
+  });
 
   final UserCartItem item;
-  final bool mobile;
+  final int? price;
+  final int? total;
+  final void Function(String code, int quantity) onQuantityChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final product = item.product;
+    final sizes = (product?.sizes ?? item.size ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 112,
+          height: 190,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: FutureBuilder<String>(
+              future: ProductService().getProductImageUrlAsync(item.code),
+              builder: (context, snapshot) {
+                final url = snapshot.data;
+                if (url == null || url.isEmpty) {
+                  return const ColoredBox(color: Color(0xFFD8D0C3));
+                }
+                return Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) =>
+                      const ColoredBox(color: Color(0xFFD8D0C3)),
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                product?.type ?? 'Product',
+                style: GoogleFonts.blinker(
+                  fontSize: 14,
+                  color: const Color(0xFF746D64),
+                ),
+              ),
+              Text(
+                product?.name ?? item.productName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: 24,
+                  height: .92,
+                  color: const Color(0xFF5B351A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Size',
+                          style: GoogleFonts.blinker(
+                            fontSize: 14,
+                            color: const Color(0xFF746D64),
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        if (sizes.isNotEmpty)
+                          _SizeChips(sizes: sizes, compact: true),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Quantity',
+                        style: GoogleFonts.blinker(
+                          fontSize: 14,
+                          color: const Color(0xFF746D64),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      _CartCounter(
+                        quantity: item.quantity,
+                        onChanged: (quantity) =>
+                            onQuantityChanged(item.code, quantity),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _MetricBlock(label: 'Price', value: _money(price)),
+                  _MetricBlock(
+                    label: 'Total',
+                    value: _money(total),
+                    emphasis: true,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CartItemLead extends StatelessWidget {
+  const _CartItemLead({required this.item});
+
+  final UserCartItem item;
 
   @override
   Widget build(BuildContext context) {
@@ -365,8 +526,8 @@ class _CartItemLead extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: mobile ? 184 : 150,
-          height: mobile ? 258 : 170,
+          width: 150,
+          height: 170,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: FutureBuilder<String>(
@@ -393,28 +554,28 @@ class _CartItemLead extends StatelessWidget {
               Text(
                 product?.type ?? 'Product',
                 style: GoogleFonts.blinker(
-                  fontSize: mobile ? 18 : 15,
+                  fontSize: 15,
                   color: const Color(0xFF746D64),
                 ),
               ),
               Text(
                 product?.name ?? item.productName,
                 style: GoogleFonts.dmSerifDisplay(
-                  fontSize: mobile ? 31 : 23,
+                  fontSize: 23,
                   height: 1,
                   color: const Color(0xFF5B351A),
                 ),
               ),
-              SizedBox(height: mobile ? 20 : 18),
+              const SizedBox(height: 18),
               if ((product?.sizes ?? item.size ?? '').trim().isNotEmpty) ...[
                 Text(
                   'Size',
                   style: GoogleFonts.blinker(
-                    fontSize: mobile ? 18 : 14,
+                    fontSize: 14,
                     color: const Color(0xFF746D64),
                   ),
                 ),
-                SizedBox(height: mobile ? 8 : 6),
+                const SizedBox(height: 6),
                 _SizeChips(
                   sizes: (product?.sizes ?? item.size ?? '')
                       .split(',')
@@ -557,17 +718,21 @@ class _MiniCounterButton extends StatelessWidget {
 }
 
 class _SizeChips extends StatelessWidget {
-  const _SizeChips({required this.sizes});
+  const _SizeChips({required this.sizes, this.compact = false});
 
   final List<String> sizes;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Wrap(
-    spacing: 7,
+    spacing: compact ? 4 : 7,
     children: [
       for (final size in sizes.take(4))
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 8 : 11,
+            vertical: compact ? 7 : 10,
+          ),
           decoration: BoxDecoration(
             color: size == sizes.first
                 ? const Color(0xFFC38A55)
@@ -577,7 +742,7 @@ class _SizeChips extends StatelessWidget {
           child: Text(
             size.toUpperCase(),
             style: GoogleFonts.blinker(
-              fontSize: 13,
+              fontSize: compact ? 11 : 13,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -611,6 +776,7 @@ class _CartSummary extends StatefulWidget {
 
 class _CartSummaryState extends State<_CartSummary> {
   var _paying = false;
+  String? _selectedAddressId;
 
   int get subtotal => widget.items.fold(
     0,
@@ -618,13 +784,29 @@ class _CartSummaryState extends State<_CartSummary> {
         total + ((_priceNumber(item.product?.price) ?? 0) * item.quantity),
   );
 
-  Map<String, dynamic>? get selectedAddress {
+  String? get _storedSelectedAddressId {
     if (widget.addresses.isEmpty) return null;
     return widget.addresses.firstWhere(
-      (address) => address['is_selected'] == true,
-      orElse: () => widget.addresses.first,
-    );
+          (address) => address['is_selected'] == true,
+          orElse: () => widget.addresses.first,
+        )['id']
+        as String?;
   }
+
+  String? get _effectiveSelectedAddressId =>
+      _selectedAddressId ?? _storedSelectedAddressId;
+
+  Map<String, dynamic>? get selectedAddress {
+    final id = _effectiveSelectedAddressId;
+    if (id == null) return null;
+    for (final address in widget.addresses) {
+      if (address['id'] == id) return address;
+    }
+    return null;
+  }
+
+  void _selectAddressLocally(String id) =>
+      setState(() => _selectedAddressId = id);
 
   Future<void> _pay() async {
     final address = selectedAddress;
@@ -636,6 +818,13 @@ class _CartSummaryState extends State<_CartSummary> {
 
     setState(() => _paying = true);
     try {
+      if (_selectedAddressId != null &&
+          _selectedAddressId != _storedSelectedAddressId) {
+        await Supabase.instance.client
+            .from('user_addresses')
+            .update({'is_selected': true})
+            .eq('id', _selectedAddressId!);
+      }
       final result = await PaymentService.pay(
         amountPaise: subtotal * 100,
         receipt: 'cart_${DateTime.now().millisecondsSinceEpoch}',
@@ -697,15 +886,23 @@ class _CartSummaryState extends State<_CartSummary> {
   @override
   Widget build(BuildContext context) => Container(
     padding: EdgeInsets.fromLTRB(
-      widget.sheetStyle ? 32 : 24,
-      widget.sheetStyle ? 18 : 24,
-      widget.sheetStyle ? 32 : 24,
-      widget.sheetStyle ? 28 : 24,
+      widget.sheetStyle ? 30 : 24,
+      widget.sheetStyle ? 16 : 24,
+      widget.sheetStyle ? 30 : 24,
+      widget.sheetStyle ? 22 : 24,
     ),
     decoration: BoxDecoration(
       color: const Color(0xFFD6BFA6),
-      border: Border.all(color: const Color(0xFF5B351A), width: 2),
-      borderRadius: BorderRadius.circular(widget.sheetStyle ? 24 : 16),
+      border: widget.sheetStyle
+          ? const Border(
+              top: BorderSide(color: Color(0xFF5B351A), width: 2),
+              left: BorderSide(color: Color(0xFF5B351A), width: 2),
+              right: BorderSide(color: Color(0xFF5B351A), width: 2),
+            )
+          : Border.all(color: const Color(0xFF5B351A), width: 2),
+      borderRadius: widget.sheetStyle
+          ? const BorderRadius.vertical(top: Radius.circular(32))
+          : BorderRadius.circular(16),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -728,14 +925,14 @@ class _CartSummaryState extends State<_CartSummary> {
             Text(
               'Subtotal',
               style: GoogleFonts.dmSerifDisplay(
-                fontSize: 34,
+                fontSize: widget.sheetStyle ? 36 : 34,
                 color: const Color(0xFF5B351A),
               ),
             ),
             Text(
               _money(subtotal),
               style: GoogleFonts.blinker(
-                fontSize: 30,
+                fontSize: widget.sheetStyle ? 38 : 30,
                 fontWeight: FontWeight.w700,
                 color: Colors.black,
               ),
@@ -744,25 +941,31 @@ class _CartSummaryState extends State<_CartSummary> {
         ),
         Text(
           '(Inclusive of all taxes)',
-          style: GoogleFonts.blinker(fontSize: 12, color: Colors.black),
+          style: GoogleFonts.blinker(
+            fontSize: widget.sheetStyle ? 13 : 12,
+            color: Colors.black,
+          ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: widget.sheetStyle ? 12 : 10),
         widget.updatingAddress
             ? const LinearProgressIndicator(
                 minHeight: 2,
                 color: Color(0xFFA35710),
                 backgroundColor: Color(0xFFB79B80),
               )
-            : const Divider(color: Color(0xFF8C684D)),
-        const SizedBox(height: 20),
+            : Divider(
+                color: const Color(0xFF8C684D),
+                thickness: widget.sheetStyle ? 2 : 1,
+              ),
+        SizedBox(height: widget.sheetStyle ? 24 : 20),
         Text(
           'Deliver to',
           style: GoogleFonts.dmSerifDisplay(
-            fontSize: 28,
+            fontSize: widget.sheetStyle ? 34 : 28,
             color: const Color(0xFF5B351A),
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: widget.sheetStyle ? 16 : 8),
         if (widget.loadingAddress)
           const SizedBox(
             width: 20,
@@ -773,13 +976,19 @@ class _CartSummaryState extends State<_CartSummary> {
           _AddressSelector(
             addresses: widget.addresses,
             updating: widget.updatingAddress,
-            onSelected: widget.onAddressSelected,
+            selectedId: _effectiveSelectedAddressId,
+            onSelected: _selectAddressLocally,
+            sheetStyle: widget.sheetStyle,
           ),
-        const SizedBox(height: 28),
+        if (widget.sheetStyle && selectedAddress != null) ...[
+          const SizedBox(height: 24),
+          _SummaryContact(address: selectedAddress!),
+        ],
+        SizedBox(height: widget.sheetStyle ? 30 : 28),
         Center(
           child: SizedBox(
             width: widget.sheetStyle ? double.infinity : 240,
-            height: 56,
+            height: widget.sheetStyle ? 64 : 56,
             child: FilledButton(
               onPressed: _paying || widget.updatingAddress ? null : _pay,
               style: FilledButton.styleFrom(
@@ -797,7 +1006,12 @@ class _CartSummaryState extends State<_CartSummary> {
                         color: Colors.white,
                       ),
                     )
-                  : Text('Order Now', style: GoogleFonts.blinker(fontSize: 24)),
+                  : Text(
+                      'Order Now',
+                      style: GoogleFonts.blinker(
+                        fontSize: widget.sheetStyle ? 24 : 24,
+                      ),
+                    ),
             ),
           ),
         ),
@@ -806,16 +1020,51 @@ class _CartSummaryState extends State<_CartSummary> {
   );
 }
 
+class _SummaryContact extends StatelessWidget {
+  const _SummaryContact({required this.address});
+
+  final Map<String, dynamic> address;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (address['receiver_name'] ?? '').toString().trim();
+    final phone = (address['phone_number'] ?? '').toString().trim();
+    if (name.isEmpty && phone.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Contact',
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: 34,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        const SizedBox(height: 6),
+        if (name.isNotEmpty)
+          Text(name, style: GoogleFonts.blinker(fontSize: 18, height: 1.08)),
+        if (phone.isNotEmpty)
+          Text(phone, style: GoogleFonts.blinker(fontSize: 18, height: 1.08)),
+      ],
+    );
+  }
+}
+
 class _AddressSelector extends StatelessWidget {
   const _AddressSelector({
     required this.addresses,
     required this.updating,
+    required this.selectedId,
     required this.onSelected,
+    this.sheetStyle = false,
   });
 
   final List<Map<String, dynamic>> addresses;
   final bool updating;
+  final String? selectedId;
   final ValueChanged<String> onSelected;
+  final bool sheetStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -825,19 +1074,22 @@ class _AddressSelector extends StatelessWidget {
         style: GoogleFonts.blinker(fontSize: 14, color: Colors.black),
       );
     }
-    final selected = addresses.firstWhere(
-      (address) => address['is_selected'] == true,
-      orElse: () => addresses.first,
-    );
-    final selectedId = selected['id'] as String?;
+    final effectiveSelectedId =
+        selectedId ??
+        addresses.firstWhere(
+              (address) => address['is_selected'] == true,
+              orElse: () => addresses.first,
+            )['id']
+            as String?;
     return Column(
       children: [
         for (final address in addresses)
           _AddressRadioTile(
             address: address,
-            selectedId: selectedId,
+            selectedId: effectiveSelectedId,
             enabled: !updating,
             onSelected: onSelected,
+            sheetStyle: sheetStyle,
           ),
       ],
     );
@@ -850,12 +1102,14 @@ class _AddressRadioTile extends StatelessWidget {
     required this.selectedId,
     required this.enabled,
     required this.onSelected,
+    this.sheetStyle = false,
   });
 
   final Map<String, dynamic> address;
   final String? selectedId;
   final bool enabled;
   final ValueChanged<String> onSelected;
+  final bool sheetStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -874,12 +1128,18 @@ class _AddressRadioTile extends StatelessWidget {
     ].whereType<String>().where((line) => line.trim().isNotEmpty).join('\n');
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.only(bottom: sheetStyle ? 16 : 10),
       child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(sheetStyle ? 16 : 10),
         onTap: !enabled || id == null ? null : () => onSelected(id),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(8, 10, 12, 10),
+          constraints: sheetStyle ? const BoxConstraints(minHeight: 132) : null,
+          padding: EdgeInsets.fromLTRB(
+            sheetStyle ? 18 : 8,
+            sheetStyle ? 18 : 10,
+            sheetStyle ? 18 : 12,
+            sheetStyle ? 18 : 10,
+          ),
           decoration: BoxDecoration(
             color: selected ? const Color(0xFFE7D0AE) : const Color(0xFFE2D2C0),
             border: Border.all(
@@ -888,7 +1148,7 @@ class _AddressRadioTile extends StatelessWidget {
                   : const Color(0xFF8C684D),
               width: selected ? 1.7 : 1,
             ),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(sheetStyle ? 16 : 10),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -900,15 +1160,15 @@ class _AddressRadioTile extends StatelessWidget {
                 color: selected
                     ? const Color(0xFFA35710)
                     : const Color(0xFF1F1E25),
-                size: 25,
+                size: sheetStyle ? 34 : 25,
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: sheetStyle ? 16 : 10),
               Expanded(
                 child: Text(
                   lines,
                   style: GoogleFonts.blinker(
-                    fontSize: 13,
-                    height: 1.05,
+                    fontSize: sheetStyle ? 18 : 13,
+                    height: sheetStyle ? 1.08 : 1.05,
                     color: Colors.black,
                   ),
                 ),

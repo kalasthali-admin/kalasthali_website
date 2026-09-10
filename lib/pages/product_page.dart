@@ -451,6 +451,9 @@ class _PurchaseActions extends StatelessWidget {
             product: product,
             height: 56,
             compact: compact,
+            filled: false,
+            fontSize: 20,
+            iconSize: 18,
           ),
         ),
         _PurchaseButton(

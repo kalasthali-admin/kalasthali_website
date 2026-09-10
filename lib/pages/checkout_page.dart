@@ -21,6 +21,165 @@ class CheckoutPage extends StatefulWidget {
   State<CheckoutPage> createState() => _CheckoutPageState();
 }
 
+Future<void> showProductCheckoutSheet(BuildContext context, Product product) =>
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ProductCheckoutSheet(product: product),
+    );
+
+class _ProductCheckoutSheet extends StatefulWidget {
+  const _ProductCheckoutSheet({required this.product});
+
+  final Product product;
+
+  @override
+  State<_ProductCheckoutSheet> createState() => _ProductCheckoutSheetState();
+}
+
+class _ProductCheckoutSheetState extends State<_ProductCheckoutSheet> {
+  late Future<List<Map<String, dynamic>>> _addresses;
+  String? _selectedAddressId;
+  OrderSuccessDetails? _success;
+
+  Future<List<Map<String, dynamic>>> _loadAddresses(String userId) async =>
+      (await Supabase.instance.client
+                  .from('user_addresses')
+                  .select()
+                  .eq('user_id', userId)
+                  .order('created_at')
+              as List)
+          .cast<Map<String, dynamic>>();
+
+  @override
+  void initState() {
+    super.initState();
+    final user = AuthService.currentUser;
+    _addresses = user == null
+        ? Future.value(const [])
+        : _loadAddresses(user.id);
+  }
+
+  Map<String, dynamic>? _selected(List<Map<String, dynamic>> addresses) {
+    if (addresses.isEmpty) return null;
+    final id = _selectedAddressId;
+    if (id != null) {
+      for (final address in addresses) {
+        if (address['id'] == id) return address;
+      }
+    }
+    return _selectedAddress(addresses);
+  }
+
+  @override
+  Widget build(BuildContext context) => DraggableScrollableSheet(
+    initialChildSize: .62,
+    minChildSize: .46,
+    maxChildSize: .94,
+    expand: false,
+    builder: (context, controller) => Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFD6BFA6),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        border: Border(
+          top: BorderSide(color: Color(0xFF5B351A), width: 2),
+          left: BorderSide(color: Color(0xFF5B351A), width: 2),
+          right: BorderSide(color: Color(0xFF5B351A), width: 2),
+        ),
+      ),
+      child: ListView(
+        controller: controller,
+        padding: const EdgeInsets.fromLTRB(30, 14, 30, 32),
+        children: [
+          Center(
+            child: Container(
+              width: 46,
+              height: 5,
+              decoration: BoxDecoration(
+                color: const Color(0xFF8C684D),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (_success != null)
+            _ProductSheetSuccess(details: _success!)
+          else ...[
+            _OrderSummary(product: widget.product),
+            const SizedBox(height: 22),
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: _addresses,
+              builder: (context, snapshot) {
+                final addresses = snapshot.data ?? const [];
+                final selected = _selected(addresses);
+                if (AuthService.currentUser == null) {
+                  return const _SignInForCheckout();
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _DeliveryPanel(
+                      addresses: addresses,
+                      loading: snapshot.connectionState != ConnectionState.done,
+                      updating: false,
+                      onAddressSelected: (id) =>
+                          setState(() => _selectedAddressId = id),
+                      onAddAddress: () =>
+                          Navigator.pushNamed(context, '/account'),
+                    ),
+                    const SizedBox(height: 20),
+                    _PaymentPanel(
+                      product: widget.product,
+                      address: selected,
+                      canContinue: selected != null,
+                      actionLabel: 'Order Now',
+                      onOrderCompleted: (details) =>
+                          setState(() => _success = details),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
+}
+
+class _ProductSheetSuccess extends StatelessWidget {
+  const _ProductSheetSuccess({required this.details});
+  final OrderSuccessDetails details;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Order placed successfully!',
+        style: GoogleFonts.dmSerifDisplay(
+          fontSize: 34,
+          color: const Color(0xFF5B351A),
+        ),
+      ),
+      const SizedBox(height: 10),
+      Text(
+        'An invoice will be sent to your phone number or email: ${details.contactTarget}.',
+        style: GoogleFonts.blinker(fontSize: 18),
+      ),
+      const SizedBox(height: 18),
+      Text(details.address, style: GoogleFonts.blinker(fontSize: 16)),
+      const SizedBox(height: 22),
+      FilledButton(
+        onPressed: () => Navigator.pop(context),
+        style: FilledButton.styleFrom(backgroundColor: const Color(0xFFA35710)),
+        child: const Text('Continue shopping'),
+      ),
+    ],
+  );
+}
+
 class _CheckoutPageState extends State<CheckoutPage> {
   late Future<Product?> _product;
   Future<List<Map<String, dynamic>>>? _addresses;
@@ -522,12 +681,14 @@ class _PaymentPanel extends StatefulWidget {
     required this.address,
     required this.canContinue,
     required this.onOrderCompleted,
+    this.actionLabel = 'Continue to payment',
   });
 
   final Product product;
   final Map<String, dynamic>? address;
   final bool canContinue;
   final ValueChanged<OrderSuccessDetails> onOrderCompleted;
+  final String actionLabel;
 
   @override
   State<_PaymentPanel> createState() => _PaymentPanelState();
@@ -650,7 +811,7 @@ class _PaymentPanelState extends State<_PaymentPanel> {
                       color: Colors.white,
                     ),
                   )
-                : const Text('Continue to payment'),
+                : Text(widget.actionLabel),
           ),
         ),
       ],

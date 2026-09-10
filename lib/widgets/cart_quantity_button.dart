@@ -11,12 +11,18 @@ class CartQuantityButton extends StatefulWidget {
     required this.product,
     this.height = 40,
     this.compact = false,
+    this.filled = true,
+    this.fontSize,
+    this.iconSize,
     super.key,
   });
 
   final Product product;
   final double height;
   final bool compact;
+  final bool filled;
+  final double? fontSize;
+  final double? iconSize;
 
   @override
   State<CartQuantityButton> createState() => _CartQuantityButtonState();
@@ -91,11 +97,21 @@ class _CartQuantityButtonState extends State<CartQuantityButton> {
       return SizedBox(
         height: widget.height,
         width: double.infinity,
-        child: OutlinedButton(
-          onPressed: null,
-          style: _outlineStyle(),
-          child: const Icon(Icons.check, color: Color(0xFFA35710), size: 22),
-        ),
+        child: widget.filled
+            ? FilledButton(
+                onPressed: null,
+                style: _buttonStyle(),
+                child: const Icon(Icons.check, color: Colors.white, size: 22),
+              )
+            : OutlinedButton(
+                onPressed: null,
+                style: _buttonStyle(),
+                child: const Icon(
+                  Icons.check,
+                  color: Color(0xFFA35710),
+                  size: 22,
+                ),
+              ),
       );
     }
 
@@ -107,17 +123,31 @@ class _CartQuantityButtonState extends State<CartQuantityButton> {
           return SizedBox(
             height: widget.height,
             width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: snapshot.connectionState == ConnectionState.waiting
-                  ? null
-                  : _add,
-              icon: Icon(
-                Icons.add_shopping_cart_outlined,
-                size: widget.compact ? 15 : 17,
-              ),
-              label: const Text('Add to Cart'),
-              style: _outlineStyle(),
-            ),
+            child: widget.filled
+                ? FilledButton.icon(
+                    onPressed:
+                        snapshot.connectionState == ConnectionState.waiting
+                        ? null
+                        : _add,
+                    icon: Icon(
+                      Icons.add_shopping_cart_outlined,
+                      size: widget.iconSize ?? (widget.compact ? 15 : 17),
+                    ),
+                    label: const Text('Add to Cart'),
+                    style: _buttonStyle(),
+                  )
+                : OutlinedButton.icon(
+                    onPressed:
+                        snapshot.connectionState == ConnectionState.waiting
+                        ? null
+                        : _add,
+                    icon: Icon(
+                      Icons.add_shopping_cart_outlined,
+                      size: widget.iconSize ?? (widget.compact ? 15 : 17),
+                    ),
+                    label: const Text('Add to Cart'),
+                    style: _buttonStyle(),
+                  ),
           );
         }
         return SizedBox(
@@ -162,17 +192,34 @@ class _CartQuantityButtonState extends State<CartQuantityButton> {
     );
   }
 
-  ButtonStyle _outlineStyle() => OutlinedButton.styleFrom(
-    foregroundColor: const Color(0xFFA35710),
-    disabledForegroundColor: const Color(0xFFA35710),
-    side: const BorderSide(color: Color(0xFFA35710), width: 1.3),
-    padding: EdgeInsets.symmetric(horizontal: widget.compact ? 8 : 12),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    textStyle: GoogleFonts.blinker(
-      fontSize: widget.compact ? 13 : 15,
+  ButtonStyle _buttonStyle() {
+    final textStyle = GoogleFonts.blinker(
+      fontSize: widget.fontSize ?? (widget.compact ? 14 : 16),
       fontWeight: FontWeight.w700,
-    ),
-  );
+    );
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(10),
+    );
+    final padding = EdgeInsets.symmetric(horizontal: widget.compact ? 8 : 12);
+    return widget.filled
+        ? FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFA35710),
+            disabledBackgroundColor: const Color(0xFFA35710),
+            foregroundColor: Colors.white,
+            disabledForegroundColor: Colors.white,
+            padding: padding,
+            shape: shape,
+            textStyle: textStyle,
+          )
+        : OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFFA35710),
+            disabledForegroundColor: const Color(0xFFA35710),
+            side: const BorderSide(color: Color(0xFFA35710), width: 1.3),
+            padding: padding,
+            shape: shape,
+            textStyle: textStyle,
+          );
+  }
 }
 
 class _CounterButton extends StatelessWidget {

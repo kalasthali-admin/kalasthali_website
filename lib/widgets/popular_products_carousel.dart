@@ -307,8 +307,12 @@ class _DesktopProductCard extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         height: 48,
-                        child: OutlinedButton(
+                        child: OutlinedButton.icon(
                           onPressed: () => _openProduct(context, product.code),
+                          icon: const Icon(
+                            Icons.info_outline_rounded,
+                            size: 19,
+                          ),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(
                               color: Color(0xFF914B0D),
@@ -318,11 +322,11 @@ class _DesktopProductCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text(
+                          label: Text(
                             'More Info',
-                            style: TextStyle(
-                              color: Color(0xFF914B0D),
-                              fontWeight: FontWeight.w600,
+                            style: GoogleFonts.blinker(
+                              color: const Color(0xFF914B0D),
+                              fontWeight: FontWeight.w700,
                               fontSize: 16,
                             ),
                           ),
@@ -439,8 +443,12 @@ class _MobileProductCard extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         height: 40,
-                        child: OutlinedButton(
+                        child: OutlinedButton.icon(
                           onPressed: () => _openProduct(context, product.code),
+                          icon: const Icon(
+                            Icons.info_outline_rounded,
+                            size: 17,
+                          ),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(
                               color: Color(0xFF914B0D),
@@ -450,11 +458,12 @@ class _MobileProductCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child: const Text(
+                          label: Text(
                             'More Info',
-                            style: TextStyle(
-                              color: Color(0xFF914B0D),
-                              fontWeight: FontWeight.w600,
+                            style: GoogleFonts.blinker(
+                              color: const Color(0xFF914B0D),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
                             ),
                           ),
                         ),

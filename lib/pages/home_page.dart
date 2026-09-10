@@ -33,9 +33,9 @@ class HomePage extends StatelessWidget {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(
-                    isMobile ? 0 : 28,
+                    isMobile ? 0 : 18,
                     isMobile ? 0 : 30,
-                    isMobile ? 0 : 28,
+                    isMobile ? 0 : 18,
                     isMobile ? 0 : 40,
                   ),
                   child: Column(
@@ -76,13 +76,12 @@ class _DesktopHero extends StatelessWidget {
           final width = constraints.maxWidth;
           final isTablet = width < 1100;
           final cardWidth = isTablet ? width * 0.44 : width * 0.43;
-          final leftOffset = isTablet ? 28.0 : 42.0;
-          final bottomOffset = isTablet ? 40.0 : 82.0;
+          final overlayOffset = isTablet ? 28.0 : 42.0;
           final titleSize = isTablet ? 32.0 : 42.0;
           final subtitleSize = isTablet ? 16.0 : 20.0;
           final innerPadding = isTablet
-              ? const EdgeInsets.fromLTRB(22, 20, 22, 20)
-              : const EdgeInsets.fromLTRB(30, 28, 30, 24);
+              ? const EdgeInsets.fromLTRB(22, 20, 22, 22)
+              : const EdgeInsets.fromLTRB(30, 28, 30, 30);
           final minimumHeight = isTablet ? 180.0 : null;
 
           return Stack(
@@ -95,8 +94,8 @@ class _DesktopHero extends StatelessWidget {
                 ),
               ),
               Positioned(
-                left: leftOffset,
-                bottom: bottomOffset,
+                left: overlayOffset,
+                bottom: overlayOffset,
                 width: cardWidth,
                 child: _HeroCard(
                   title: 'Handpainted Art\nAt its finest.',
