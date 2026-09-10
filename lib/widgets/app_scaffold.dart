@@ -166,36 +166,49 @@ class _DesktopNavigation extends StatelessWidget {
   final String currentRoute;
 
   @override
-  Widget build(BuildContext context) {
-    final showSearch =
-        MediaQuery.sizeOf(context).width >= _headerSearchBreakpoint;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (showSearch &&
-            currentRoute != '/collections' &&
-            currentRoute != '/admin') ...[
-          const _ProductSearchField(),
+  Widget build(BuildContext context) => StreamBuilder(
+    stream: AuthService.userChanges,
+    initialData: AuthService.currentUser,
+    builder: (context, snapshot) {
+      final user = snapshot.data ?? AuthService.currentUser;
+      final showSearch =
+          MediaQuery.sizeOf(context).width >= _headerSearchBreakpoint;
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showSearch &&
+              currentRoute != '/collections' &&
+              currentRoute != '/admin') ...[
+            const _ProductSearchField(),
+            const SizedBox(width: 10),
+          ],
+          _HeaderButton(
+            label: 'COLLECTION',
+            onTap: () => _goTo(context, '/collections'),
+            isActive: currentRoute == '/collections',
+          ),
           const SizedBox(width: 10),
+          if (AuthService.isAdmin(user)) ...[
+            _HeaderButton(
+              label: 'ADMIN',
+              onTap: () => _goTo(context, '/admin'),
+              isActive: currentRoute == '/admin',
+            ),
+            const SizedBox(width: 10),
+          ],
+          _HeaderButton(
+            label: 'CART',
+            onTap: () => _goToCart(context),
+            isActive: currentRoute == '/cart',
+            icon: Icons.shopping_cart_outlined,
+            iconOnly: true,
+          ),
+          const SizedBox(width: 10),
+          _AccountHeaderButton(isActive: currentRoute == '/account'),
         ],
-        _HeaderButton(
-          label: 'COLLECTION',
-          onTap: () => _goTo(context, '/collections'),
-          isActive: currentRoute == '/collections',
-        ),
-        const SizedBox(width: 10),
-        _HeaderButton(
-          label: 'CART',
-          onTap: () => _goToCart(context),
-          isActive: currentRoute == '/cart',
-          icon: Icons.shopping_cart_outlined,
-          iconOnly: true,
-        ),
-        const SizedBox(width: 10),
-        _AccountHeaderButton(isActive: currentRoute == '/account'),
-      ],
-    );
-  }
+      );
+    },
+  );
 }
 
 class _ProductSearchField extends StatelessWidget {
@@ -307,6 +320,39 @@ class _NavigationDrawer extends StatelessWidget {
                   _goTo(context, item.route!);
                 },
               ),
+            StreamBuilder(
+              stream: AuthService.userChanges,
+              initialData: AuthService.currentUser,
+              builder: (context, snapshot) {
+                final user = snapshot.data ?? AuthService.currentUser;
+                if (!AuthService.isAdmin(user)) return const SizedBox.shrink();
+                return ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  tileColor: currentRoute == '/admin'
+                      ? const Color(0xFFE7D0AE)
+                      : Colors.transparent,
+                  leading: const Icon(
+                    Icons.admin_panel_settings_outlined,
+                    color: Color(0xFF1F1E25),
+                  ),
+                  title: const Text(
+                    'ADMIN',
+                    style: TextStyle(
+                      color: Color(0xFF1F1E25),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _goTo(context, '/admin');
+                  },
+                );
+              },
+            ),
             const Divider(),
             const _DrawerAccountItem(),
           ],

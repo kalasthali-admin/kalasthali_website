@@ -8,6 +8,7 @@ import '../core/models/product.dart';
 import '../core/models/site_policy.dart';
 import '../core/responsive.dart';
 import '../core/services/admin_service.dart';
+import '../core/services/auth_service.dart';
 import '../core/services/image_upload_converter.dart';
 import '../widgets/app_scaffold.dart';
 
@@ -347,22 +348,30 @@ class _AdminPageState extends State<AdminPage> {
       title: 'Admin',
       currentRoute: '/admin',
       centerBody: false,
-      body: !_service.isAuthenticated
-          ? _AdminGate(loading: _loading, error: _error, onLogin: _logIn)
-          : _AdminDashboard(
-              loading: _loading,
-              error: _error,
-              products: _products,
-              gallery: _gallery,
-              policies: _policies,
-              productSearch: _productSearch,
-              onRefresh: _loadDashboard,
-              onCreate: () => _editProduct(),
-              onEdit: _editProduct,
-              onDelete: _deleteProduct,
-              onSavePolicy: _savePolicy,
-              onSignOut: () => setState(_service.signOut),
-            ),
+      body: StreamBuilder(
+        stream: AuthService.userChanges,
+        initialData: AuthService.currentUser,
+        builder: (context, snapshot) {
+          final user = snapshot.data ?? AuthService.currentUser;
+          if (!AuthService.isAdmin(user)) return const _AdminAccessDenied();
+          return !_service.isAuthenticated
+              ? _AdminGate(loading: _loading, error: _error, onLogin: _logIn)
+              : _AdminDashboard(
+                  loading: _loading,
+                  error: _error,
+                  products: _products,
+                  gallery: _gallery,
+                  policies: _policies,
+                  productSearch: _productSearch,
+                  onRefresh: _loadDashboard,
+                  onCreate: () => _editProduct(),
+                  onEdit: _editProduct,
+                  onDelete: _deleteProduct,
+                  onSavePolicy: _savePolicy,
+                  onSignOut: () => setState(_service.signOut),
+                );
+        },
+      ),
     );
   }
 }
@@ -530,6 +539,22 @@ class _AdminGate extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    ),
+  );
+}
+
+class _AdminAccessDenied extends StatelessWidget {
+  const _AdminAccessDenied();
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(
+        'This account is not authorized to access the admin dashboard.',
+        textAlign: TextAlign.center,
+        style: GoogleFonts.blinker(fontSize: 19),
       ),
     ),
   );
