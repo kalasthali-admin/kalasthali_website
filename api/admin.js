@@ -211,6 +211,21 @@ function validProductCode(code) {
   return /^[A-Za-z0-9_-]+$/.test(code);
 }
 
+function policyPayload(source) {
+  const allowedSlugs = new Set([
+    'privacy-policy',
+    'terms-of-service',
+    'refund-policy',
+  ]);
+  const slug = typeof source.slug === 'string' ? source.slug.trim() : '';
+  const title = typeof source.title === 'string' ? source.title.trim() : '';
+  const content = typeof source.content === 'string' ? source.content.trim() : '';
+  if (!allowedSlugs.has(slug) || !title || !content) {
+    throw new Error('A valid policy title and content are required.');
+  }
+  return { slug, title, content, updated_at: new Date().toISOString() };
+}
+
 async function moveImage(sourceKey, destinationKey) {
   await supabaseFetch('/storage/v1/object/move', {
     method: 'POST',
@@ -351,6 +366,26 @@ module.exports = async (req, res) => {
 
     if (action === 'gallery' && req.method === 'GET') {
       return json(res, 200, await gallery());
+    }
+
+    if (action === 'policies' && req.method === 'GET') {
+      return json(
+        res,
+        200,
+        await supabaseFetch('/rest/v1/site_policies?select=*&order=slug.asc'),
+      );
+    }
+
+    if (action === 'policy' && req.method === 'PUT') {
+      const policy = policyPayload(body.policy || {});
+      const updated = await supabaseFetch('/rest/v1/site_policies', {
+        method: 'POST',
+        headers: {
+          Prefer: 'resolution=merge-duplicates,return=representation',
+        },
+        body: JSON.stringify(policy),
+      });
+      return json(res, 200, updated[0]);
     }
 
     if (action === 'image_upload' && req.method === 'POST') {

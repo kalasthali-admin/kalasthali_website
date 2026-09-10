@@ -5,10 +5,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/models/product.dart';
+import '../core/models/site_policy.dart';
 import '../core/responsive.dart';
 import '../core/services/admin_service.dart';
 import '../core/services/image_upload_converter.dart';
 import '../widgets/app_scaffold.dart';
+
+part 'admin_policy_section.dart';
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
@@ -24,6 +27,7 @@ class _AdminPageState extends State<AdminPage> {
   String? _error;
   List<Product> _products = const [];
   List<AdminGallery> _gallery = const [];
+  List<SitePolicy> _policies = const [];
 
   @override
   void initState() {
@@ -52,11 +56,13 @@ class _AdminPageState extends State<AdminPage> {
       final results = await Future.wait([
         _service.getProducts(),
         _service.getGallery(),
+        _service.getPolicies(),
       ]);
       if (!mounted) return;
       setState(() {
         _products = results[0] as List<Product>;
         _gallery = results[1] as List<AdminGallery>;
+        _policies = results[2] as List<SitePolicy>;
       });
     } on AdminException catch (error) {
       if (!mounted) return;
@@ -169,6 +175,26 @@ class _AdminPageState extends State<AdminPage> {
       await _service.delete(product.code);
       await _loadDashboard();
       if (mounted) _showMessage('Product deleted.');
+    } on AdminException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _savePolicy(SitePolicy policy) async {
+    setState(() => _loading = true);
+    try {
+      final updated = await _service.updatePolicy(policy);
+      if (!mounted) return;
+      setState(() {
+        _policies = [
+          for (final current in _policies)
+            if (current.slug != updated.slug) current,
+          updated,
+        ];
+      });
+      _showMessage('${updated.title} saved.');
     } on AdminException catch (error) {
       if (mounted) _showMessage(error.message);
     } finally {
@@ -328,11 +354,13 @@ class _AdminPageState extends State<AdminPage> {
               error: _error,
               products: _products,
               gallery: _gallery,
+              policies: _policies,
               productSearch: _productSearch,
               onRefresh: _loadDashboard,
               onCreate: () => _editProduct(),
               onEdit: _editProduct,
               onDelete: _deleteProduct,
+              onSavePolicy: _savePolicy,
               onSignOut: () => setState(_service.signOut),
             ),
     );
@@ -554,11 +582,13 @@ class _AdminDashboard extends StatelessWidget {
     required this.error,
     required this.products,
     required this.gallery,
+    required this.policies,
     required this.productSearch,
     required this.onRefresh,
     required this.onCreate,
     required this.onEdit,
     required this.onDelete,
+    required this.onSavePolicy,
     required this.onSignOut,
   });
 
@@ -566,11 +596,13 @@ class _AdminDashboard extends StatelessWidget {
   final String? error;
   final List<Product> products;
   final List<AdminGallery> gallery;
+  final List<SitePolicy> policies;
   final TextEditingController productSearch;
   final Future<void> Function() onRefresh;
   final VoidCallback onCreate;
   final ValueChanged<Product> onEdit;
   final ValueChanged<Product> onDelete;
+  final Future<void> Function(SitePolicy) onSavePolicy;
   final VoidCallback onSignOut;
 
   @override
@@ -699,6 +731,12 @@ class _AdminDashboard extends StatelessWidget {
                       ),
                     );
                   }),
+                const SizedBox(height: 42),
+                _PolicyAdminSection(
+                  policies: policies,
+                  loading: loading,
+                  onSave: onSavePolicy,
+                ),
               ],
             ),
           ),

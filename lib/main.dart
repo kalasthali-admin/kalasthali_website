@@ -15,6 +15,7 @@ import 'pages/cart_page.dart';
 import 'pages/product_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/admin_page.dart';
+import 'pages/policy_page.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -49,6 +50,9 @@ class KalasthaliApp extends StatelessWidget {
   static const String accountRoute = '/account';
   static const String checkoutRoute = '/checkout';
   static const String cartRoute = '/cart';
+  static const String privacyPolicyRoute = '/privacy-policy';
+  static const String termsOfServiceRoute = '/terms-of-service';
+  static const String refundPolicyRoute = '/refund-policy';
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +77,11 @@ class KalasthaliApp extends StatelessWidget {
         accountRoute: (context) => const AccountPage(),
         checkoutRoute: (context) => const CheckoutPage(),
         cartRoute: (context) => const CartPage(),
+        privacyPolicyRoute: (context) =>
+            const PolicyPage(slug: 'privacy-policy'),
+        termsOfServiceRoute: (context) =>
+            const PolicyPage(slug: 'terms-of-service'),
+        refundPolicyRoute: (context) => const PolicyPage(slug: 'refund-policy'),
       },
       onGenerateRoute: (settings) {
         final uri = Uri.parse(settings.name ?? '/');

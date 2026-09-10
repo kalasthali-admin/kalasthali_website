@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/product.dart';
+import '../models/site_policy.dart';
 
 class AdminGalleryImage {
   const AdminGalleryImage({
@@ -109,6 +110,25 @@ class AdminService {
         .whereType<Map<String, dynamic>>()
         .map(AdminGallery.fromJson)
         .toList();
+  }
+
+  Future<List<SitePolicy>> getPolicies() async {
+    final response = await http.get(_uri('policies'), headers: _headers);
+    final data = _decode(response);
+    if (data is! List<dynamic>) throw AdminException('Invalid policies data.');
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(SitePolicy.fromJson)
+        .toList();
+  }
+
+  Future<SitePolicy> updatePolicy(SitePolicy policy) async {
+    final response = await http.put(
+      _uri('policy'),
+      headers: _headers,
+      body: jsonEncode({'policy': policy.toJson()}),
+    );
+    return SitePolicy.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
   Future<Product> create(Map<String, dynamic> product) async {
