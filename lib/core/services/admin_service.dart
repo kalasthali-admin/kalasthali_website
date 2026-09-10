@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/product.dart';
 import '../models/site_policy.dart';
@@ -60,37 +61,23 @@ class AdminService {
   AdminService._();
 
   static final instance = AdminService._();
-  static const isTestMode = bool.fromEnvironment('ADMIN_TEST_MODE');
   static const maxImageBytes = 10 * 1024 * 1024;
-  String? _token;
-
-  bool get isAuthenticated => _token != null;
 
   Uri _uri(String action, [Map<String, String>? query]) => Uri.base.replace(
     path: '/api/admin',
     queryParameters: {'action': action, ...?query},
   );
 
-  Map<String, String> get _headers => {
-    'Content-Type': 'application/json',
-    if (_token != null) 'Authorization': 'Bearer $_token',
-  };
-
-  Future<void> login(String password) async {
-    final response = await http.post(
-      _uri('login'),
-      headers: _headers,
-      body: jsonEncode({'password': password}),
-    );
-    final data = _decode(response);
-    final token = data['token'] as String?;
+  Map<String, String> get _headers {
+    final token = Supabase.instance.client.auth.currentSession?.accessToken;
     if (token == null || token.isEmpty) {
-      throw AdminException('Could not start the admin session.');
+      throw const AdminException('Log in with an authorized admin account.');
     }
-    _token = token;
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
   }
-
-  void signOut() => _token = null;
 
   Future<List<Product>> getProducts() async {
     final response = await http.get(_uri('products'), headers: _headers);
@@ -236,7 +223,6 @@ class AdminService {
       final message = data is Map<String, dynamic>
           ? data['error'] as String?
           : null;
-      if (response.statusCode == 401) _token = null;
       throw AdminException(message ?? 'Admin request failed.');
     }
     return data;

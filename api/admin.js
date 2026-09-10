@@ -1,5 +1,10 @@
 const crypto = require('crypto');
 
+const adminEmails = new Set([
+  'admin.kalasthali@gmail.com',
+  'nisharohilla651@gmail.com',
+]);
+
 const allowedFields = [
   'code',
   'type',
@@ -10,34 +15,12 @@ const allowedFields = [
   'price',
   'is_popular',
 ];
-const sessionLifetimeMs = 8 * 60 * 60 * 1000;
 const imageNamePattern = /^(thumbnail|pimage\d+|\d+)\.webp$/i;
 // Image bytes upload directly to Supabase through a short-lived signed URL,
 // rather than through Vercel's much smaller request-body limit.
 const maxImageBytes = 10 * 1024 * 1024;
 const supabaseUrl =
   process.env.SUPABASE_URL || 'https://dddriininznavwrsrgww.supabase.co';
-
-// This intentionally cannot run on a Vercel production deployment. It is
-// useful with `vercel dev` while building the dashboard locally.
-function isLocalTestMode() {
-  return (
-    process.env.ADMIN_TEST_MODE === 'true' &&
-    process.env.VERCEL_ENV !== 'production'
-  );
-}
-
-function adminSecret() {
-  return process.env.ADMIN_AUTH ||
-    process.env.ADMIN_RECOVERY_AUTH ||
-    (isLocalTestMode() ? 'local-development-admin-secret' : '');
-}
-
-function passwordMatches(password) {
-  const candidates = [process.env.ADMIN_AUTH, process.env.ADMIN_RECOVERY_AUTH]
-    .filter(Boolean);
-  return candidates.some((candidate) => safeEqual(password, candidate));
-}
 
 function json(res, status, value) {
   res.status(status).json(value);
@@ -54,52 +37,33 @@ function readBody(req) {
 }
 
 function configured() {
-  return Boolean(
-    adminSecret() &&
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-  );
+  return Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
-function safeEqual(left, right) {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  return (
-    leftBuffer.length === rightBuffer.length &&
-    crypto.timingSafeEqual(leftBuffer, rightBuffer)
-  );
-}
-
-function sign(payload) {
-  return crypto
-    .createHmac('sha256', adminSecret())
-    .update(payload)
-    .digest('base64url');
-}
-
-function createToken() {
-  const payload = Buffer.from(
-    JSON.stringify({
-      issuedAt: Date.now(),
-      nonce: crypto.randomBytes(16).toString('base64url'),
-    }),
-  ).toString('base64url');
-  return `${payload}.${sign(payload)}`;
-}
-
-function isAuthenticated(req) {
+async function authenticatedAdmin(req) {
   const authorization = req.headers.authorization || '';
   const token = authorization.startsWith('Bearer ')
     ? authorization.slice('Bearer '.length)
     : '';
-  const [payload, signature] = token.split('.');
-  if (!payload || !signature || !safeEqual(signature, sign(payload))) return false;
+  const supabaseKey =
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_API_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!token || !supabaseKey) return null;
 
-  try {
-    const session = JSON.parse(Buffer.from(payload, 'base64url').toString());
-    return Date.now() - session.issuedAt < sessionLifetimeMs;
-  } catch (_) {
-    return false;
-  }
+  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) return null;
+  const user = await response.json();
+  return adminEmails.has(String(user.email || '').toLowerCase()) ? user : null;
+}
+
+function adminConfigurationError() {
+  return 'Admin server is not configured. Set SUPABASE_SERVICE_ROLE_KEY in Vercel.';
 }
 
 async function supabaseFetch(path, options = {}) {
@@ -332,27 +296,17 @@ async function deleteImage(code, name) {
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (!configured()) {
-    return json(res, 503, {
-      error:
-        'Admin server is not configured. Set ADMIN_AUTH or ADMIN_RECOVERY_AUTH, plus SUPABASE_SERVICE_ROLE_KEY, in Vercel.',
-    });
+    return json(res, 503, { error: adminConfigurationError() });
   }
 
   const body = readBody(req);
   const action = req.query.action || body.action;
-
-  if (action === 'login' && req.method === 'POST') {
-    if (
-      !isLocalTestMode() &&
-      !passwordMatches(String(body.password || ''))
-    ) {
-      return json(res, 401, { error: 'Incorrect password.' });
-    }
-    return json(res, 200, { token: createToken() });
-  }
-
-  if (!isAuthenticated(req)) {
-    return json(res, 401, { error: 'Your admin session has expired.' });
+  if (!await authenticatedAdmin(req)) {
+    return json(res, 401, {
+      error: (req.headers.authorization || '').startsWith('Bearer ')
+          ? 'Your account is not authorized to access the admin dashboard.'
+          : 'Log in with an authorized admin account to continue.',
+    });
   }
 
   try {

@@ -34,6 +34,9 @@ class _AdminPageState extends State<AdminPage> {
   void initState() {
     super.initState();
     _productSearch.addListener(_refreshProductSearch);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (AuthService.isAdmin(AuthService.currentUser)) _loadDashboard();
+    });
   }
 
   @override
@@ -70,31 +73,6 @@ class _AdminPageState extends State<AdminPage> {
       setState(() => _error = error.message);
     } finally {
       if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _logIn() async {
-    final password = AdminService.isTestMode
-        ? ''
-        : await showDialog<String>(
-            context: context,
-            builder: (_) => const _AdminLoginDialog(),
-          );
-    if (password == null || (!AdminService.isTestMode && password.isEmpty)) {
-      return;
-    }
-
-    setState(() => _loading = true);
-    try {
-      await _service.login(password);
-      await _loadDashboard();
-    } on AdminException catch (error) {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _error = error.message;
-        });
-      }
     }
   }
 
@@ -354,22 +332,19 @@ class _AdminPageState extends State<AdminPage> {
         builder: (context, snapshot) {
           final user = snapshot.data ?? AuthService.currentUser;
           if (!AuthService.isAdmin(user)) return const _AdminAccessDenied();
-          return !_service.isAuthenticated
-              ? _AdminGate(loading: _loading, error: _error, onLogin: _logIn)
-              : _AdminDashboard(
-                  loading: _loading,
-                  error: _error,
-                  products: _products,
-                  gallery: _gallery,
-                  policies: _policies,
-                  productSearch: _productSearch,
-                  onRefresh: _loadDashboard,
-                  onCreate: () => _editProduct(),
-                  onEdit: _editProduct,
-                  onDelete: _deleteProduct,
-                  onSavePolicy: _savePolicy,
-                  onSignOut: () => setState(_service.signOut),
-                );
+          return _AdminDashboard(
+            loading: _loading,
+            error: _error,
+            products: _products,
+            gallery: _gallery,
+            policies: _policies,
+            productSearch: _productSearch,
+            onRefresh: _loadDashboard,
+            onCreate: () => _editProduct(),
+            onEdit: _editProduct,
+            onDelete: _deleteProduct,
+            onSavePolicy: _savePolicy,
+          );
         },
       ),
     );
@@ -461,89 +436,6 @@ class _ImageUploadDialog extends StatelessWidget {
   );
 }
 
-class _AdminGate extends StatelessWidget {
-  const _AdminGate({
-    required this.loading,
-    required this.error,
-    required this.onLogin,
-  });
-
-  final bool loading;
-  final String? error;
-  final VoidCallback onLogin;
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 440),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Container(
-          padding: const EdgeInsets.all(30),
-          decoration: BoxDecoration(
-            color: const Color(0xFFECE7DD),
-            border: Border.all(color: const Color(0xFFD0A36F)),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x332D1E12),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.admin_panel_settings_outlined,
-                size: 46,
-                color: const Color(0xFF5B351A),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Admin Dashboard',
-                style: GoogleFonts.dmSerifDisplay(
-                  fontSize: 34,
-                  color: const Color(0xFF5B351A),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'For managing listed products and their images',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.blinker(fontSize: 17),
-              ),
-              if (error != null) ...[
-                const SizedBox(height: 14),
-                Text(
-                  error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ],
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: loading ? null : onLogin,
-                  icon: loading
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.lock_open_outlined),
-                  label: const Text('Unlock dashboard'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
 class _AdminAccessDenied extends StatelessWidget {
   const _AdminAccessDenied();
 
@@ -560,47 +452,6 @@ class _AdminAccessDenied extends StatelessWidget {
   );
 }
 
-class _AdminLoginDialog extends StatefulWidget {
-  const _AdminLoginDialog();
-
-  @override
-  State<_AdminLoginDialog> createState() => _AdminLoginDialogState();
-}
-
-class _AdminLoginDialogState extends State<_AdminLoginDialog> {
-  final password = TextEditingController();
-  @override
-  void dispose() {
-    password.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(
-      'Admin sign in',
-      style: GoogleFonts.dmSerifDisplay(fontSize: 28),
-    ),
-    content: TextField(
-      controller: password,
-      autofocus: true,
-      obscureText: true,
-      onSubmitted: (_) => Navigator.pop(context, password.text),
-      decoration: const InputDecoration(labelText: 'Password'),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: () => Navigator.pop(context, password.text),
-        child: const Text('Continue'),
-      ),
-    ],
-  );
-}
-
 class _AdminDashboard extends StatelessWidget {
   const _AdminDashboard({
     required this.loading,
@@ -614,7 +465,6 @@ class _AdminDashboard extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onSavePolicy,
-    required this.onSignOut,
   });
 
   final bool loading;
@@ -628,7 +478,6 @@ class _AdminDashboard extends StatelessWidget {
   final ValueChanged<Product> onEdit;
   final ValueChanged<Product> onDelete;
   final Future<void> Function(SitePolicy) onSavePolicy;
-  final VoidCallback onSignOut;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -671,11 +520,6 @@ class _AdminDashboard extends StatelessWidget {
                       onPressed: loading ? null : onRefresh,
                       tooltip: 'Refresh',
                       icon: const Icon(Icons.refresh),
-                    ),
-                    IconButton(
-                      onPressed: onSignOut,
-                      tooltip: 'Sign out',
-                      icon: const Icon(Icons.logout),
                     ),
                   ],
                 ),
