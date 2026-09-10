@@ -78,7 +78,7 @@ class _DesktopHero extends StatelessWidget {
           final cardWidth = isTablet ? width * 0.44 : width * 0.43;
           final overlayOffset = isTablet ? 28.0 : 42.0;
           final titleSize = isTablet ? 32.0 : 42.0;
-          final subtitleSize = isTablet ? 16.0 : 20.0;
+          final subtitleSize = isTablet ? 16.0 : 22.0;
           final innerPadding = isTablet
               ? const EdgeInsets.fromLTRB(22, 20, 22, 22)
               : const EdgeInsets.fromLTRB(30, 28, 30, 30);
@@ -143,7 +143,7 @@ class _MobileHero extends StatelessWidget {
             title: 'Handpainted Art\nAt its finest',
             subtitle: 'All at your fingertips',
             titleSize: 36,
-            subtitleSize: 18,
+            subtitleSize: 24,
             buttonCenter: true,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
             outerPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
@@ -475,11 +475,11 @@ class _HeroCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     subtitle,
-                    style: TextStyle(
+                    style: GoogleFonts.blinker(
                       color: Colors.white,
                       fontSize: subtitleSize,
                       height: 1.15,
-                      fontWeight: FontWeight.w300,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 50),

@@ -60,13 +60,22 @@ class _AdminPageState extends State<AdminPage> {
       final results = await Future.wait([
         _service.getProducts(),
         _service.getGallery(),
-        _service.getPolicies(),
       ]);
+      List<SitePolicy> policies = defaultPolicies.values.toList();
+      String? policyError;
+      try {
+        policies = await _service.getPolicies();
+      } on AdminException catch (error) {
+        policyError = error.message;
+      }
       if (!mounted) return;
       setState(() {
         _products = results[0] as List<Product>;
         _gallery = results[1] as List<AdminGallery>;
-        _policies = results[2] as List<SitePolicy>;
+        _policies = policies;
+        _error = policyError == null
+            ? null
+            : '$policyError Run supabase/site_policies.sql to enable policy editing.';
       });
     } on AdminException catch (error) {
       if (!mounted) return;

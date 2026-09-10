@@ -159,133 +159,143 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
     ),
     child: Form(
       key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _signUp ? 'Create your account' : 'Welcome back',
-            style: GoogleFonts.dmSerifDisplay(
-              fontSize: 38,
-              color: const Color(0xFF5B351A),
+      child: AutofillGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _signUp ? 'Create your account' : 'Welcome back',
+              style: GoogleFonts.dmSerifDisplay(
+                fontSize: 38,
+                color: const Color(0xFF5B351A),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _signUp
-                ? 'Save your details now for a smoother checkout later.'
-                : 'Log in to access your account.',
-            style: GoogleFonts.blinker(fontSize: 18, height: 1.3),
-          ),
-          const SizedBox(height: 26),
-          if (_signUp) ...[
+            const SizedBox(height: 8),
+            Text(
+              _signUp
+                  ? 'Save your details now for a smoother checkout later.'
+                  : 'Log in to access your account.',
+              style: GoogleFonts.blinker(fontSize: 18, height: 1.3),
+            ),
+            const SizedBox(height: 26),
+            if (_signUp) ...[
+              _AuthField(
+                controller: _firstName,
+                label: 'First name',
+                textCapitalization: TextCapitalization.words,
+                autofillHints: const [AutofillHints.name],
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Enter your first name.'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+            ],
             _AuthField(
-              controller: _firstName,
-              label: 'First name',
-              textCapitalization: TextCapitalization.words,
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Enter your first name.'
+              controller: _email,
+              label: 'Email address',
+              keyboardType: TextInputType.emailAddress,
+              // Password managers identify email sign-in fields as usernames.
+              autofillHints: const [AutofillHints.username],
+              validator: (value) {
+                final email = value?.trim() ?? '';
+                return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)
+                    ? null
+                    : 'Enter a valid email address.';
+              },
+            ),
+            const SizedBox(height: 16),
+            _AuthField(
+              key: ValueKey('password-${_signUp ? 'new' : 'current'}'),
+              controller: _password,
+              label: 'Password',
+              obscureText: true,
+              autofillHints: [
+                _signUp ? AutofillHints.newPassword : AutofillHints.password,
+              ],
+              validator: (value) => (value?.length ?? 0) < 6
+                  ? 'Use at least 6 characters.'
                   : null,
             ),
-            const SizedBox(height: 16),
-          ],
-          _AuthField(
-            controller: _email,
-            label: 'Email address',
-            keyboardType: TextInputType.emailAddress,
-            validator: (value) {
-              final email = value?.trim() ?? '';
-              return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)
-                  ? null
-                  : 'Enter a valid email address.';
-            },
-          ),
-          const SizedBox(height: 16),
-          _AuthField(
-            controller: _password,
-            label: 'Password',
-            obscureText: true,
-            validator: (value) =>
-                (value?.length ?? 0) < 6 ? 'Use at least 6 characters.' : null,
-          ),
-          if (_message != null) ...[
-            const SizedBox(height: 16),
-            Text(
-              _message!,
-              style: GoogleFonts.blinker(
-                fontSize: 16,
-                color: const Color(0xFF914B0D),
-              ),
-            ),
-          ],
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: FilledButton(
-              onPressed: _loading ? null : _submit,
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFA35710),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+            if (_message != null) ...[
+              const SizedBox(height: 16),
+              Text(
+                _message!,
+                style: GoogleFonts.blinker(
+                  fontSize: 16,
+                  color: const Color(0xFF914B0D),
                 ),
               ),
-              child: _loading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(
-                      _signUp ? 'Create account' : 'Log in',
-                      style: GoogleFonts.blinker(fontSize: 19),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              const Expanded(child: Divider()),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text(
-                  'OR',
-                  style: GoogleFonts.blinker(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF746D64),
+            ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: FilledButton(
+                onPressed: _loading ? null : _submit,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFA35710),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-              ),
-              const Expanded(child: Divider()),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Center(
-            child: _GoogleAuthButton(
-              onPressed: _loading ? null : _signInWithGoogle,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Center(
-            child: TextButton(
-              onPressed: _loading
-                  ? null
-                  : () => setState(() {
-                      _signUp = !_signUp;
-                      _message = null;
-                    }),
-              child: Text(
-                _signUp
-                    ? 'Already have an account? Log in'
-                    : 'New to Kalasthali? Create an account',
-                style: GoogleFonts.blinker(fontSize: 17),
+                child: _loading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        _signUp ? 'Create account' : 'Log in',
+                        style: GoogleFonts.blinker(fontSize: 19),
+                      ),
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                const Expanded(child: Divider()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'OR',
+                    style: GoogleFonts.blinker(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF746D64),
+                    ),
+                  ),
+                ),
+                const Expanded(child: Divider()),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Center(
+              child: _GoogleAuthButton(
+                onPressed: _loading ? null : _signInWithGoogle,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Center(
+              child: TextButton(
+                onPressed: _loading
+                    ? null
+                    : () => setState(() {
+                        _signUp = !_signUp;
+                        _message = null;
+                      }),
+                child: Text(
+                  _signUp
+                      ? 'Already have an account? Log in'
+                      : 'New to Kalasthali? Create an account',
+                  style: GoogleFonts.blinker(fontSize: 17),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -367,6 +377,8 @@ class _AuthField extends StatelessWidget {
     this.keyboardType,
     this.obscureText = false,
     this.textCapitalization = TextCapitalization.none,
+    this.autofillHints,
+    super.key,
   });
 
   final TextEditingController controller;
@@ -375,6 +387,7 @@ class _AuthField extends StatelessWidget {
   final TextInputType? keyboardType;
   final bool obscureText;
   final TextCapitalization textCapitalization;
+  final Iterable<String>? autofillHints;
 
   @override
   Widget build(BuildContext context) => TextFormField(
@@ -382,6 +395,9 @@ class _AuthField extends StatelessWidget {
     validator: validator,
     keyboardType: keyboardType,
     obscureText: obscureText,
+    autofillHints: autofillHints,
+    enableSuggestions: !obscureText,
+    autocorrect: false,
     textCapitalization: textCapitalization,
     style: GoogleFonts.blinker(fontSize: 18),
     decoration: InputDecoration(
