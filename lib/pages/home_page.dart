@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/responsive.dart';
+import '../core/services/home_navigation_service.dart';
 import '../core/services/seo_service.dart';
 import '../widgets/app_footer.dart';
 import '../widgets/app_scaffold.dart';
@@ -14,6 +15,9 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      HomeNavigationService.completePendingRequest();
+    });
     SeoService.setPage(
       title: 'Kalasthali By Nisha | Handpainted Clothing',
       description: 'Handpainted clothing crafted with art and individuality.',
@@ -32,12 +36,7 @@ class HomePage extends StatelessWidget {
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    isMobile ? 0 : 18,
-                    isMobile ? 0 : 30,
-                    isMobile ? 0 : 18,
-                    isMobile ? 0 : 40,
-                  ),
+                  padding: EdgeInsets.fromLTRB(0, 0, 0, isMobile ? 0 : 40),
                   child: Column(
                     children: [
                       SizedBox(
@@ -47,7 +46,16 @@ class HomePage extends StatelessWidget {
                             : const _DesktopHero(),
                       ),
                       const SizedBox(height: 100),
-                      PopularProductsCarousel(),
+                      KeyedSubtree(
+                        key: HomeNavigationService.newArrivalsKey,
+                        child: Column(
+                          children: [
+                            const _SectionHeader(title: 'New Arrivals'),
+                            SizedBox(height: isMobile ? 40 : 52),
+                            PopularProductsCarousel(),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: 110),
                       const _ShopByCategory(),
                       const SizedBox(height: 80),
@@ -67,35 +75,57 @@ class HomePage extends StatelessWidget {
 class _DesktopHero extends StatelessWidget {
   const _DesktopHero();
 
+  static const _assetWidth = 3796.0;
+  static const _transparentTop = 70.0;
+
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final isTablet = width < 1100;
-          final cardWidth = isTablet ? width * 0.44 : width * 0.43;
-          final overlayOffset = isTablet ? 28.0 : 42.0;
-          final titleSize = isTablet ? 32.0 : 42.0;
-          final subtitleSize = isTablet ? 16.0 : 22.0;
-          final innerPadding = isTablet
-              ? const EdgeInsets.fromLTRB(22, 20, 22, 22)
-              : const EdgeInsets.fromLTRB(30, 28, 30, 30);
-          final minimumHeight = isTablet ? 180.0 : null;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final viewport = MediaQuery.sizeOf(context);
+        final tabletPortrait = width < 1100 && viewport.height > viewport.width;
+        // Keep the desktop landing artwork intentionally immersive.
+        final heroHeight = tabletPortrait
+            ? viewport.height * 0.5
+            : (width < 1100
+                  ? width / 2
+                  : (width / 2).clamp(1080.0, double.infinity));
+        final transparentTop = width * _transparentTop / _assetWidth;
+        final isTablet = width < 1100;
+        final cardWidth = isTablet ? width * 0.44 : width * 0.43;
+        final overlayOffset = isTablet ? 28.0 : 42.0;
+        final overlayTop =
+            heroHeight * (tabletPortrait ? 0.46 : (isTablet ? 0.48 : 0.52));
+        final titleSize = isTablet ? 32.0 : 42.0;
+        final subtitleSize = isTablet ? 16.0 : 22.0;
+        final innerPadding = isTablet
+            ? const EdgeInsets.fromLTRB(22, 20, 22, 22)
+            : const EdgeInsets.fromLTRB(30, 28, 30, 30);
+        final minimumHeight = isTablet ? 180.0 : null;
 
-          return Stack(
+        return SizedBox(
+          height: heroHeight,
+          child: Stack(
             children: [
-              AspectRatio(
-                aspectRatio: 1829 / 852,
-                child: Image.asset(
-                  'lib/assets/homepage_art_large.webp',
-                  fit: BoxFit.cover,
+              ClipRect(
+                child: Transform.translate(
+                  offset: Offset(0, -transparentTop),
+                  child: SizedBox(
+                    width: width,
+                    height: heroHeight + transparentTop,
+                    child: Image.asset(
+                      'lib/assets/homepage_art_large.webp',
+                      fit: BoxFit.cover,
+                      width: width,
+                      height: heroHeight + transparentTop,
+                    ),
+                  ),
                 ),
               ),
               Positioned(
                 left: overlayOffset,
-                bottom: overlayOffset,
+                top: overlayTop,
                 width: cardWidth,
                 child: _HeroCard(
                   title: 'Handpainted Art\nAt its finest.',
@@ -113,9 +143,9 @@ class _DesktopHero extends StatelessWidget {
                 ),
               ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -123,38 +153,60 @@ class _DesktopHero extends StatelessWidget {
 class _MobileHero extends StatelessWidget {
   const _MobileHero();
 
+  static const _assetWidth = 786.0;
+  static const _transparentTop = 80.0;
+  static const _heroAspectRatio = 393 / 852;
+
   @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        AspectRatio(
-          aspectRatio: 393 / 852,
-          child: Image.asset(
-            'lib/assets/homepage_art_mobile.webp',
-            fit: BoxFit.cover,
-            width: double.infinity,
-          ),
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = constraints.maxWidth;
+      final heroHeight = width / _heroAspectRatio;
+      final transparentTop = width * _transparentTop / _assetWidth;
+
+      return SizedBox(
+        height: heroHeight,
+        child: Stack(
+          children: [
+            ClipRect(
+              child: Transform.translate(
+                offset: Offset(0, -transparentTop),
+                child: SizedBox(
+                  height: heroHeight + transparentTop,
+                  width: width,
+                  child: Image.asset(
+                    'lib/assets/homepage_art_mobile.webp',
+                    fit: BoxFit.cover,
+                    width: width,
+                    height: heroHeight + transparentTop,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _HeroCard(
+                title: 'Handpainted Art\nAt its finest',
+                subtitle: 'All at your fingertips',
+                titleSize: 36,
+                subtitleSize: 24,
+                buttonCenter: true,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(32),
+                ),
+                outerPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+                innerPadding: const EdgeInsets.fromLTRB(24, 26, 24, 36),
+                minHeight: 450,
+                onExplore: () => _goToCollection(context),
+              ),
+            ),
+          ],
         ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: _HeroCard(
-            title: 'Handpainted Art\nAt its finest',
-            subtitle: 'All at your fingertips',
-            titleSize: 36,
-            subtitleSize: 24,
-            buttonCenter: true,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-            outerPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-            innerPadding: const EdgeInsets.fromLTRB(24, 26, 24, 36),
-            minHeight: 450,
-            onExplore: () => _goToCollection(context),
-          ),
-        ),
-      ],
-    );
-  }
+      );
+    },
+  );
 }
 
 class _ShopByCategory extends StatelessWidget {
@@ -181,17 +233,7 @@ class _ShopByCategory extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  Text(
-                    'Shop By Category',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.dmSerifDisplay(
-                      fontSize: isMobile ? 36 : 50,
-                      height: 1.05,
-                      color: const Color(0xFF1F1E25),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  const _CategoryDivider(),
+                  const _SectionHeader(title: 'Shop By Category'),
                   SizedBox(height: isMobile ? 40 : 52),
                   if (isMobile) ...[
                     _CategoryButton(
@@ -285,6 +327,41 @@ class _ShopByCategory extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = useCompactLayout(context, breakpoint: 700);
+    final wide = MediaQuery.sizeOf(context).width >= 1200;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 0),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: wide ? 1580 : 560),
+          child: Column(
+            children: [
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: isMobile ? 36 : 50,
+                  height: 1.05,
+                  color: const Color(0xFF1F1E25),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const _CategoryDivider(),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

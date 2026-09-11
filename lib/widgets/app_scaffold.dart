@@ -3,10 +3,10 @@ import 'package:flutter/services.dart';
 
 import '../core/responsive.dart';
 import '../core/services/auth_service.dart';
+import '../core/services/home_navigation_service.dart';
 
 const double _desktopHeaderBreakpoint = 850;
-const double _headerSearchBreakpoint = 1200;
-const double _desktopHeaderControlHeight = 45;
+const double _desktopHeaderControlHeight = 34;
 
 class AppScaffold extends StatefulWidget {
   const AppScaffold({
@@ -29,12 +29,38 @@ class AppScaffold extends StatefulWidget {
 class _AppScaffoldState extends State<AppScaffold> {
   final ScrollController _scrollController = ScrollController();
   final FocusNode _scrollFocusNode = FocusNode(debugLabel: 'app-scroll-focus');
+  final FocusNode _headerSearchFocusNode = FocusNode(
+    debugLabel: 'header-search',
+  );
+  final TextEditingController _headerSearchController = TextEditingController();
+  var _searchOpen = false;
 
   @override
   void dispose() {
     _scrollController.dispose();
     _scrollFocusNode.dispose();
+    _headerSearchFocusNode.dispose();
+    _headerSearchController.dispose();
     super.dispose();
+  }
+
+  void _toggleSearch() {
+    setState(() => _searchOpen = !_searchOpen);
+    if (_searchOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _headerSearchFocusNode.requestFocus();
+      });
+    }
+  }
+
+  void _submitSearch(String value) {
+    final query = value.trim();
+    if (query.isEmpty) return;
+    setState(() => _searchOpen = false);
+    Navigator.pushReplacementNamed(
+      context,
+      Uri(path: '/collections', queryParameters: {'search': query}).toString(),
+    );
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
@@ -82,7 +108,9 @@ class _AppScaffoldState extends State<AppScaffold> {
       context,
       breakpoint: _desktopHeaderBreakpoint,
     );
-    final logoHeight = isMobile ? 58.0 : 70.0;
+    final viewport = MediaQuery.sizeOf(context);
+    final tabletPortrait =
+        !isMobile && viewport.height > viewport.width && viewport.width < 1100;
 
     return Scaffold(
       backgroundColor: Color.fromRGBO(231, 226, 215, 1),
@@ -97,7 +125,7 @@ class _AppScaffoldState extends State<AppScaffold> {
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(5)),
         ),
-        toolbarHeight: isMobile ? 80 : 90,
+        toolbarHeight: isMobile ? 80 : 88,
         automaticallyImplyLeading: false,
         backgroundColor: logoBackground,
         actions: isMobile
@@ -115,37 +143,17 @@ class _AppScaffoldState extends State<AppScaffold> {
               ]
             : const [],
         titleSpacing: 0,
-        title: Row(
-          children: [
-            SizedBox(width: isMobile ? 12 : 8),
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    overlayColor: const WidgetStatePropertyAll(
-                      Colors.transparent,
-                    ),
-                    onTap: () => _goTo(context, '/'),
-                    child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: Image.asset(
-                        'lib/assets/logo_text.png',
-                        height: logoHeight,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                  ),
-                ),
+        title: isMobile
+            ? const _MobileHeader()
+            : _DesktopHeader(
+                currentRoute: widget.currentRoute,
+                searchOpen: _searchOpen,
+                searchController: _headerSearchController,
+                searchFocusNode: _headerSearchFocusNode,
+                onSearchToggle: _toggleSearch,
+                onSearchSubmitted: _submitSearch,
+                showNavigationLinks: !tabletPortrait,
               ),
-            ),
-            if (!isMobile)
-              _DesktopNavigation(currentRoute: widget.currentRoute),
-            SizedBox(width: isMobile ? 12 : 24),
-          ],
-        ),
       ),
       body: Focus(
         focusNode: _scrollFocusNode,
@@ -160,111 +168,189 @@ class _AppScaffoldState extends State<AppScaffold> {
   }
 }
 
-class _DesktopNavigation extends StatelessWidget {
-  const _DesktopNavigation({required this.currentRoute});
+class _DesktopHeader extends StatelessWidget {
+  const _DesktopHeader({
+    required this.currentRoute,
+    required this.searchOpen,
+    required this.searchController,
+    required this.searchFocusNode,
+    required this.onSearchToggle,
+    required this.onSearchSubmitted,
+    required this.showNavigationLinks,
+  });
+
+  final String currentRoute;
+  final bool searchOpen;
+  final TextEditingController searchController;
+  final FocusNode searchFocusNode;
+  final VoidCallback onSearchToggle;
+  final ValueChanged<String> onSearchSubmitted;
+  final bool showNavigationLinks;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 20),
+    child: Row(
+      children: [
+        _BrandMark(width: 258, height: 62),
+        Expanded(
+          child: Center(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: searchOpen && showNavigationLinks
+                  ? _HeaderSearchField(
+                      key: const ValueKey('header-search'),
+                      controller: searchController,
+                      focusNode: searchFocusNode,
+                      onSubmitted: onSearchSubmitted,
+                    )
+                  : (showNavigationLinks
+                        ? _DesktopLinks(
+                            key: const ValueKey('header-links'),
+                            currentRoute: currentRoute,
+                          )
+                        : const SizedBox.shrink()),
+            ),
+          ),
+        ),
+        if (showNavigationLinks)
+          _HeaderIconButton(
+            tooltip: searchOpen ? 'Close search' : 'Search products',
+            icon: searchOpen ? Icons.close : Icons.search,
+            onTap: onSearchToggle,
+          ),
+        const _DesktopAdminButton(),
+        const SizedBox(width: 8),
+        _HeaderIconButton(
+          tooltip: 'Cart',
+          icon: Icons.shopping_cart_outlined,
+          onTap: () => _goToCart(context),
+        ),
+        const SizedBox(width: 8),
+        const _AccountHeaderButton(),
+      ],
+    ),
+  );
+}
+
+class _DesktopLinks extends StatelessWidget {
+  const _DesktopLinks({required this.currentRoute, super.key});
 
   final String currentRoute;
 
   @override
-  Widget build(BuildContext context) => StreamBuilder(
-    stream: AuthService.userChanges,
-    initialData: AuthService.currentUser,
-    builder: (context, snapshot) {
-      final user = snapshot.data ?? AuthService.currentUser;
-      final showSearch =
-          MediaQuery.sizeOf(context).width >= _headerSearchBreakpoint;
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (showSearch &&
-              currentRoute != '/collections' &&
-              currentRoute != '/admin') ...[
-            const _ProductSearchField(),
-            const SizedBox(width: 10),
-          ],
-          _HeaderButton(
-            label: 'COLLECTION',
-            onTap: () => _goTo(context, '/collections'),
-            isActive: currentRoute == '/collections',
-          ),
-          const SizedBox(width: 10),
-          if (AuthService.isAdmin(user)) ...[
-            _HeaderButton(
-              label: 'ADMIN',
-              onTap: () => _goTo(context, '/admin'),
-              isActive: currentRoute == '/admin',
-            ),
-            const SizedBox(width: 10),
-          ],
-          _HeaderButton(
-            label: 'CART',
-            onTap: () => _goToCart(context),
-            isActive: currentRoute == '/cart',
-            icon: Icons.shopping_cart_outlined,
-            iconOnly: true,
-          ),
-          const SizedBox(width: 10),
-          _AccountHeaderButton(isActive: currentRoute == '/account'),
-        ],
-      );
-    },
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _TextNavLink(
+        label: 'HOME',
+        active: currentRoute == '/',
+        onTap: () => _goTo(context, '/'),
+      ),
+      const SizedBox(width: 24),
+      _TextNavLink(
+        label: 'NEW ARRIVALS',
+        onTap: () => HomeNavigationService.requestNewArrivals(context),
+      ),
+      const SizedBox(width: 24),
+      _TextNavLink(
+        label: 'COLLECTIONS',
+        active: currentRoute == '/collections',
+        onTap: () => _goTo(context, '/collections'),
+      ),
+    ],
   );
 }
 
-class _ProductSearchField extends StatelessWidget {
-  const _ProductSearchField();
+class _HeaderSearchField extends StatelessWidget {
+  const _HeaderSearchField({
+    required this.controller,
+    required this.focusNode,
+    required this.onSubmitted,
+    super.key,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onSubmitted;
 
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 560,
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(maxWidth: 380),
+    child: SizedBox(
       height: _desktopHeaderControlHeight,
       child: TextField(
+        controller: controller,
+        focusNode: focusNode,
         textInputAction: TextInputAction.search,
-        onSubmitted: (value) {
-          final query = value.trim();
-          if (query.isEmpty) return;
-          Navigator.pushNamed(
-            context,
-            Uri(
-              path: '/collections',
-              queryParameters: {'search': query},
-            ).toString(),
-          );
-        },
+        onSubmitted: onSubmitted,
         style: const TextStyle(
-          color: Color(0xFF1F1E25),
-          fontSize: 18,
+          fontSize: 13,
           letterSpacing: 2,
+          color: Color(0xFF1F1E25),
         ),
         decoration: const InputDecoration(
           hintText: 'SEARCH FOR PRODUCTS',
           hintStyle: TextStyle(
-            color: Color(0xFF746D64),
-            fontSize: 18,
+            fontSize: 12,
             letterSpacing: 2,
+            color: Color(0xFF746D64),
           ),
-          prefixIcon: Icon(Icons.search, size: 30),
+          prefixIcon: Icon(Icons.search, size: 20),
           prefixIconColor: Color(0xFF746D64),
-          filled: true,
-          fillColor: Color(0xFFE7D0AE),
-          contentPadding: EdgeInsets.symmetric(vertical: 16),
-          border: OutlineInputBorder(
-            borderSide: BorderSide.none,
-            borderRadius: BorderRadius.all(Radius.circular(8)),
-          ),
+          contentPadding: EdgeInsets.symmetric(vertical: 8),
+          isDense: true,
           enabledBorder: OutlineInputBorder(
-            borderSide: BorderSide.none,
-            borderRadius: BorderRadius.all(Radius.circular(8)),
+            borderRadius: BorderRadius.all(Radius.circular(6)),
+            borderSide: BorderSide(color: Color(0xFF914B0D)),
           ),
           focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Color(0xFF914B0D)),
-            borderRadius: BorderRadius.all(Radius.circular(8)),
+            borderRadius: BorderRadius.all(Radius.circular(6)),
+            borderSide: BorderSide(color: Color(0xFF914B0D), width: 1.5),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
+
+class _MobileHeader extends StatelessWidget {
+  const _MobileHeader();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+    padding: EdgeInsets.only(left: 12),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: _BrandMark(height: 58),
+    ),
+  );
+}
+
+class _BrandMark extends StatelessWidget {
+  const _BrandMark({this.width, required this.height});
+
+  final double? width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.centerLeft,
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+        onTap: () => _goTo(context, '/'),
+        child: Image.asset(
+          'lib/assets/logo_text.png',
+          width: width,
+          height: height,
+          fit: BoxFit.contain,
+        ),
+      ),
+    ),
+  );
 }
 
 class _NavigationDrawer extends StatelessWidget {
@@ -362,60 +448,96 @@ class _NavigationDrawer extends StatelessWidget {
   }
 }
 
-class _HeaderButton extends StatelessWidget {
-  const _HeaderButton({
+class _TextNavLink extends StatefulWidget {
+  const _TextNavLink({
     required this.label,
     required this.onTap,
-    this.isActive = false,
-    this.icon,
-    this.iconOnly = false,
+    this.active = false,
   });
 
   final String label;
   final VoidCallback onTap;
-  final bool isActive;
-  final IconData? icon;
-  final bool iconOnly;
+  final bool active;
+
+  @override
+  State<_TextNavLink> createState() => _TextNavLinkState();
+}
+
+class _TextNavLinkState extends State<_TextNavLink> {
+  var _hovered = false;
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    cursor: SystemMouseCursors.click,
+    onEnter: (_) => setState(() => _hovered = true),
+    onExit: (_) => setState(() => _hovered = false),
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        hoverColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        splashColor: Colors.transparent,
+        borderRadius: BorderRadius.circular(4),
+        onTap: widget.onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  color: Color(0xFF1F1E25),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 2.3,
+                ),
+              ),
+              const SizedBox(height: 4),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                height: 1.5,
+                width: widget.active || _hovered ? 44 : 0,
+                color: const Color(0xFF914B0D),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final String tooltip;
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = isActive
-        ? const Color(0xFFE7D0AE)
-        : const Color(0xFFE7D0AE);
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Ink(
-          height: _desktopHeaderControlHeight,
-          padding: EdgeInsets.symmetric(horizontal: iconOnly ? 17 : 22),
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: iconOnly ? 34 : 19),
-                if (!iconOnly) const SizedBox(width: 5),
-              ],
-              if (!iconOnly)
-                Padding(
-                  padding: const EdgeInsets.all(5),
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      color: Color(0xFF111111),
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2.2,
-                    ),
-                  ),
-                ),
-            ],
+    const size = _desktopHeaderControlHeight;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: onTap,
+          child: Container(
+            width: size,
+            height: size,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFF914B0D)),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, size: 23, color: const Color(0xFF1F1E25)),
           ),
         ),
       ),
@@ -423,10 +545,53 @@ class _HeaderButton extends StatelessWidget {
   }
 }
 
-class _AccountHeaderButton extends StatelessWidget {
-  const _AccountHeaderButton({this.isActive = false});
+class _DesktopAdminButton extends StatelessWidget {
+  const _DesktopAdminButton();
 
-  final bool isActive;
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder(
+      stream: AuthService.userChanges,
+      initialData: AuthService.currentUser,
+      builder: (context, snapshot) {
+        final user = snapshot.data ?? AuthService.currentUser;
+        if (!AuthService.isAdmin(user)) return const SizedBox.shrink();
+
+        return Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: () => _goTo(context, '/admin'),
+              child: Container(
+                height: _desktopHeaderControlHeight,
+                padding: const EdgeInsets.symmetric(horizontal: 13),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  border: Border.all(color: const Color(0xFF914B0D)),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'ADMIN',
+                  style: TextStyle(
+                    color: Color(0xFF1F1E25),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 2.1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _AccountHeaderButton extends StatelessWidget {
+  const _AccountHeaderButton();
 
   @override
   Widget build(BuildContext context) => StreamBuilder(
@@ -435,37 +600,44 @@ class _AccountHeaderButton extends StatelessWidget {
     builder: (context, snapshot) {
       final user = snapshot.data ?? AuthService.currentUser;
       final label = user == null ? 'Log In' : AuthService.firstName(user);
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => _goTo(context, '/account'),
-          child: Ink(
-            height: _desktopHeaderControlHeight,
-            padding: const EdgeInsets.fromLTRB(12, 0, 17, 0),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE7D0AE),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.account_circle,
-                  size: 39,
-                  color: Color(0xFF1F1E25),
-                ),
-                const SizedBox(width: 11),
-                Text(
-                  label.toUpperCase(),
-                  style: const TextStyle(
-                    color: Color(0xFF111111),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 2.2,
+      const height = _desktopHeaderControlHeight;
+      return ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 145),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: () => _goTo(context, '/account'),
+            child: Container(
+              height: height,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFF914B0D)),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.account_circle,
+                    size: 22,
+                    color: const Color(0xFF1F1E25),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      label.toUpperCase(),
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF1F1E25),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 2.1,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

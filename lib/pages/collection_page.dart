@@ -66,6 +66,11 @@ class _CollectionPageState extends State<CollectionPage> {
           return LayoutBuilder(
             builder: (context, box) {
               final mobile = useCompactLayout(context, breakpoint: 700);
+              final viewport = MediaQuery.sizeOf(context);
+              final tabletPortrait =
+                  !mobile &&
+                  viewport.height > viewport.width &&
+                  viewport.width < 1100;
               final query = search.text.toLowerCase();
               final categories =
                   snap.data!
@@ -190,10 +195,16 @@ class _CollectionPageState extends State<CollectionPage> {
                               physics: const NeverScrollableScrollPhysics(),
                               gridDelegate:
                                   SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: mobile ? 2 : 4,
+                                    crossAxisCount: mobile
+                                        ? 2
+                                        : (tabletPortrait ? 3 : 4),
                                     crossAxisSpacing: mobile ? 14 : 14,
                                     mainAxisSpacing: mobile ? 20 : 18,
-                                    childAspectRatio: mobile ? .5 : .52,
+                                    childAspectRatio: mobile
+                                        // Adds approximately 10px to the
+                                        // expandable mobile image area.
+                                        ? .486
+                                        : (tabletPortrait ? .46 : .52),
                                   ),
                               itemCount: filtered.length,
                               itemBuilder: (_, i) =>

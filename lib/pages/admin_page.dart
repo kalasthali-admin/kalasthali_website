@@ -1334,7 +1334,7 @@ class _ProductEditorState extends State<_ProductEditor> {
               ),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Show as a popular product'),
+                title: const Text('Show in New Arrivals List'),
                 value: isPopular,
                 activeThumbColor: const Color(0xFFA35710),
                 onChanged: (value) => setState(() => isPopular = value),
