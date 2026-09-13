@@ -234,16 +234,6 @@ class _AboutSection extends StatelessWidget {
             label: 'Nisha Rohilla, owner of Kalasthali',
             child: Image.asset('lib/assets/about_pfp.png', fit: BoxFit.contain),
           ),
-          const SizedBox(height: 2),
-          Text(
-            'OWNER',
-            style: GoogleFonts.ibmPlexSans(
-              fontSize: mobile ? 18 : 24,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-              color: Colors.black,
-            ),
-          ),
         ],
       );
 
