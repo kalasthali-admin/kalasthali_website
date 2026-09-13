@@ -554,7 +554,7 @@ class _AdminDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
-    length: 2,
+    length: 4,
     child: LayoutBuilder(
       builder: (context, constraints) {
         final tabController = DefaultTabController.of(context);
@@ -590,12 +590,20 @@ class _AdminDashboard extends StatelessWidget {
           animation: tabController,
           builder: (context, _) {
             final showOrders = tabController.index == 1;
+            final showOrderHistory = tabController.index == 2;
+            final showPolicies = tabController.index == 3;
+            final ordersToPrepare = orders
+                .where((order) => !order.isSubmittedForDelivery)
+                .toList();
+            final orderHistory = orders
+                .where((order) => order.isSubmittedForDelivery)
+                .toList();
             return SingleChildScrollView(
               primary: true,
               padding: EdgeInsets.fromLTRB(
-                mobile ? 18 : 42,
+                mobile ? 16 : 24,
                 mobile ? 34 : 56,
-                mobile ? 18 : 42,
+                mobile ? 16 : 24,
                 80,
               ),
               child: Center(
@@ -634,6 +642,7 @@ class _AdminDashboard extends StatelessWidget {
                           border: Border.all(color: const Color(0xFFD5B48A)),
                         ),
                         child: TabBar(
+                          isScrollable: mobile,
                           labelColor: const Color(0xFF5B351A),
                           unselectedLabelColor: const Color(0xFF765F4B),
                           indicatorColor: const Color(0xFFA35710),
@@ -644,17 +653,34 @@ class _AdminDashboard extends StatelessWidget {
                           tabs: const [
                             Tab(text: 'Store Management'),
                             Tab(text: 'Orders'),
+                            Tab(text: 'Order History'),
+                            Tab(text: 'Site Policies'),
                           ],
                         ),
                       ),
                       const SizedBox(height: 28),
                       if (showOrders)
                         _OrdersTab(
-                          orders: orders,
+                          orders: ordersToPrepare,
                           loading: loading,
                           error: ordersError,
                           onSubmitShippingConfirmation:
                               onSubmitShippingConfirmation,
+                        )
+                      else if (showOrderHistory)
+                        _OrdersTab(
+                          orders: orderHistory,
+                          loading: loading,
+                          error: ordersError,
+                          onSubmitShippingConfirmation:
+                              onSubmitShippingConfirmation,
+                          history: true,
+                        )
+                      else if (showPolicies)
+                        _PolicyAdminSection(
+                          policies: policies,
+                          loading: loading,
+                          onSave: onSavePolicy,
                         )
                       else ...[
                         Row(
@@ -812,12 +838,6 @@ class _AdminDashboard extends StatelessWidget {
                               ),
                             );
                           }),
-                        const SizedBox(height: 42),
-                        _PolicyAdminSection(
-                          policies: policies,
-                          loading: loading,
-                          onSave: onSavePolicy,
-                        ),
                       ],
                     ],
                   ),
@@ -840,6 +860,7 @@ class _OrdersTab extends StatelessWidget {
     required this.loading,
     required this.error,
     required this.onSubmitShippingConfirmation,
+    this.history = false,
   });
 
   final List<AdminOrder> orders;
@@ -847,6 +868,7 @@ class _OrdersTab extends StatelessWidget {
   final String? error;
   final Future<void> Function(AdminOrder order, String trackingId)
   onSubmitShippingConfirmation;
+  final bool history;
 
   @override
   Widget build(BuildContext context) {
@@ -874,7 +896,9 @@ class _OrdersTab extends StatelessWidget {
     }
     if (orders.isEmpty) {
       return Text(
-        'No paid orders are ready for delivery.',
+        history
+            ? 'No submitted orders yet.'
+            : 'No paid orders are ready for delivery.',
         style: GoogleFonts.ibmPlexSans(fontSize: 18),
       );
     }
@@ -882,7 +906,7 @@ class _OrdersTab extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Order Preparation',
+          history ? 'Order History' : 'Order Preparation',
           style: GoogleFonts.dmSerifDisplay(
             fontSize: 38,
             color: const Color(0xFF5B351A),
@@ -890,7 +914,9 @@ class _OrdersTab extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          'Review a paid order, add its tracking ID, and email the customer their delivery confirmation.',
+          history
+              ? 'Submitted orders and their saved delivery tracking details.'
+              : 'Review a paid order, add its tracking ID, and email the customer their delivery confirmation.',
           style: GoogleFonts.ibmPlexSans(fontSize: 18),
         ),
         const SizedBox(height: 20),
