@@ -26,6 +26,7 @@ class _AdminPageState extends State<AdminPage> {
   final _productSearch = TextEditingController();
   bool _loading = false;
   String? _error;
+  String? _selectedCategory;
   List<Product> _products = const [];
   List<AdminGallery> _gallery = const [];
   List<SitePolicy> _policies = const [];
@@ -356,7 +357,10 @@ class _AdminPageState extends State<AdminPage> {
             gallery: _gallery,
             policies: _policies,
             productSearch: _productSearch,
+            selectedCategory: _selectedCategory,
             onRefresh: _loadDashboard,
+            onCategorySelected: (category) =>
+                setState(() => _selectedCategory = category),
             onCreate: () => _editProduct(),
             onEdit: _editProduct,
             onDelete: _deleteProduct,
@@ -477,7 +481,9 @@ class _AdminDashboard extends StatelessWidget {
     required this.gallery,
     required this.policies,
     required this.productSearch,
+    required this.selectedCategory,
     required this.onRefresh,
+    required this.onCategorySelected,
     required this.onCreate,
     required this.onEdit,
     required this.onDelete,
@@ -490,7 +496,9 @@ class _AdminDashboard extends StatelessWidget {
   final List<AdminGallery> gallery;
   final List<SitePolicy> policies;
   final TextEditingController productSearch;
+  final String? selectedCategory;
   final Future<void> Function() onRefresh;
+  final ValueChanged<String?> onCategorySelected;
   final VoidCallback onCreate;
   final ValueChanged<Product> onEdit;
   final ValueChanged<Product> onDelete;
@@ -501,12 +509,28 @@ class _AdminDashboard extends StatelessWidget {
     builder: (context, constraints) {
       final mobile = useCompactLayout(context, breakpoint: 700);
       final searchQuery = productSearch.text.trim().toLowerCase();
+      final categories =
+          products
+              .map((product) => product.type.trim())
+              .where((type) => type.isNotEmpty)
+              .toSet()
+              .toList()
+            ..sort(
+              (left, right) =>
+                  left.toLowerCase().compareTo(right.toLowerCase()),
+            );
       final visibleProducts = products.where((product) {
-        if (searchQuery.isEmpty) return true;
-        return '${product.code} ${product.name} ${product.type} '
-                '${product.description} ${product.specifications ?? ''}'
-            .toLowerCase()
-            .contains(searchQuery);
+        final matchesCategory =
+            selectedCategory == null ||
+            _adminCategoryKey(product.type) ==
+                _adminCategoryKey(selectedCategory!);
+        final matchesSearch =
+            searchQuery.isEmpty ||
+            '${product.code} ${product.name} ${product.type} '
+                    '${product.description} ${product.specifications ?? ''}'
+                .toLowerCase()
+                .contains(searchQuery);
+        return matchesCategory && matchesSearch;
       }).toList();
       return SingleChildScrollView(
         primary: true,
@@ -586,6 +610,65 @@ class _AdminDashboard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 22),
+                if (categories.isNotEmpty) ...[
+                  Wrap(
+                    spacing: mobile ? 12 : 16,
+                    runSpacing: mobile ? 14 : 12,
+                    children: [
+                      ChoiceChip(
+                        label: Text(
+                          'ALL PRODUCTS',
+                          style: GoogleFonts.blinker(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: mobile ? 1.4 : 2,
+                          ),
+                        ),
+                        selected: selectedCategory == null,
+                        onSelected: (_) => onCategorySelected(null),
+                        selectedColor: const Color(0xFFE2C7A0),
+                        backgroundColor: const Color(0xFFE9E2D6),
+                        side: const BorderSide(
+                          color: Color(0xFFA85C18),
+                          width: 1.5,
+                        ),
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 7,
+                        ),
+                      ),
+                      for (final category in categories)
+                        ChoiceChip(
+                          label: Text(
+                            category.replaceAll('-', ' ').toUpperCase(),
+                            style: GoogleFonts.blinker(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: mobile ? 1.4 : 2,
+                            ),
+                          ),
+                          selected:
+                              _adminCategoryKey(selectedCategory ?? '') ==
+                              _adminCategoryKey(category),
+                          onSelected: (selected) =>
+                              onCategorySelected(selected ? category : null),
+                          selectedColor: const Color(0xFFE2C7A0),
+                          backgroundColor: const Color(0xFFE9E2D6),
+                          side: const BorderSide(
+                            color: Color(0xFFA85C18),
+                            width: 1.5,
+                          ),
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 7,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                ],
                 if (loading && visibleProducts.isEmpty)
                   const Center(
                     child: Padding(
@@ -631,6 +714,9 @@ class _AdminDashboard extends StatelessWidget {
     },
   );
 }
+
+String _adminCategoryKey(String value) =>
+    value.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '');
 
 class _ProductAdminCard extends StatelessWidget {
   const _ProductAdminCard({

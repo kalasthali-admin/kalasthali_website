@@ -4,17 +4,6 @@
   "outputDirectory": "build/web",
   "redirects": [
     {
-      "source": "/:path*",
-      "has": [
-        {
-          "type": "host",
-          "value": "www.kalasthali.co"
-        }
-      ],
-      "destination": "https://kalasthali.co/:path*",
-      "permanent": true
-    },
-    {
       "source": "/home",
       "destination": "/",
       "permanent": true
