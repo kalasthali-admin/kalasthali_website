@@ -1,5 +1,5 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -209,6 +209,15 @@ class _ProductImagePanelState extends State<_ProductImagePanel> {
     }
   }
 
+  Future<void> _openImageViewer(List<String> imageUrls, int index) =>
+      showDialog<void>(
+        context: context,
+        barrierColor: const Color(0xE6000000),
+        useSafeArea: false,
+        builder: (_) =>
+            _ProductImageViewer(imageUrls: imageUrls, initialImage: index),
+      );
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -234,11 +243,18 @@ class _ProductImagePanelState extends State<_ProductImagePanel> {
             allowImplicitScrolling: true,
             itemCount: imageUrls.length,
             onPageChanged: (index) => setState(() => currentImage = index),
-            itemBuilder: (_, index) => Image.network(
-              imageUrls[index],
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-              errorBuilder: (_, _, _) => const Icon(Icons.broken_image),
+            itemBuilder: (_, index) => Semantics(
+              button: true,
+              label: 'Open product image ${index + 1} in full screen',
+              child: GestureDetector(
+                onTap: () => _openImageViewer(imageUrls, index),
+                child: Image.network(
+                  imageUrls[index],
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, _, _) => const Icon(Icons.broken_image),
+                ),
+              ),
             ),
           ),
         );
@@ -331,6 +347,202 @@ class _GalleryArrow extends StatelessWidget {
     color: const Color(0xFF1F1E25),
     disabledColor: const Color(0xFF1F1E25).withValues(alpha: .28),
     tooltip: icon == Icons.chevron_left ? 'Previous image' : 'Next image',
+  );
+}
+
+class _ProductImageViewer extends StatefulWidget {
+  const _ProductImageViewer({
+    required this.imageUrls,
+    required this.initialImage,
+  });
+
+  final List<String> imageUrls;
+  final int initialImage;
+
+  @override
+  State<_ProductImageViewer> createState() => _ProductImageViewerState();
+}
+
+class _ProductImageViewerState extends State<_ProductImageViewer> {
+  static const _minimumZoom = 1.0;
+  static const _maximumZoom = 4.0;
+
+  late final PageController _pageController = PageController(
+    initialPage: widget.initialImage,
+  );
+  final TransformationController _transformationController =
+      TransformationController();
+  late int _currentImage = widget.initialImage;
+
+  // Android and iOS are the touch-first layouts. Desktop users use the visible
+  // zoom controls instead of a trackpad or mouse-pinch gesture.
+  bool get _supportsTouchPinch =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
+  double get _zoom => _transformationController.value.getMaxScaleOnAxis();
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _transformationController.dispose();
+    super.dispose();
+  }
+
+  void _setZoom(double value) {
+    final zoom = value.clamp(_minimumZoom, _maximumZoom).toDouble();
+    _transformationController.value = Matrix4.diagonal3Values(zoom, zoom, 1);
+    setState(() {});
+  }
+
+  void _resetZoom() {
+    _transformationController.value = Matrix4.identity();
+    setState(() {});
+  }
+
+  void _changeImage(int index) {
+    _resetZoom();
+    setState(() => _currentImage = index);
+  }
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: SafeArea(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: widget.imageUrls.length,
+              onPageChanged: _changeImage,
+              itemBuilder: (_, index) => InteractiveViewer(
+                transformationController: _transformationController,
+                minScale: _minimumZoom,
+                maxScale: _maximumZoom,
+                // Keep the normal gallery swipe available until the image has
+                // actually been magnified.
+                panEnabled: _zoom > _minimumZoom,
+                scaleEnabled: _supportsTouchPinch,
+                onInteractionEnd: (_) => setState(() {}),
+                child: SizedBox.expand(
+                  child: Image.network(
+                    widget.imageUrls[index],
+                    fit: BoxFit.contain,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, _, _) => const Center(
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.white,
+                        size: 48,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 16,
+            right: 16,
+            child: _ImageViewerControl(
+              tooltip: 'Close image viewer',
+              icon: Icons.close,
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 24,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (widget.imageUrls.length > 1)
+                  _ImageViewerControl(
+                    tooltip: 'Previous image',
+                    icon: Icons.chevron_left,
+                    onPressed: _currentImage == 0
+                        ? null
+                        : () => _pageController.previousPage(
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOut,
+                          ),
+                  ),
+                const SizedBox(width: 10),
+                _ImageViewerControl(
+                  tooltip: 'Zoom out',
+                  icon: Icons.remove,
+                  onPressed: _zoom <= _minimumZoom
+                      ? null
+                      : () => _setZoom(_zoom - .5),
+                ),
+                const SizedBox(width: 10),
+                _ImageViewerControl(
+                  tooltip: 'Reset zoom',
+                  icon: Icons.center_focus_strong_outlined,
+                  onPressed: _zoom == _minimumZoom ? null : _resetZoom,
+                ),
+                const SizedBox(width: 10),
+                _ImageViewerControl(
+                  tooltip: 'Zoom in',
+                  icon: Icons.add,
+                  onPressed: _zoom >= _maximumZoom
+                      ? null
+                      : () => _setZoom(_zoom + .5),
+                ),
+                const SizedBox(width: 10),
+                if (widget.imageUrls.length > 1)
+                  _ImageViewerControl(
+                    tooltip: 'Next image',
+                    icon: Icons.chevron_right,
+                    onPressed: _currentImage == widget.imageUrls.length - 1
+                        ? null
+                        : () => _pageController.nextPage(
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOut,
+                          ),
+                  ),
+              ],
+            ),
+          ),
+          if (_supportsTouchPinch)
+            const Positioned(
+              top: 24,
+              left: 24,
+              child: Text(
+                'Pinch to zoom',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ImageViewerControl extends StatelessWidget {
+  const _ImageViewerControl({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xE6FEF5E6),
+    borderRadius: BorderRadius.circular(24),
+    child: IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon),
+      color: const Color(0xFF1F1E25),
+      disabledColor: const Color(0xFF1F1E25).withValues(alpha: .3),
+    ),
   );
 }
 

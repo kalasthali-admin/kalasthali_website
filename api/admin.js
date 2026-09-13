@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const adminEmails = new Set([
   'admin.kalasthali@gmail.com',
   'nisharohilla651@gmail.com',
+  'rehaan.tamboli26@gmail.com',
 ]);
 
 const allowedFields = [

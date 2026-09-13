@@ -68,8 +68,18 @@ class AdminService {
     queryParameters: {'action': action, ...?query},
   );
 
-  Map<String, String> get _headers {
-    final token = Supabase.instance.client.auth.currentSession?.accessToken;
+  Future<Map<String, String>> _headers({bool refreshSession = false}) async {
+    final auth = Supabase.instance.client.auth;
+    if (refreshSession) {
+      try {
+        await auth.refreshSession();
+      } catch (_) {
+        throw const AdminException(
+          'Your session expired. Please log in again to continue.',
+        );
+      }
+    }
+    final token = auth.currentSession?.accessToken;
     if (token == null || token.isEmpty) {
       throw const AdminException('Log in with an authorized admin account.');
     }
@@ -79,8 +89,29 @@ class AdminService {
     };
   }
 
+  Future<http.Response> _request(String method, Uri uri, {String? body}) async {
+    Future<http.Response> send({required bool refreshSession}) async {
+      final headers = await _headers(refreshSession: refreshSession);
+      return switch (method) {
+        'GET' => http.get(uri, headers: headers),
+        'POST' => http.post(uri, headers: headers, body: body),
+        'PUT' => http.put(uri, headers: headers, body: body),
+        'PATCH' => http.patch(uri, headers: headers, body: body),
+        'DELETE' => http.delete(uri, headers: headers, body: body),
+        _ => throw ArgumentError.value(method, 'method', 'Unsupported method'),
+      };
+    }
+
+    final response = await send(refreshSession: false);
+    if (response.statusCode != 401) return response;
+
+    // A long-running image conversion can outlive the cached access token.
+    // Refresh once and retry before reporting an authorization failure.
+    return send(refreshSession: true);
+  }
+
   Future<List<Product>> getProducts() async {
-    final response = await http.get(_uri('products'), headers: _headers);
+    final response = await _request('GET', _uri('products'));
     final data = _decode(response);
     if (data is! List<dynamic>) throw AdminException('Invalid products data.');
     return data
@@ -90,7 +121,7 @@ class AdminService {
   }
 
   Future<List<AdminGallery>> getGallery() async {
-    final response = await http.get(_uri('gallery'), headers: _headers);
+    final response = await _request('GET', _uri('gallery'));
     final data = _decode(response);
     if (data is! List<dynamic>) throw AdminException('Invalid gallery data.');
     return data
@@ -100,7 +131,7 @@ class AdminService {
   }
 
   Future<List<SitePolicy>> getPolicies() async {
-    final response = await http.get(_uri('policies'), headers: _headers);
+    final response = await _request('GET', _uri('policies'));
     final data = _decode(response);
     if (data is! List<dynamic>) throw AdminException('Invalid policies data.');
     return data
@@ -110,18 +141,18 @@ class AdminService {
   }
 
   Future<SitePolicy> updatePolicy(SitePolicy policy) async {
-    final response = await http.put(
+    final response = await _request(
+      'PUT',
       _uri('policy'),
-      headers: _headers,
       body: jsonEncode({'policy': policy.toJson()}),
     );
     return SitePolicy.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
   Future<Product> create(Map<String, dynamic> product) async {
-    final response = await http.post(
+    final response = await _request(
+      'POST',
       _uri('create'),
-      headers: _headers,
       body: jsonEncode({'product': product}),
     );
     final data = _decode(response);
@@ -129,9 +160,9 @@ class AdminService {
   }
 
   Future<Product> update(String code, Map<String, dynamic> product) async {
-    final response = await http.patch(
+    final response = await _request(
+      'PATCH',
       _uri('update'),
-      headers: _headers,
       body: jsonEncode({'code': code, 'product': product}),
     );
     final data = _decode(response);
@@ -139,22 +170,23 @@ class AdminService {
   }
 
   Future<void> delete(String code) async {
-    final response = await http.delete(
-      _uri('delete', {'code': code}),
-      headers: _headers,
-    );
+    final response = await _request('DELETE', _uri('delete', {'code': code}));
     if (response.statusCode >= 400) _decode(response);
   }
 
-  Future<AdminGallery> uploadImage(String code, List<int> bytes) async {
+  Future<AdminGallery?> uploadImage(
+    String code,
+    List<int> bytes, {
+    bool refreshGallery = true,
+  }) async {
     if (bytes.isEmpty || bytes.length > maxImageBytes) {
       throw const AdminException(
         'Converted WebP images must be smaller than 10 MB.',
       );
     }
-    final response = await http.post(
+    final response = await _request(
+      'POST',
       _uri('image_upload_ticket'),
-      headers: _headers,
       body: jsonEncode({'code': code, 'byteLength': bytes.length}),
     );
     final ticket = _ImageUploadTicket.fromJson(
@@ -173,6 +205,7 @@ class AdminService {
       throw AdminException(_uploadError(upload));
     }
 
+    if (!refreshGallery) return null;
     final galleries = await getGallery();
     return galleries.where((gallery) => gallery.code == code).firstOrNull ??
         (throw const AdminException(
@@ -193,18 +226,18 @@ class AdminService {
   }
 
   Future<AdminGallery> setThumbnail(String code, String name) async {
-    final response = await http.post(
+    final response = await _request(
+      'POST',
       _uri('image_thumbnail'),
-      headers: _headers,
       body: jsonEncode({'code': code, 'name': name}),
     );
     return AdminGallery.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
   Future<AdminGallery> deleteImage(String code, String name) async {
-    final response = await http.delete(
+    final response = await _request(
+      'DELETE',
       _uri('image_delete'),
-      headers: _headers,
       body: jsonEncode({'code': code, 'name': name}),
     );
     return AdminGallery.fromJson(_decode(response) as Map<String, dynamic>);

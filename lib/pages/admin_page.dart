@@ -228,7 +228,11 @@ class _AdminPageState extends State<AdminPage> {
         status.value = _ImageUploadStatus.processing(
           'Uploading image ${index + 1} of ${images.length}...',
         );
-        uploadedGallery = await _service.uploadImage(code, webpBytes);
+        uploadedGallery = await _service.uploadImage(
+          code,
+          webpBytes,
+          refreshGallery: index == images.length - 1,
+        );
       }
       if (uploadedGallery != null) {
         status.value = const _ImageUploadStatus.processing(
@@ -287,7 +291,11 @@ class _AdminPageState extends State<AdminPage> {
         status.value = _ImageUploadStatus.processing(
           'Uploading image ${index + 1} of ${files.length}...',
         );
-        gallery = await _service.uploadImage(code, webpBytes);
+        gallery = await _service.uploadImage(
+          code,
+          webpBytes,
+          refreshGallery: index == files.length - 1,
+        );
       }
       if (gallery != null) _replaceGallery(gallery);
       status.value = const _ImageUploadStatus.success();
