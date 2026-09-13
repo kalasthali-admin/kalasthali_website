@@ -141,7 +141,7 @@ class _AdminPageState extends State<AdminPage> {
       builder: (context) => AlertDialog(
         title: const Text('Delete product?'),
         content: Text(
-          'Delete "${product.name}" from the products database? Its storage images will not be deleted.',
+          'Delete "${product.name}" from the products database? Existing orders will retain their product details, and active carts will remove it. Its storage images will not be deleted.',
         ),
         actions: [
           TextButton(

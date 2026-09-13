@@ -425,6 +425,11 @@ module.exports = async (req, res) => {
     if (action === 'delete' && req.method === 'DELETE') {
       const code = String(req.query.code || body.code || '');
       if (!code) return json(res, 400, { error: 'Product code is required.' });
+      // A removed product must not remain purchasable from an active cart.
+      await supabaseFetch(
+        `/rest/v1/user_cart?code=eq.${encodeURIComponent(code)}`,
+        { method: 'DELETE' },
+      );
       await supabaseFetch(
         `/rest/v1/products?code=eq.${encodeURIComponent(code)}`,
         { method: 'DELETE' },
