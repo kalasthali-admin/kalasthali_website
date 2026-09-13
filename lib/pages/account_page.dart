@@ -175,7 +175,7 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
               _signUp
                   ? 'Save your details now for a smoother checkout later.'
                   : 'Log in to access your account.',
-              style: GoogleFonts.blinker(fontSize: 18, height: 1.3),
+              style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.3),
             ),
             const SizedBox(height: 26),
             if (_signUp) ...[
@@ -220,7 +220,7 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
               const SizedBox(height: 16),
               Text(
                 _message!,
-                style: GoogleFonts.blinker(
+                style: GoogleFonts.ibmPlexSans(
                   fontSize: 16,
                   color: const Color(0xFF914B0D),
                 ),
@@ -249,7 +249,7 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
                       )
                     : Text(
                         _signUp ? 'Create account' : 'Log in',
-                        style: GoogleFonts.blinker(fontSize: 19),
+                        style: GoogleFonts.ibmPlexSans(fontSize: 19),
                       ),
               ),
             ),
@@ -261,7 +261,7 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Text(
                     'OR',
-                    style: GoogleFonts.blinker(
+                    style: GoogleFonts.ibmPlexSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: const Color(0xFF746D64),
@@ -290,7 +290,7 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
                   _signUp
                       ? 'Already have an account? Log in'
                       : 'New to Kalasthali? Create an account',
-                  style: GoogleFonts.blinker(fontSize: 17),
+                  style: GoogleFonts.ibmPlexSans(fontSize: 17),
                 ),
               ),
             ),
@@ -399,7 +399,7 @@ class _AuthField extends StatelessWidget {
     enableSuggestions: !obscureText,
     autocorrect: false,
     textCapitalization: textCapitalization,
-    style: GoogleFonts.blinker(fontSize: 18),
+    style: GoogleFonts.ibmPlexSans(fontSize: 18),
     decoration: InputDecoration(
       labelText: label,
       border: const OutlineInputBorder(),
@@ -487,7 +487,7 @@ class _AccountDetailsState extends State<_AccountDetails> {
         ),
         content: Text(
           'This saved address will be removed from your account.',
-          style: GoogleFonts.blinker(fontSize: 17),
+          style: GoogleFonts.ibmPlexSans(fontSize: 17),
         ),
         actions: [
           TextButton(
@@ -677,7 +677,7 @@ class _AccountDetailsState extends State<_AccountDetails> {
           if (snapshot.data!.isEmpty) {
             return Text(
               'No saved addresses yet.',
-              style: GoogleFonts.blinker(fontSize: 18),
+              style: GoogleFonts.ibmPlexSans(fontSize: 18),
             );
           }
           return LayoutBuilder(
@@ -721,14 +721,14 @@ class _AccountDetailsState extends State<_AccountDetails> {
           if (snapshot.hasError) {
             return Text(
               'Could not load your orders. Please refresh and try again.',
-              style: GoogleFonts.blinker(fontSize: 17),
+              style: GoogleFonts.ibmPlexSans(fontSize: 17),
             );
           }
           if (!snapshot.hasData) return const CircularProgressIndicator();
           if (snapshot.data!.isEmpty) {
             return Text(
               'No orders placed yet.',
-              style: GoogleFonts.blinker(fontSize: 17),
+              style: GoogleFonts.ibmPlexSans(fontSize: 17),
             );
           }
           return Column(
@@ -769,7 +769,7 @@ class _AccountDetailsState extends State<_AccountDetails> {
             const SizedBox(height: 10),
             Text(
               'For help with a product or an existing order, contact Kalasthali By Nisha and include your order ID where applicable.',
-              style: GoogleFonts.blinker(fontSize: 18, height: 1.25),
+              style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.25),
             ),
           ],
         ),
@@ -812,7 +812,7 @@ class _AccountMenuTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.blinker(
+                    style: GoogleFonts.ibmPlexSans(
                       fontSize: 25,
                       fontWeight: FontWeight.w800,
                       color: const Color(0xFF5B351A),
@@ -821,7 +821,7 @@ class _AccountMenuTile extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: GoogleFonts.blinker(fontSize: 18, height: 1.1),
+                    style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.1),
                   ),
                 ],
               ),
@@ -847,7 +847,10 @@ class _BackButton extends StatelessWidget {
     style: TextButton.styleFrom(
       foregroundColor: const Color(0xFFA35710),
       padding: EdgeInsets.zero,
-      textStyle: GoogleFonts.blinker(fontSize: 22, fontWeight: FontWeight.w800),
+      textStyle: GoogleFonts.ibmPlexSans(
+        fontSize: 22,
+        fontWeight: FontWeight.w800,
+      ),
     ),
   );
 }
@@ -898,7 +901,7 @@ ButtonStyle _sectionActionStyle() => OutlinedButton.styleFrom(
   side: const BorderSide(color: Color(0xFF6A4529), width: 1.4),
   minimumSize: const Size(188, 56),
   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-  textStyle: GoogleFonts.blinker(fontSize: 19, fontWeight: FontWeight.w800),
+  textStyle: GoogleFonts.ibmPlexSans(fontSize: 19, fontWeight: FontWeight.w800),
 );
 
 class _ProfileValue extends StatelessWidget {
@@ -910,10 +913,13 @@ class _ProfileValue extends StatelessWidget {
     children: [
       Text(
         label,
-        style: GoogleFonts.blinker(fontWeight: FontWeight.w800, fontSize: 15),
+        style: GoogleFonts.ibmPlexSans(
+          fontWeight: FontWeight.w800,
+          fontSize: 15,
+        ),
       ),
       const SizedBox(height: 4),
-      Text(value, style: GoogleFonts.blinker(fontSize: 19)),
+      Text(value, style: GoogleFonts.ibmPlexSans(fontSize: 19)),
     ],
   );
 }
@@ -1033,7 +1039,7 @@ class _AddressDetails extends StatelessWidget {
       children: [
         Text(
           address['receiver_name'] ?? '',
-          style: GoogleFonts.blinker(
+          style: GoogleFonts.ibmPlexSans(
             fontSize: 17,
             fontWeight: FontWeight.w600,
             height: 1.1,
@@ -1080,7 +1086,7 @@ class _AddressCardActions extends StatelessWidget {
           disabledForegroundColor: Colors.white,
           minimumSize: const Size.fromHeight(48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-          textStyle: GoogleFonts.blinker(
+          textStyle: GoogleFonts.ibmPlexSans(
             fontSize: 17,
             fontWeight: FontWeight.w400,
           ),
@@ -1155,7 +1161,7 @@ class _OrderCard extends StatelessWidget {
                         items.length == 1
                             ? 'Qty ${items.first.quantity}'
                             : '${items.length} items purchased',
-                        style: GoogleFonts.blinker(fontSize: 16),
+                        style: GoogleFonts.ibmPlexSans(fontSize: 16),
                       ),
                       const SizedBox(height: 5),
                       Text(
@@ -1165,7 +1171,7 @@ class _OrderCard extends StatelessWidget {
                         ].join(' • '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.blinker(
+                        style: GoogleFonts.ibmPlexSans(
                           fontSize: 13,
                           color: const Color(0xFF746D64),
                         ),
@@ -1179,7 +1185,7 @@ class _OrderCard extends StatelessWidget {
                   children: [
                     Text(
                       '₹${order['amount'] ?? '-'}',
-                      style: GoogleFonts.blinker(
+                      style: GoogleFonts.ibmPlexSans(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1231,7 +1237,7 @@ class _OrderLead extends StatelessWidget {
                 color: const Color(0xFF5B351A),
               ),
             ),
-            Text('ITEMS', style: GoogleFonts.blinker(fontSize: 12)),
+            Text('ITEMS', style: GoogleFonts.ibmPlexSans(fontSize: 12)),
           ],
         ),
       );
@@ -1352,7 +1358,7 @@ class _OrderSheetItem extends StatelessWidget {
                   if (item.size?.isNotEmpty == true) 'Size ${item.size}',
                   'Qty ${item.quantity}',
                 ].join(' • '),
-                style: GoogleFonts.blinker(fontSize: 14),
+                style: GoogleFonts.ibmPlexSans(fontSize: 14),
               ),
               const SizedBox(height: 8),
               TextButton.icon(
@@ -1376,7 +1382,10 @@ class _OrderSheetItem extends StatelessWidget {
         ),
         Text(
           '₹${item.lineTotal}',
-          style: GoogleFonts.blinker(fontSize: 19, fontWeight: FontWeight.w700),
+          style: GoogleFonts.ibmPlexSans(
+            fontSize: 19,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ],
     ),
@@ -1416,23 +1425,23 @@ class _InvoicePanel extends StatelessWidget {
               ),
               Text(
                 paidAt == null ? '' : _dateLabel(paidAt),
-                style: GoogleFonts.blinker(fontSize: 14),
+                style: GoogleFonts.ibmPlexSans(fontSize: 14),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             'Bill from: Kalasthali By Nisha',
-            style: GoogleFonts.blinker(fontWeight: FontWeight.w700),
+            style: GoogleFonts.ibmPlexSans(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 6),
           Text(
             'Bill to:',
-            style: GoogleFonts.blinker(fontWeight: FontWeight.w700),
+            style: GoogleFonts.ibmPlexSans(fontWeight: FontWeight.w700),
           ),
           Text(
             order['user_address']?.toString() ?? '',
-            style: GoogleFonts.blinker(fontSize: 14, height: 1.12),
+            style: GoogleFonts.ibmPlexSans(fontSize: 14, height: 1.12),
           ),
           const SizedBox(height: 16),
           const Divider(color: Color(0xFFD5B48A)),
@@ -1444,12 +1453,12 @@ class _InvoicePanel extends StatelessWidget {
                   Expanded(
                     child: Text(
                       '${item.name} x ${item.quantity}',
-                      style: GoogleFonts.blinker(fontSize: 15),
+                      style: GoogleFonts.ibmPlexSans(fontSize: 15),
                     ),
                   ),
                   Text(
                     '₹${item.lineTotal}',
-                    style: GoogleFonts.blinker(fontWeight: FontWeight.w700),
+                    style: GoogleFonts.ibmPlexSans(fontWeight: FontWeight.w700),
                   ),
                 ],
               ),
@@ -1467,7 +1476,7 @@ class _InvoicePanel extends StatelessWidget {
               ),
               Text(
                 '₹${order['amount'] ?? '-'}',
-                style: GoogleFonts.blinker(
+                style: GoogleFonts.ibmPlexSans(
                   fontSize: 23,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1477,7 +1486,7 @@ class _InvoicePanel extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Payment ID: ${order['razorpay_payment_id'] ?? 'Pending'}',
-            style: GoogleFonts.blinker(
+            style: GoogleFonts.ibmPlexSans(
               fontSize: 13,
               color: const Color(0xFF746D64),
             ),
@@ -1509,7 +1518,7 @@ class _AddressActionButton extends StatelessWidget {
       side: const BorderSide(color: Color(0xFF8C684D), width: 1.2),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-      textStyle: GoogleFonts.blinker(
+      textStyle: GoogleFonts.ibmPlexSans(
         fontSize: 14,
         fontWeight: FontWeight.w800,
         letterSpacing: .4,
@@ -1620,7 +1629,7 @@ class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
                             )
                           : Text(
                               'Save changes',
-                              style: GoogleFonts.blinker(
+                              style: GoogleFonts.ibmPlexSans(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -1815,7 +1824,7 @@ class _AddressEditorSheetState extends State<_AddressEditorSheet> {
                             )
                           : Text(
                               _editing ? 'Save changes' : 'Save address',
-                              style: GoogleFonts.blinker(
+                              style: GoogleFonts.ibmPlexSans(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -1859,7 +1868,7 @@ class _AddressFormField extends StatelessWidget {
                 ? '$label is required.'
                 : null
           : null,
-      style: GoogleFonts.blinker(fontSize: 17),
+      style: GoogleFonts.ibmPlexSans(fontSize: 17),
       decoration: InputDecoration(
         labelText: label,
         filled: true,
@@ -1878,7 +1887,7 @@ class _AddressFormField extends StatelessWidget {
   );
 }
 
-TextStyle _addressTextStyle() => GoogleFonts.blinker(
+TextStyle _addressTextStyle() => GoogleFonts.ibmPlexSans(
   fontSize: 16,
   height: 1.08,
   color: const Color(0xFF111111),
@@ -1889,7 +1898,7 @@ ButtonStyle _smallActionStyle() => OutlinedButton.styleFrom(
   side: const BorderSide(color: Color(0xFF8C684D)),
   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
   minimumSize: const Size.fromHeight(42),
-  textStyle: GoogleFonts.blinker(fontSize: 14, fontWeight: FontWeight.w700),
+  textStyle: GoogleFonts.ibmPlexSans(fontSize: 14, fontWeight: FontWeight.w700),
 );
 
 class _InvoiceItem {

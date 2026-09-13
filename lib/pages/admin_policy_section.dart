@@ -40,7 +40,7 @@ class _PolicyAdminSection extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           'Edit the public privacy, terms, and refund pages.',
-          style: GoogleFonts.blinker(fontSize: 18),
+          style: GoogleFonts.ibmPlexSans(fontSize: 18),
         ),
         const SizedBox(height: 18),
         for (final policy in defaultPolicies.values)
@@ -99,7 +99,7 @@ class _PolicyAdminCard extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     '/${policy.slug}',
-                    style: GoogleFonts.blinker(
+                    style: GoogleFonts.ibmPlexSans(
                       fontSize: 16,
                       color: const Color(0xFF765F4B),
                     ),

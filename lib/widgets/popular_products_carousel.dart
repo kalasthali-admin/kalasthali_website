@@ -324,7 +324,7 @@ class _DesktopProductCard extends StatelessWidget {
                           ),
                           label: Text(
                             'More Info',
-                            style: GoogleFonts.blinker(
+                            style: GoogleFonts.ibmPlexSans(
                               color: const Color(0xFF914B0D),
                               fontWeight: FontWeight.w700,
                               fontSize: 16,
@@ -416,7 +416,7 @@ class _MobileProductCard extends StatelessWidget {
                         ),
                         child: Text(
                           product.type.toUpperCase(),
-                          style: GoogleFonts.blinker(
+                          style: GoogleFonts.ibmPlexSans(
                             color: const Color(0xFF5B351A),
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -460,7 +460,7 @@ class _MobileProductCard extends StatelessWidget {
                           ),
                           label: Text(
                             'More Info',
-                            style: GoogleFonts.blinker(
+                            style: GoogleFonts.ibmPlexSans(
                               color: const Color(0xFF914B0D),
                               fontWeight: FontWeight.w700,
                               fontSize: 14,

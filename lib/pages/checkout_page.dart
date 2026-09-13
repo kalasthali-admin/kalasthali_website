@@ -166,10 +166,10 @@ class _ProductSheetSuccess extends StatelessWidget {
       const SizedBox(height: 10),
       Text(
         'An invoice will be sent to your phone number or email: ${details.contactTarget}.',
-        style: GoogleFonts.blinker(fontSize: 18),
+        style: GoogleFonts.ibmPlexSans(fontSize: 18),
       ),
       const SizedBox(height: 18),
-      Text(details.address, style: GoogleFonts.blinker(fontSize: 16)),
+      Text(details.address, style: GoogleFonts.ibmPlexSans(fontSize: 16)),
       const SizedBox(height: 22),
       FilledButton(
         onPressed: () => Navigator.pop(context),
@@ -383,7 +383,7 @@ class _CheckoutContent extends StatelessWidget {
         const SizedBox(height: 10),
         Text(
           'Review your selection before payment.',
-          style: GoogleFonts.blinker(fontSize: mobile ? 17 : 19),
+          style: GoogleFonts.ibmPlexSans(fontSize: mobile ? 17 : 19),
         ),
         const SizedBox(height: 30),
         if (mobile)
@@ -453,7 +453,7 @@ class _OrderSummary extends StatelessWidget {
                 children: [
                   Text(
                     product.type,
-                    style: GoogleFonts.blinker(
+                    style: GoogleFonts.ibmPlexSans(
                       fontSize: 15,
                       color: const Color(0xFF746D64),
                     ),
@@ -468,7 +468,7 @@ class _OrderSummary extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     'Code: ${product.code}',
-                    style: GoogleFonts.blinker(fontSize: 16),
+                    style: GoogleFonts.ibmPlexSans(fontSize: 16),
                   ),
                 ],
               ),
@@ -490,7 +490,7 @@ class _OrderSummary extends StatelessWidget {
             ),
             Text(
               _price,
-              style: GoogleFonts.blinker(
+              style: GoogleFonts.ibmPlexSans(
                 fontSize: 26,
                 fontWeight: FontWeight.w700,
               ),
@@ -522,7 +522,7 @@ class _SignInForCheckout extends StatelessWidget {
         const SizedBox(height: 10),
         Text(
           'Log in to save your delivery details and continue to payment.',
-          style: GoogleFonts.blinker(fontSize: 18, height: 1.3),
+          style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.3),
         ),
         const SizedBox(height: 18),
         FilledButton(
@@ -660,7 +660,7 @@ class _CheckoutAddressTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   _addressLines(address),
-                  style: GoogleFonts.blinker(
+                  style: GoogleFonts.ibmPlexSans(
                     fontSize: 14,
                     height: 1.08,
                     color: Colors.black,
@@ -791,7 +791,7 @@ class _PaymentPanelState extends State<_PaymentPanel> {
         const SizedBox(height: 10),
         Text(
           'You will now be redirected to the payment gateway.',
-          style: GoogleFonts.blinker(fontSize: 18, height: 1.3),
+          style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.3),
         ),
         const SizedBox(height: 18),
         SizedBox(

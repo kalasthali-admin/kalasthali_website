@@ -91,7 +91,7 @@ class _NotFoundContent extends StatelessWidget {
         child: Text(
           'The link may have changed, or this page may no longer be available. Let us guide you back to the handcrafted collection.',
           textAlign: TextAlign.center,
-          style: GoogleFonts.blinker(
+          style: GoogleFonts.ibmPlexSans(
             fontSize: mobile ? 18 : 20,
             height: 1.35,
             color: const Color(0xFF4E463E),
@@ -117,7 +117,7 @@ class _NotFoundContent extends StatelessWidget {
             ),
             child: Text(
               'Back to home',
-              style: GoogleFonts.blinker(fontSize: 18),
+              style: GoogleFonts.ibmPlexSans(fontSize: 18),
             ),
           ),
           OutlinedButton(
@@ -134,7 +134,7 @@ class _NotFoundContent extends StatelessWidget {
             ),
             child: Text(
               'View collection',
-              style: GoogleFonts.blinker(fontSize: 18),
+              style: GoogleFonts.ibmPlexSans(fontSize: 18),
             ),
           ),
         ],

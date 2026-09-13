@@ -79,7 +79,7 @@ class _OrderSuccessContent extends StatelessWidget {
       const SizedBox(height: 8),
       Text(
         'An invoice will be sent to your phone number or email: ${details.contactTarget}.',
-        style: GoogleFonts.blinker(fontSize: 18, height: 1.35),
+        style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.35),
       ),
       const SizedBox(height: 24),
       const Divider(color: Color(0xFFD5B48A)),
@@ -88,7 +88,7 @@ class _OrderSuccessContent extends StatelessWidget {
       const SizedBox(height: 8),
       Text(
         details.address,
-        style: GoogleFonts.blinker(fontSize: 17, height: 1.2),
+        style: GoogleFonts.ibmPlexSans(fontSize: 17, height: 1.2),
       ),
       const SizedBox(height: 24),
       _SectionTitle('Ordered items'),
@@ -97,7 +97,7 @@ class _OrderSuccessContent extends StatelessWidget {
       const SizedBox(height: 14),
       Text(
         'Order ID: ${details.orderId}',
-        style: GoogleFonts.blinker(
+        style: GoogleFonts.ibmPlexSans(
           fontSize: 14,
           color: const Color(0xFF746D64),
         ),
@@ -215,12 +215,15 @@ class _PurchasedItemCard extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           'Code: ${item.code} • Qty ${item.quantity}',
-          style: GoogleFonts.blinker(fontSize: 14),
+          style: GoogleFonts.ibmPlexSans(fontSize: 14),
         ),
         const SizedBox(height: 8),
         Text(
           '₹${item.amount}',
-          style: GoogleFonts.blinker(fontSize: 20, fontWeight: FontWeight.w700),
+          style: GoogleFonts.ibmPlexSans(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ],
     );

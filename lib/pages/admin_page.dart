@@ -14,6 +14,8 @@ import '../widgets/app_scaffold.dart';
 
 part 'admin_policy_section.dart';
 
+const _newArrivalsFilter = '__new_arrivals__';
+
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
 
@@ -439,7 +441,7 @@ class _ImageUploadDialog extends StatelessWidget {
                       : success
                       ? 'Your image was uploaded successfully.'
                       : current.message,
-                  style: GoogleFonts.blinker(fontSize: 17),
+                  style: GoogleFonts.ibmPlexSans(fontSize: 17),
                 ),
               ),
             ],
@@ -467,7 +469,7 @@ class _AdminAccessDenied extends StatelessWidget {
       child: Text(
         'This account is not authorized to access the admin dashboard.',
         textAlign: TextAlign.center,
-        style: GoogleFonts.blinker(fontSize: 19),
+        style: GoogleFonts.ibmPlexSans(fontSize: 19),
       ),
     ),
   );
@@ -522,6 +524,9 @@ class _AdminDashboard extends StatelessWidget {
       final visibleProducts = products.where((product) {
         final matchesCategory =
             selectedCategory == null ||
+            (selectedCategory == _newArrivalsFilter
+                ? product.isPopular == true
+                : false) ||
             _adminCategoryKey(product.type) ==
                 _adminCategoryKey(selectedCategory!);
         final matchesSearch =
@@ -567,7 +572,7 @@ class _AdminDashboard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Add, delete, or edit products and their images from one place.',
-                  style: GoogleFonts.blinker(fontSize: mobile ? 16 : 18),
+                  style: GoogleFonts.ibmPlexSans(fontSize: mobile ? 16 : 18),
                 ),
                 if (error != null) ...[
                   const SizedBox(height: 14),
@@ -583,7 +588,7 @@ class _AdminDashboard extends StatelessWidget {
                           controller: productSearch,
                           enabled: !loading,
                           textInputAction: TextInputAction.search,
-                          style: GoogleFonts.blinker(fontSize: 17),
+                          style: GoogleFonts.ibmPlexSans(fontSize: 17),
                           decoration: const InputDecoration(
                             hintText: 'Search listed products',
                             prefixIcon: Icon(Icons.search),
@@ -618,7 +623,7 @@ class _AdminDashboard extends StatelessWidget {
                       ChoiceChip(
                         label: Text(
                           'ALL PRODUCTS',
-                          style: GoogleFonts.blinker(
+                          style: GoogleFonts.ibmPlexSans(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             letterSpacing: mobile ? 1.4 : 2,
@@ -638,11 +643,36 @@ class _AdminDashboard extends StatelessWidget {
                           vertical: 7,
                         ),
                       ),
+                      ChoiceChip(
+                        label: Text(
+                          'NEW ARRIVALS',
+                          style: GoogleFonts.ibmPlexSans(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: mobile ? 1.4 : 2,
+                          ),
+                        ),
+                        selected: selectedCategory == _newArrivalsFilter,
+                        onSelected: (selected) => onCategorySelected(
+                          selected ? _newArrivalsFilter : null,
+                        ),
+                        selectedColor: const Color(0xFFE2C7A0),
+                        backgroundColor: const Color(0xFFE9E2D6),
+                        side: const BorderSide(
+                          color: Color(0xFFA85C18),
+                          width: 1.5,
+                        ),
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 7,
+                        ),
+                      ),
                       for (final category in categories)
                         ChoiceChip(
                           label: Text(
                             category.replaceAll('-', ' ').toUpperCase(),
-                            style: GoogleFonts.blinker(
+                            style: GoogleFonts.ibmPlexSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                               letterSpacing: mobile ? 1.4 : 2,
@@ -681,7 +711,7 @@ class _AdminDashboard extends StatelessWidget {
                     searchQuery.isEmpty
                         ? 'No products found.'
                         : 'No matching products found.',
-                    style: GoogleFonts.blinker(fontSize: 18),
+                    style: GoogleFonts.ibmPlexSans(fontSize: 18),
                   )
                 else
                   ...visibleProducts.map((product) {
@@ -771,7 +801,7 @@ class _ProductAdminCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       '${product.code}  •  ${product.type}',
-                      style: GoogleFonts.blinker(
+                      style: GoogleFonts.ibmPlexSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -781,7 +811,7 @@ class _ProductAdminCard extends StatelessWidget {
                       product.description,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.blinker(fontSize: 16),
+                      style: GoogleFonts.ibmPlexSans(fontSize: 16),
                     ),
                   ],
                 ),
@@ -884,7 +914,7 @@ class _GallerySheetState extends State<_GallerySheet> {
         ),
         content: Text(
           'This permanently removes $name from Supabase Storage.',
-          style: GoogleFonts.blinker(fontSize: 17),
+          style: GoogleFonts.ibmPlexSans(fontSize: 17),
         ),
         actions: [
           TextButton(
@@ -949,7 +979,7 @@ class _GallerySheetState extends State<_GallerySheet> {
             const SizedBox(height: 8),
             Text(
               'Star an image to use it as the storefront thumbnail.',
-              style: GoogleFonts.blinker(fontSize: 16),
+              style: GoogleFonts.ibmPlexSans(fontSize: 16),
             ),
             const SizedBox(height: 18),
             Expanded(
@@ -957,7 +987,7 @@ class _GallerySheetState extends State<_GallerySheet> {
                   ? Center(
                       child: Text(
                         'No images found. Upload a PNG or JPEG image to begin.',
-                        style: GoogleFonts.blinker(fontSize: 17),
+                        style: GoogleFonts.ibmPlexSans(fontSize: 17),
                       ),
                     )
                   : GridView.builder(
@@ -1038,7 +1068,7 @@ class _GalleryImageTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Text(
               image.isThumbnail ? 'Thumbnail' : image.name,
-              style: GoogleFonts.blinker(
+              style: GoogleFonts.ibmPlexSans(
                 color: Colors.white,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -1277,7 +1307,7 @@ class _ProductEditorState extends State<_ProductEditor> {
                 const SizedBox(height: 6),
                 Text(
                   'Choose PNG or JPEG images now, then star one as the storefront thumbnail. They will be converted to WebP and uploaded after this product is created.',
-                  style: GoogleFonts.blinker(fontSize: 15),
+                  style: GoogleFonts.ibmPlexSans(fontSize: 15),
                 ),
                 const SizedBox(height: 10),
                 OutlinedButton.icon(

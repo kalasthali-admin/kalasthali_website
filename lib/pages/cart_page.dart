@@ -247,7 +247,7 @@ class _CartContent extends StatelessWidget {
                 ),
                 child: Text(
                   'Checkout',
-                  style: GoogleFonts.blinker(fontSize: 28),
+                  style: GoogleFonts.ibmPlexSans(fontSize: 28),
                 ),
               ),
             ),
@@ -435,7 +435,7 @@ class _CompactCartProductContent extends StatelessWidget {
             children: [
               Text(
                 product?.type ?? 'Product',
-                style: GoogleFonts.blinker(
+                style: GoogleFonts.ibmPlexSans(
                   fontSize: 14,
                   color: const Color(0xFF746D64),
                 ),
@@ -461,7 +461,7 @@ class _CompactCartProductContent extends StatelessWidget {
                       children: [
                         Text(
                           'Size',
-                          style: GoogleFonts.blinker(
+                          style: GoogleFonts.ibmPlexSans(
                             fontSize: 14,
                             color: const Color(0xFF746D64),
                           ),
@@ -479,7 +479,7 @@ class _CompactCartProductContent extends StatelessWidget {
                     children: [
                       Text(
                         'Quantity',
-                        style: GoogleFonts.blinker(
+                        style: GoogleFonts.ibmPlexSans(
                           fontSize: 14,
                           color: const Color(0xFF746D64),
                         ),
@@ -553,7 +553,7 @@ class _CartItemLead extends StatelessWidget {
             children: [
               Text(
                 product?.type ?? 'Product',
-                style: GoogleFonts.blinker(
+                style: GoogleFonts.ibmPlexSans(
                   fontSize: 15,
                   color: const Color(0xFF746D64),
                 ),
@@ -570,7 +570,7 @@ class _CartItemLead extends StatelessWidget {
               if ((product?.sizes ?? item.size ?? '').trim().isNotEmpty) ...[
                 Text(
                   'Size',
-                  style: GoogleFonts.blinker(
+                  style: GoogleFonts.ibmPlexSans(
                     fontSize: 14,
                     color: const Color(0xFF746D64),
                   ),
@@ -641,7 +641,7 @@ class _MetricBlock extends StatelessWidget {
     children: [
       Text(
         label,
-        style: GoogleFonts.blinker(
+        style: GoogleFonts.ibmPlexSans(
           fontSize: 15,
           color: const Color(0xFF746D64),
         ),
@@ -650,7 +650,7 @@ class _MetricBlock extends StatelessWidget {
       valueWidget ??
           Text(
             value ?? '-',
-            style: GoogleFonts.blinker(
+            style: GoogleFonts.ibmPlexSans(
               fontSize: 24,
               fontWeight: emphasis ? FontWeight.w800 : FontWeight.w600,
               color: const Color(0xFF111111),
@@ -689,7 +689,7 @@ class _CartCounter extends StatelessWidget {
           ),
           child: Text(
             '$quantity',
-            style: GoogleFonts.blinker(fontWeight: FontWeight.w800),
+            style: GoogleFonts.ibmPlexSans(fontWeight: FontWeight.w800),
           ),
         ),
         _MiniCounterButton(
@@ -741,7 +741,7 @@ class _SizeChips extends StatelessWidget {
           ),
           child: Text(
             size.toUpperCase(),
-            style: GoogleFonts.blinker(
+            style: GoogleFonts.ibmPlexSans(
               fontSize: compact ? 11 : 13,
               fontWeight: FontWeight.w700,
             ),
@@ -931,7 +931,7 @@ class _CartSummaryState extends State<_CartSummary> {
             ),
             Text(
               _money(subtotal),
-              style: GoogleFonts.blinker(
+              style: GoogleFonts.ibmPlexSans(
                 fontSize: widget.sheetStyle ? 38 : 30,
                 fontWeight: FontWeight.w700,
                 color: Colors.black,
@@ -941,7 +941,7 @@ class _CartSummaryState extends State<_CartSummary> {
         ),
         Text(
           '(Inclusive of all taxes)',
-          style: GoogleFonts.blinker(
+          style: GoogleFonts.ibmPlexSans(
             fontSize: widget.sheetStyle ? 13 : 12,
             color: Colors.black,
           ),
@@ -1008,7 +1008,7 @@ class _CartSummaryState extends State<_CartSummary> {
                     )
                   : Text(
                       'Order Now',
-                      style: GoogleFonts.blinker(
+                      style: GoogleFonts.ibmPlexSans(
                         fontSize: widget.sheetStyle ? 24 : 24,
                       ),
                     ),
@@ -1043,9 +1043,15 @@ class _SummaryContact extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         if (name.isNotEmpty)
-          Text(name, style: GoogleFonts.blinker(fontSize: 18, height: 1.08)),
+          Text(
+            name,
+            style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.08),
+          ),
         if (phone.isNotEmpty)
-          Text(phone, style: GoogleFonts.blinker(fontSize: 18, height: 1.08)),
+          Text(
+            phone,
+            style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.08),
+          ),
       ],
     );
   }
@@ -1071,7 +1077,7 @@ class _AddressSelector extends StatelessWidget {
     if (addresses.isEmpty) {
       return Text(
         'No saved addresses yet.',
-        style: GoogleFonts.blinker(fontSize: 14, color: Colors.black),
+        style: GoogleFonts.ibmPlexSans(fontSize: 14, color: Colors.black),
       );
     }
     final effectiveSelectedId =
@@ -1166,7 +1172,7 @@ class _AddressRadioTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   lines,
-                  style: GoogleFonts.blinker(
+                  style: GoogleFonts.ibmPlexSans(
                     fontSize: sheetStyle ? 18 : 13,
                     height: sheetStyle ? 1.08 : 1.05,
                     color: Colors.black,

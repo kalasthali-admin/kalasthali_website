@@ -65,7 +65,7 @@ class PolicyPage extends StatelessWidget {
                             const SizedBox(height: 8),
                             Text(
                               'Last updated: ${_lastUpdated(policy.updatedAt)}',
-                              style: GoogleFonts.blinker(
+                              style: GoogleFonts.ibmPlexSans(
                                 color: const Color(0xFF765F4B),
                                 fontSize: mobile ? 15 : 17,
                               ),
@@ -78,7 +78,7 @@ class PolicyPage extends StatelessWidget {
                             )) ...[
                               Text(
                                 section,
-                                style: GoogleFonts.blinker(
+                                style: GoogleFonts.ibmPlexSans(
                                   fontSize: mobile ? 17 : 19,
                                   height: 1.45,
                                   color: const Color(0xFF332A25),

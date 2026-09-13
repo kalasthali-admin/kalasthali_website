@@ -10,6 +10,8 @@ import '../widgets/app_footer.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/cart_quantity_button.dart';
 
+const _newArrivalsFilter = '__new_arrivals__';
+
 class CollectionPage extends StatefulWidget {
   const CollectionPage({this.initialCategory, this.initialSearch, super.key});
   final String? initialCategory;
@@ -83,13 +85,19 @@ class _CollectionPageState extends State<CollectionPage> {
                           left.toLowerCase().compareTo(right.toLowerCase()),
                     );
               final selectedCategory =
-                  categories.any((value) => _key(value) == _key(category ?? ''))
+                  category == _newArrivalsFilter ||
+                      categories.any(
+                        (value) => _key(value) == _key(category ?? ''),
+                      )
                   ? category
                   : null;
               final filtered = snap.data!
                   .where(
                     (p) =>
                         (selectedCategory == null ||
+                            (selectedCategory == _newArrivalsFilter
+                                ? p.isPopular == true
+                                : false) ||
                             _matchesCategory(p.type, selectedCategory)) &&
                         (query.isEmpty ||
                             '${p.name} ${p.description} ${p.specifications ?? ''}'
@@ -123,13 +131,13 @@ class _CollectionPageState extends State<CollectionPage> {
                           constraints: const BoxConstraints(maxWidth: 575),
                           child: TextField(
                             controller: search,
-                            style: GoogleFonts.blinker(
+                            style: GoogleFonts.ibmPlexSans(
                               fontSize: mobile ? 14 : 17,
                               color: const Color(0xFF1F1E25),
                             ),
                             decoration: InputDecoration(
                               hintText: 'Search for a product',
-                              hintStyle: GoogleFonts.blinker(
+                              hintStyle: GoogleFonts.ibmPlexSans(
                                 fontSize: mobile ? 14 : 17,
                                 color: const Color(0xFF746D64),
                               ),
@@ -155,34 +163,57 @@ class _CollectionPageState extends State<CollectionPage> {
                           alignment: WrapAlignment.center,
                           spacing: mobile ? 12 : 16,
                           runSpacing: mobile ? 14 : 12,
-                          children: categories
-                              .map(
-                                (c) => ChoiceChip(
-                                  label: Text(
-                                    c.replaceAll('-', ' ').toUpperCase(),
-                                    style: GoogleFonts.blinker(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: mobile ? 1.4 : 2,
-                                    ),
-                                  ),
-                                  selected:
-                                      _key(selectedCategory ?? '') == _key(c),
-                                  onSelected: (_) => select(c),
-                                  selectedColor: const Color(0xFFE2C7A0),
-                                  backgroundColor: const Color(0xFFE9E2D6),
-                                  side: const BorderSide(
-                                    color: Color(0xFFA85C18),
-                                    width: 1.5,
-                                  ),
-                                  shape: const StadiumBorder(),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 7,
+                          children: [
+                            ChoiceChip(
+                              label: Text(
+                                'NEW ARRIVALS',
+                                style: GoogleFonts.ibmPlexSans(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: mobile ? 1.4 : 2,
+                                ),
+                              ),
+                              selected: selectedCategory == _newArrivalsFilter,
+                              onSelected: (_) => select(_newArrivalsFilter),
+                              selectedColor: const Color(0xFFE2C7A0),
+                              backgroundColor: const Color(0xFFE9E2D6),
+                              side: const BorderSide(
+                                color: Color(0xFFA85C18),
+                                width: 1.5,
+                              ),
+                              shape: const StadiumBorder(),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 7,
+                              ),
+                            ),
+                            for (final category in categories)
+                              ChoiceChip(
+                                label: Text(
+                                  category.replaceAll('-', ' ').toUpperCase(),
+                                  style: GoogleFonts.ibmPlexSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: mobile ? 1.4 : 2,
                                   ),
                                 ),
-                              )
-                              .toList(),
+                                selected:
+                                    _key(selectedCategory ?? '') ==
+                                    _key(category),
+                                onSelected: (_) => select(category),
+                                selectedColor: const Color(0xFFE2C7A0),
+                                backgroundColor: const Color(0xFFE9E2D6),
+                                side: const BorderSide(
+                                  color: Color(0xFFA85C18),
+                                  width: 1.5,
+                                ),
+                                shape: const StadiumBorder(),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                              ),
+                          ],
                         ),
                         SizedBox(height: mobile ? 120 : 110),
                         if (filtered.isEmpty)
@@ -351,7 +382,7 @@ class _CardDetails extends StatelessWidget {
               ? product.price!
               : '₹${product.price ?? '-'}',
           textAlign: TextAlign.left,
-          style: GoogleFonts.blinker(fontSize: 24),
+          style: GoogleFonts.ibmPlexSans(fontSize: 24),
         ),
         const SizedBox(height: 12),
         _CollectionCardActions(product: product, compact: compact),
@@ -392,7 +423,7 @@ class _CollectionCardActions extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
-            textStyle: GoogleFonts.blinker(
+            textStyle: GoogleFonts.ibmPlexSans(
               fontSize: compact ? 13 : 15,
               fontWeight: FontWeight.w700,
             ),

@@ -174,7 +174,7 @@ class _CartQuantityButtonState extends State<CartQuantityButton> {
                   ),
                   child: Text(
                     '$quantity',
-                    style: GoogleFonts.blinker(
+                    style: GoogleFonts.ibmPlexSans(
                       fontWeight: FontWeight.w800,
                       color: const Color(0xFF1F1E25),
                     ),
@@ -193,7 +193,7 @@ class _CartQuantityButtonState extends State<CartQuantityButton> {
   }
 
   ButtonStyle _buttonStyle() {
-    final textStyle = GoogleFonts.blinker(
+    final textStyle = GoogleFonts.ibmPlexSans(
       fontSize: widget.fontSize ?? (widget.compact ? 14 : 16),
       fontWeight: FontWeight.w700,
     );

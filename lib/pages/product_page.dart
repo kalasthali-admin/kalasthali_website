@@ -588,14 +588,14 @@ class _CopyBlock extends StatelessWidget {
     children: [
       Text(
         label,
-        style: GoogleFonts.blinker(
+        style: GoogleFonts.ibmPlexSans(
           fontSize: 26,
           color: Colors.grey.shade700,
           fontWeight: FontWeight.bold,
         ),
       ),
       const SizedBox(height: 6),
-      Text(text, style: GoogleFonts.blinker(fontSize: 18, height: 1.35)),
+      Text(text, style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.35)),
     ],
   );
 }
@@ -612,7 +612,7 @@ class _PurchasePanel extends StatelessWidget {
         product.price?.startsWith('₹') == true
             ? product.price!
             : '₹${product.price ?? '-'}',
-        style: GoogleFonts.blinker(fontSize: 35),
+        style: GoogleFonts.ibmPlexSans(fontSize: 35),
       );
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
@@ -733,7 +733,10 @@ class _PurchaseButtonLabel extends StatelessWidget {
         if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
         Text(
           label,
-          style: GoogleFonts.blinker(fontSize: 20, fontWeight: FontWeight.w600),
+          style: GoogleFonts.ibmPlexSans(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     ),
@@ -746,7 +749,7 @@ class _ProductDisclaimer extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
     'Disclaimer: The model images are for illustrative purposes only and are intended to help you understand the placement and overall look of the hand-painted design on the saree. The actual colours, detailing, brushwork, and design may vary slightly from the images shown.\n\nFor an accurate view of the artwork and its finer details, please refer to the close-up product image.',
-    style: GoogleFonts.blinker(
+    style: GoogleFonts.ibmPlexSans(
       fontSize: 16,
       height: 1.35,
       color: const Color(0xFF4E463E),

@@ -474,7 +474,7 @@ class _ExploreMoreButton extends StatelessWidget {
           children: [
             Text(
               'Explore More',
-              style: GoogleFonts.blinker(fontSize: isMobile ? 15 : 21),
+              style: GoogleFonts.ibmPlexSans(fontSize: isMobile ? 15 : 21),
             ),
             const SizedBox(width: 6),
             Icon(Icons.north_east_rounded, size: isMobile ? 21 : 26),
@@ -552,7 +552,7 @@ class _HeroCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     subtitle,
-                    style: GoogleFonts.blinker(
+                    style: GoogleFonts.ibmPlexSans(
                       color: Colors.white,
                       fontSize: subtitleSize,
                       height: 1.15,
@@ -584,7 +584,7 @@ class _HeroCard extends StatelessWidget {
                         children: [
                           Text(
                             '  Explore',
-                            style: GoogleFonts.blinker(
+                            style: GoogleFonts.ibmPlexSans(
                               fontSize: buttonTextSize,
                             ),
                           ),
