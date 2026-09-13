@@ -191,6 +191,69 @@ function policyPayload(source) {
   return { slug, title, content, updated_at: new Date().toISOString() };
 }
 
+function saleItems(value, fallbackName, fallbackAmount) {
+  let items = value;
+  if (typeof items === 'string') {
+    try {
+      items = JSON.parse(items);
+    } catch (_) {
+      items = null;
+    }
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return [{ name: fallbackName || 'Order item', quantity: 1, amount: fallbackAmount }];
+  }
+  return items.map((item) => ({
+    name: String(item?.product_name || item?.name || 'Order item'),
+    quantity: Math.max(1, Number(item?.quantity) || 1),
+    amount: Math.max(0, Number(item?.line_total ?? item?.amount ?? item?.unit_price ?? item?.price) || 0),
+  }));
+}
+
+function trackingUrl(trackingId) {
+  return `https://www.delhivery.com/track/package/${encodeURIComponent(trackingId)}`;
+}
+
+async function sendShippingConfirmation(order, trackingId) {
+  const subtotal = Number(order.amount);
+  if (!Number.isFinite(subtotal) || subtotal < 0) {
+    throw new Error('The saved order total is invalid.');
+  }
+  const customerEmail = String(order.customer_email || '').trim();
+  if (!customerEmail || !order.order_id) {
+    throw new Error('The saved order is missing an order ID or customer email.');
+  }
+  const url = trackingUrl(trackingId);
+  const response = await fetch(
+    `${supabaseUrl}/functions/v1/send-shipping-order-confirmation`,
+    {
+      method: 'POST',
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        customer_email: customerEmail,
+        order_id: order.order_id,
+        products: saleItems(order.items, order.product, subtotal),
+        subtotal,
+        tracking_id: trackingId,
+        tracking_url: url,
+      }),
+    },
+  );
+  if (!response.ok) {
+    let message = 'The shipping confirmation email could not be sent.';
+    try {
+      const data = await response.json();
+      message = data?.error || data?.message || message;
+    } catch (_) {}
+    throw new Error(message);
+  }
+  return url;
+}
+
 async function moveImage(sourceKey, destinationKey) {
   await supabaseFetch('/storage/v1/object/move', {
     method: 'POST',
@@ -329,6 +392,49 @@ module.exports = async (req, res) => {
         200,
         await supabaseFetch('/rest/v1/site_policies?select=*&order=slug.asc'),
       );
+    }
+
+    if (action === 'orders' && req.method === 'GET') {
+      return json(
+        res,
+        200,
+        await supabaseFetch(
+          '/rest/v1/sales?select=order_id,customer_email,customer_phone,user_address,product,amount,items,paid_at,razorpay_payment_id,tracking_id,tracking_url,shipping_confirmation_sent_at&order=paid_at.desc',
+        ),
+      );
+    }
+
+    if (action === 'shipping_confirmation' && req.method === 'POST') {
+      const orderId = String(body.orderId || '').trim();
+      const trackingId = String(body.trackingId || '').trim();
+      if (!orderId || !trackingId) {
+        return json(res, 400, { error: 'An order ID and tracking ID are required.' });
+      }
+      if (trackingId.length > 100) {
+        return json(res, 400, { error: 'The tracking ID is too long.' });
+      }
+      const orders = await supabaseFetch(
+        `/rest/v1/sales?select=*&order_id=eq.${encodeURIComponent(orderId)}&limit=1`,
+      );
+      const order = orders[0];
+      if (!order) return json(res, 404, { error: 'Order not found.' });
+      if (order.shipping_confirmation_sent_at) {
+        return json(res, 409, { error: 'A delivery confirmation has already been sent for this order.' });
+      }
+      const url = await sendShippingConfirmation(order, trackingId);
+      const updated = await supabaseFetch(
+        `/rest/v1/sales?order_id=eq.${encodeURIComponent(orderId)}`,
+        {
+          method: 'PATCH',
+          headers: { Prefer: 'return=representation' },
+          body: JSON.stringify({
+            tracking_id: trackingId,
+            tracking_url: url,
+            shipping_confirmation_sent_at: new Date().toISOString(),
+          }),
+        },
+      );
+      return json(res, 200, updated[0]);
     }
 
     if (action === 'policy' && req.method === 'PUT') {

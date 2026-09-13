@@ -28,10 +28,12 @@ class _AdminPageState extends State<AdminPage> {
   final _productSearch = TextEditingController();
   bool _loading = false;
   String? _error;
+  String? _ordersError;
   String? _selectedCategory;
   List<Product> _products = const [];
   List<AdminGallery> _gallery = const [];
   List<SitePolicy> _policies = const [];
+  List<AdminOrder> _orders = const [];
 
   @override
   void initState() {
@@ -71,6 +73,13 @@ class _AdminPageState extends State<AdminPage> {
       } on AdminException catch (error) {
         policyError = error.message;
       }
+      List<AdminOrder> orders = const [];
+      String? ordersError;
+      try {
+        orders = await _service.getOrders();
+      } on AdminException catch (error) {
+        ordersError = error.message;
+      }
       if (!mounted) return;
       setState(() {
         _products = results[0] as List<Product>;
@@ -79,6 +88,8 @@ class _AdminPageState extends State<AdminPage> {
         _error = policyError == null
             ? null
             : '$policyError Run supabase/site_policies.sql to enable policy editing.';
+        _orders = orders;
+        _ordersError = ordersError;
       });
     } on AdminException catch (error) {
       if (!mounted) return;
@@ -186,6 +197,31 @@ class _AdminPageState extends State<AdminPage> {
         ];
       });
       _showMessage('${updated.title} saved.');
+    } on AdminException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _submitShippingConfirmation(
+    AdminOrder order,
+    String trackingId,
+  ) async {
+    setState(() => _loading = true);
+    try {
+      final updated = await _service.submitShippingConfirmation(
+        order,
+        trackingId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _orders = [
+          for (final current in _orders)
+            if (current.orderId == updated.orderId) updated else current,
+        ];
+      });
+      _showMessage('Delivery confirmation sent to ${updated.customerEmail}.');
     } on AdminException catch (error) {
       if (mounted) _showMessage(error.message);
     } finally {
@@ -358,6 +394,8 @@ class _AdminPageState extends State<AdminPage> {
             products: _products,
             gallery: _gallery,
             policies: _policies,
+            orders: _orders,
+            ordersError: _ordersError,
             productSearch: _productSearch,
             selectedCategory: _selectedCategory,
             onRefresh: _loadDashboard,
@@ -367,6 +405,7 @@ class _AdminPageState extends State<AdminPage> {
             onEdit: _editProduct,
             onDelete: _deleteProduct,
             onSavePolicy: _savePolicy,
+            onSubmitShippingConfirmation: _submitShippingConfirmation,
           );
         },
       ),
@@ -482,6 +521,8 @@ class _AdminDashboard extends StatelessWidget {
     required this.products,
     required this.gallery,
     required this.policies,
+    required this.orders,
+    required this.ordersError,
     required this.productSearch,
     required this.selectedCategory,
     required this.onRefresh,
@@ -490,6 +531,7 @@ class _AdminDashboard extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onSavePolicy,
+    required this.onSubmitShippingConfirmation,
   });
 
   final bool loading;
@@ -497,6 +539,8 @@ class _AdminDashboard extends StatelessWidget {
   final List<Product> products;
   final List<AdminGallery> gallery;
   final List<SitePolicy> policies;
+  final List<AdminOrder> orders;
+  final String? ordersError;
   final TextEditingController productSearch;
   final String? selectedCategory;
   final Future<void> Function() onRefresh;
@@ -505,248 +549,670 @@ class _AdminDashboard extends StatelessWidget {
   final ValueChanged<Product> onEdit;
   final ValueChanged<Product> onDelete;
   final Future<void> Function(SitePolicy) onSavePolicy;
+  final Future<void> Function(AdminOrder order, String trackingId)
+  onSubmitShippingConfirmation;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final mobile = useCompactLayout(context, breakpoint: 700);
-      final searchQuery = productSearch.text.trim().toLowerCase();
-      final categories =
-          products
-              .map((product) => product.type.trim())
-              .where((type) => type.isNotEmpty)
-              .toSet()
-              .toList()
-            ..sort(
-              (left, right) =>
-                  left.toLowerCase().compareTo(right.toLowerCase()),
-            );
-      final visibleProducts = products.where((product) {
-        final matchesCategory =
-            selectedCategory == null ||
-            (selectedCategory == _newArrivalsFilter
-                ? product.isPopular == true
-                : false) ||
-            _adminCategoryKey(product.type) ==
-                _adminCategoryKey(selectedCategory!);
-        final matchesSearch =
-            searchQuery.isEmpty ||
-            '${product.code} ${product.name} ${product.type} '
-                    '${product.description} ${product.specifications ?? ''}'
-                .toLowerCase()
-                .contains(searchQuery);
-        return matchesCategory && matchesSearch;
-      }).toList();
-      return SingleChildScrollView(
-        primary: true,
-        padding: EdgeInsets.fromLTRB(
-          mobile ? 18 : 42,
-          mobile ? 34 : 56,
-          mobile ? 18 : 42,
-          80,
-        ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1240),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Product Admin',
-                        style: GoogleFonts.dmSerifDisplay(
-                          fontSize: mobile ? 38 : 52,
-                          color: const Color(0xFF5B351A),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: loading ? null : onRefresh,
-                      tooltip: 'Refresh',
-                      icon: const Icon(Icons.refresh),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Add, delete, or edit products and their images from one place.',
-                  style: GoogleFonts.ibmPlexSans(fontSize: mobile ? 16 : 18),
-                ),
-                if (error != null) ...[
-                  const SizedBox(height: 14),
-                  Text(error!, style: const TextStyle(color: Colors.red)),
-                ],
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 48,
-                        child: TextField(
-                          controller: productSearch,
-                          enabled: !loading,
-                          textInputAction: TextInputAction.search,
-                          style: GoogleFonts.ibmPlexSans(fontSize: 17),
-                          decoration: const InputDecoration(
-                            hintText: 'Search listed products',
-                            prefixIcon: Icon(Icons.search),
-                            filled: true,
-                            fillColor: Color(0xFFE9E2D6),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.all(
-                                Radius.circular(12),
+  Widget build(BuildContext context) => DefaultTabController(
+    length: 2,
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final tabController = DefaultTabController.of(context);
+        final mobile = useCompactLayout(context, breakpoint: 700);
+        final searchQuery = productSearch.text.trim().toLowerCase();
+        final categories =
+            products
+                .map((product) => product.type.trim())
+                .where((type) => type.isNotEmpty)
+                .toSet()
+                .toList()
+              ..sort(
+                (left, right) =>
+                    left.toLowerCase().compareTo(right.toLowerCase()),
+              );
+        final visibleProducts = products.where((product) {
+          final matchesCategory =
+              selectedCategory == null ||
+              (selectedCategory == _newArrivalsFilter
+                  ? product.isPopular == true
+                  : false) ||
+              _adminCategoryKey(product.type) ==
+                  _adminCategoryKey(selectedCategory!);
+          final matchesSearch =
+              searchQuery.isEmpty ||
+              '${product.code} ${product.name} ${product.type} '
+                      '${product.description} ${product.specifications ?? ''}'
+                  .toLowerCase()
+                  .contains(searchQuery);
+          return matchesCategory && matchesSearch;
+        }).toList();
+        return AnimatedBuilder(
+          animation: tabController,
+          builder: (context, _) {
+            final showOrders = tabController.index == 1;
+            return SingleChildScrollView(
+              primary: true,
+              padding: EdgeInsets.fromLTRB(
+                mobile ? 18 : 42,
+                mobile ? 34 : 56,
+                mobile ? 18 : 42,
+                80,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1240),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Product Admin',
+                              style: GoogleFonts.dmSerifDisplay(
+                                fontSize: mobile ? 38 : 52,
+                                color: const Color(0xFF5B351A),
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      height: 48,
-                      child: FilledButton.icon(
-                        onPressed: loading ? null : onCreate,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add product'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 22),
-                if (categories.isNotEmpty) ...[
-                  Wrap(
-                    spacing: mobile ? 12 : 16,
-                    runSpacing: mobile ? 14 : 12,
-                    children: [
-                      ChoiceChip(
-                        label: Text(
-                          'ALL PRODUCTS',
-                          style: GoogleFonts.ibmPlexSans(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: mobile ? 1.4 : 2,
+                          IconButton(
+                            onPressed: loading ? null : onRefresh,
+                            tooltip: 'Refresh',
+                            icon: const Icon(Icons.refresh),
                           ),
-                        ),
-                        selected: selectedCategory == null,
-                        onSelected: (_) => onCategorySelected(null),
-                        selectedColor: const Color(0xFFE2C7A0),
-                        backgroundColor: const Color(0xFFE9E2D6),
-                        side: const BorderSide(
-                          color: Color(0xFFA85C18),
-                          width: 1.5,
-                        ),
-                        shape: const StadiumBorder(),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 7,
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Add, delete, or edit products and their images from one place.',
+                        style: GoogleFonts.ibmPlexSans(
+                          fontSize: mobile ? 16 : 18,
                         ),
                       ),
-                      ChoiceChip(
-                        label: Text(
-                          'NEW ARRIVALS',
-                          style: GoogleFonts.ibmPlexSans(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: mobile ? 1.4 : 2,
+                      if (error != null) ...[
+                        const SizedBox(height: 14),
+                        Text(error!, style: const TextStyle(color: Colors.red)),
+                      ],
+                      const SizedBox(height: 24),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE9E2D6),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFD5B48A)),
+                        ),
+                        child: TabBar(
+                          labelColor: const Color(0xFF5B351A),
+                          unselectedLabelColor: const Color(0xFF765F4B),
+                          indicatorColor: const Color(0xFFA35710),
+                          labelStyle: GoogleFonts.ibmPlexSans(
+                            fontSize: mobile ? 15 : 17,
+                            fontWeight: FontWeight.w700,
                           ),
-                        ),
-                        selected: selectedCategory == _newArrivalsFilter,
-                        onSelected: (selected) => onCategorySelected(
-                          selected ? _newArrivalsFilter : null,
-                        ),
-                        selectedColor: const Color(0xFFE2C7A0),
-                        backgroundColor: const Color(0xFFE9E2D6),
-                        side: const BorderSide(
-                          color: Color(0xFFA85C18),
-                          width: 1.5,
-                        ),
-                        shape: const StadiumBorder(),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 7,
+                          tabs: const [
+                            Tab(text: 'Store Management'),
+                            Tab(text: 'Orders'),
+                          ],
                         ),
                       ),
-                      for (final category in categories)
-                        ChoiceChip(
-                          label: Text(
-                            category.replaceAll('-', ' ').toUpperCase(),
-                            style: GoogleFonts.ibmPlexSans(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: mobile ? 1.4 : 2,
+                      const SizedBox(height: 28),
+                      if (showOrders)
+                        _OrdersTab(
+                          orders: orders,
+                          loading: loading,
+                          error: ordersError,
+                          onSubmitShippingConfirmation:
+                              onSubmitShippingConfirmation,
+                        )
+                      else ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 48,
+                                child: TextField(
+                                  controller: productSearch,
+                                  enabled: !loading,
+                                  textInputAction: TextInputAction.search,
+                                  style: GoogleFonts.ibmPlexSans(fontSize: 17),
+                                  decoration: const InputDecoration(
+                                    hintText: 'Search listed products',
+                                    prefixIcon: Icon(Icons.search),
+                                    filled: true,
+                                    fillColor: Color(0xFFE9E2D6),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.all(
+                                        Radius.circular(12),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                          selected:
-                              _adminCategoryKey(selectedCategory ?? '') ==
-                              _adminCategoryKey(category),
-                          onSelected: (selected) =>
-                              onCategorySelected(selected ? category : null),
-                          selectedColor: const Color(0xFFE2C7A0),
-                          backgroundColor: const Color(0xFFE9E2D6),
-                          side: const BorderSide(
-                            color: Color(0xFFA85C18),
-                            width: 1.5,
-                          ),
-                          shape: const StadiumBorder(),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 7,
-                          ),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              height: 48,
+                              child: FilledButton.icon(
+                                onPressed: loading ? null : onCreate,
+                                icon: const Icon(Icons.add),
+                                label: const Text('Add product'),
+                              ),
+                            ),
+                          ],
                         ),
+                        const SizedBox(height: 22),
+                        if (categories.isNotEmpty) ...[
+                          Wrap(
+                            spacing: mobile ? 12 : 16,
+                            runSpacing: mobile ? 14 : 12,
+                            children: [
+                              ChoiceChip(
+                                label: Text(
+                                  'ALL PRODUCTS',
+                                  style: GoogleFonts.ibmPlexSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: mobile ? 1.4 : 2,
+                                  ),
+                                ),
+                                selected: selectedCategory == null,
+                                onSelected: (_) => onCategorySelected(null),
+                                selectedColor: const Color(0xFFE2C7A0),
+                                backgroundColor: const Color(0xFFE9E2D6),
+                                side: const BorderSide(
+                                  color: Color(0xFFA85C18),
+                                  width: 1.5,
+                                ),
+                                shape: const StadiumBorder(),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                              ),
+                              ChoiceChip(
+                                label: Text(
+                                  'NEW ARRIVALS',
+                                  style: GoogleFonts.ibmPlexSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: mobile ? 1.4 : 2,
+                                  ),
+                                ),
+                                selected:
+                                    selectedCategory == _newArrivalsFilter,
+                                onSelected: (selected) => onCategorySelected(
+                                  selected ? _newArrivalsFilter : null,
+                                ),
+                                selectedColor: const Color(0xFFE2C7A0),
+                                backgroundColor: const Color(0xFFE9E2D6),
+                                side: const BorderSide(
+                                  color: Color(0xFFA85C18),
+                                  width: 1.5,
+                                ),
+                                shape: const StadiumBorder(),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                              ),
+                              for (final category in categories)
+                                ChoiceChip(
+                                  label: Text(
+                                    category.replaceAll('-', ' ').toUpperCase(),
+                                    style: GoogleFonts.ibmPlexSans(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: mobile ? 1.4 : 2,
+                                    ),
+                                  ),
+                                  selected:
+                                      _adminCategoryKey(
+                                        selectedCategory ?? '',
+                                      ) ==
+                                      _adminCategoryKey(category),
+                                  onSelected: (selected) => onCategorySelected(
+                                    selected ? category : null,
+                                  ),
+                                  selectedColor: const Color(0xFFE2C7A0),
+                                  backgroundColor: const Color(0xFFE9E2D6),
+                                  side: const BorderSide(
+                                    color: Color(0xFFA85C18),
+                                    width: 1.5,
+                                  ),
+                                  shape: const StadiumBorder(),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 7,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 22),
+                        ],
+                        if (loading && visibleProducts.isEmpty)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(40),
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        else if (visibleProducts.isEmpty)
+                          Text(
+                            searchQuery.isEmpty
+                                ? 'No products found.'
+                                : 'No matching products found.',
+                            style: GoogleFonts.ibmPlexSans(fontSize: 18),
+                          )
+                        else
+                          ...visibleProducts.map((product) {
+                            final productGallery = gallery
+                                .where((entry) => entry.code == product.code)
+                                .firstOrNull;
+                            return Padding(
+                              key: ValueKey('admin-product-${product.code}'),
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _ProductAdminCard(
+                                key: ValueKey(product.code),
+                                product: product,
+                                gallery: productGallery,
+                                onEdit: () => onEdit(product),
+                                onDelete: () => onDelete(product),
+                              ),
+                            );
+                          }),
+                        const SizedBox(height: 42),
+                        _PolicyAdminSection(
+                          policies: policies,
+                          loading: loading,
+                          onSave: onSavePolicy,
+                        ),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: 22),
-                ],
-                if (loading && visibleProducts.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(40),
-                      child: CircularProgressIndicator(),
-                    ),
-                  )
-                else if (visibleProducts.isEmpty)
-                  Text(
-                    searchQuery.isEmpty
-                        ? 'No products found.'
-                        : 'No matching products found.',
-                    style: GoogleFonts.ibmPlexSans(fontSize: 18),
-                  )
-                else
-                  ...visibleProducts.map((product) {
-                    final productGallery = gallery
-                        .where((entry) => entry.code == product.code)
-                        .firstOrNull;
-                    return Padding(
-                      key: ValueKey('admin-product-${product.code}'),
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _ProductAdminCard(
-                        key: ValueKey(product.code),
-                        product: product,
-                        gallery: productGallery,
-                        onEdit: () => onEdit(product),
-                        onDelete: () => onDelete(product),
-                      ),
-                    );
-                  }),
-                const SizedBox(height: 42),
-                _PolicyAdminSection(
-                  policies: policies,
-                  loading: loading,
-                  onSave: onSavePolicy,
                 ),
-              ],
-            ),
-          ),
-        ),
-      );
-    },
+              ),
+            );
+          },
+        );
+      },
+    ),
   );
 }
 
 String _adminCategoryKey(String value) =>
     value.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '');
+
+class _OrdersTab extends StatelessWidget {
+  const _OrdersTab({
+    required this.orders,
+    required this.loading,
+    required this.error,
+    required this.onSubmitShippingConfirmation,
+  });
+
+  final List<AdminOrder> orders;
+  final bool loading;
+  final String? error;
+  final Future<void> Function(AdminOrder order, String trackingId)
+  onSubmitShippingConfirmation;
+
+  @override
+  Widget build(BuildContext context) {
+    if (error != null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFFD5B48A)),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Text(
+          '$error\n\nRun supabase/order_fulfillment.sql in the Supabase SQL Editor, then refresh this page.',
+          style: GoogleFonts.ibmPlexSans(fontSize: 17),
+        ),
+      );
+    }
+    if (loading && orders.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(40),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    if (orders.isEmpty) {
+      return Text(
+        'No paid orders are ready for delivery.',
+        style: GoogleFonts.ibmPlexSans(fontSize: 18),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Order Preparation',
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: 38,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Review a paid order, add its tracking ID, and email the customer their delivery confirmation.',
+          style: GoogleFonts.ibmPlexSans(fontSize: 18),
+        ),
+        const SizedBox(height: 20),
+        for (final order in orders)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _OrderCard(
+              order: order,
+              disabled: loading,
+              onOpen: () => _openOrder(context, order),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _openOrder(BuildContext context, AdminOrder order) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Order ${order.orderId}',
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: 30,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: SingleChildScrollView(child: _OrderDetails(order: order)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+          if (!order.isSubmittedForDelivery)
+            FilledButton.icon(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                final trackingId = await _askForTrackingId(context, order);
+                if (trackingId != null) {
+                  await onSubmitShippingConfirmation(order, trackingId);
+                }
+              },
+              icon: const Icon(Icons.local_shipping_outlined),
+              label: const Text('SUBMIT FOR DELIVERY'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _askForTrackingId(BuildContext context, AdminOrder order) =>
+      showDialog<String>(
+        context: context,
+        builder: (_) => _TrackingIdDialog(orderId: order.orderId),
+      );
+}
+
+class _OrderCard extends StatelessWidget {
+  const _OrderCard({
+    required this.order,
+    required this.disabled,
+    required this.onOpen,
+  });
+
+  final AdminOrder order;
+  final bool disabled;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xFFECE7DD),
+    borderRadius: BorderRadius.circular(18),
+    child: InkWell(
+      onTap: disabled ? null : onOpen,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFFD5B48A)),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              order.isSubmittedForDelivery
+                  ? Icons.mark_email_read_outlined
+                  : Icons.inventory_2_outlined,
+              color: const Color(0xFF914B0D),
+              size: 30,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    order.orderId,
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 25,
+                      color: const Color(0xFF5B351A),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    order.customerEmail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.ibmPlexSans(fontSize: 16),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${order.items.length} item${order.items.length == 1 ? '' : 's'}  •  ₹${order.subtotal}',
+                    style: GoogleFonts.ibmPlexSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            _DeliveryStatus(order: order),
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _DeliveryStatus extends StatelessWidget {
+  const _DeliveryStatus({required this.order});
+
+  final AdminOrder order;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+    decoration: BoxDecoration(
+      color: order.isSubmittedForDelivery
+          ? const Color(0xFFD8E8D0)
+          : const Color(0xFFE2C7A0),
+      borderRadius: BorderRadius.circular(99),
+    ),
+    child: Text(
+      order.isSubmittedForDelivery ? 'SUBMITTED' : 'TO PREPARE',
+      style: GoogleFonts.ibmPlexSans(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1,
+      ),
+    ),
+  );
+}
+
+class _OrderDetails extends StatelessWidget {
+  const _OrderDetails({required this.order});
+
+  final AdminOrder order;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _OrderDetailLabel(label: 'Customer'),
+      SelectableText(
+        order.customerEmail,
+        style: GoogleFonts.ibmPlexSans(fontSize: 17),
+      ),
+      if (order.customerPhone?.isNotEmpty == true) ...[
+        const SizedBox(height: 2),
+        SelectableText(
+          order.customerPhone!,
+          style: GoogleFonts.ibmPlexSans(fontSize: 17),
+        ),
+      ],
+      const SizedBox(height: 18),
+      _OrderDetailLabel(label: 'Delivery address'),
+      SelectableText(
+        order.address?.isNotEmpty == true
+            ? order.address!
+            : 'No delivery address saved.',
+        style: GoogleFonts.ibmPlexSans(fontSize: 17, height: 1.22),
+      ),
+      const SizedBox(height: 18),
+      _OrderDetailLabel(label: 'Items'),
+      for (final item in order.items)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 7),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${item.quantity} × ${item.name}',
+                  style: GoogleFonts.ibmPlexSans(fontSize: 17),
+                ),
+              ),
+              Text(
+                '₹${item.amount}',
+                style: GoogleFonts.ibmPlexSans(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      const Divider(height: 28),
+      Row(
+        children: [
+          Text(
+            'Subtotal',
+            style: GoogleFonts.dmSerifDisplay(
+              fontSize: 25,
+              color: const Color(0xFF5B351A),
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '₹${order.subtotal}',
+            style: GoogleFonts.ibmPlexSans(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+      if (order.isSubmittedForDelivery) ...[
+        const SizedBox(height: 18),
+        _OrderDetailLabel(label: 'Delivery confirmation sent'),
+        Text(
+          'Tracking ID: ${order.trackingId ?? '-'}',
+          style: GoogleFonts.ibmPlexSans(fontSize: 17),
+        ),
+      ],
+    ],
+  );
+}
+
+class _OrderDetailLabel extends StatelessWidget {
+  const _OrderDetailLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 5),
+    child: Text(
+      label.toUpperCase(),
+      style: GoogleFonts.ibmPlexSans(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.2,
+        color: const Color(0xFF765F4B),
+      ),
+    ),
+  );
+}
+
+class _TrackingIdDialog extends StatefulWidget {
+  const _TrackingIdDialog({required this.orderId});
+
+  final String orderId;
+
+  @override
+  State<_TrackingIdDialog> createState() => _TrackingIdDialogState();
+}
+
+class _TrackingIdDialogState extends State<_TrackingIdDialog> {
+  final _trackingId = TextEditingController();
+
+  @override
+  void dispose() {
+    _trackingId.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final trackingId = _trackingId.text.trim();
+    if (trackingId.isEmpty) return;
+    Navigator.pop(context, trackingId);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(
+      'Add tracking ID',
+      style: GoogleFonts.dmSerifDisplay(
+        fontSize: 30,
+        color: const Color(0xFF5B351A),
+      ),
+    ),
+    content: TextField(
+      controller: _trackingId,
+      autofocus: true,
+      textInputAction: TextInputAction.done,
+      onSubmitted: (_) => _submit(),
+      decoration: InputDecoration(
+        labelText: 'Delhivery tracking ID',
+        helperText: 'This will be emailed for order ${widget.orderId}.',
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _submit, child: const Text('Send confirmation')),
+    ],
+  );
+}
 
 class _ProductAdminCard extends StatelessWidget {
   const _ProductAdminCard({

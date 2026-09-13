@@ -44,6 +44,96 @@ class AdminGallery {
   );
 }
 
+class AdminOrderItem {
+  const AdminOrderItem({
+    required this.name,
+    required this.quantity,
+    required this.amount,
+  });
+
+  final String name;
+  final int quantity;
+  final int amount;
+
+  factory AdminOrderItem.fromJson(Map<String, dynamic> json) => AdminOrderItem(
+    name: (json['product_name'] ?? json['name'] ?? 'Order item').toString(),
+    quantity: ((json['quantity'] as num?)?.toInt() ?? 1)
+        .clamp(1, 999999)
+        .toInt(),
+    amount:
+        ((json['line_total'] ??
+                    json['amount'] ??
+                    json['unit_price'] ??
+                    json['price'])
+                as num?)
+            ?.toInt() ??
+        0,
+  );
+}
+
+class AdminOrder {
+  const AdminOrder({
+    required this.orderId,
+    required this.customerEmail,
+    required this.customerPhone,
+    required this.address,
+    required this.subtotal,
+    required this.items,
+    this.paidAt,
+    this.trackingId,
+    this.trackingUrl,
+    this.shippingConfirmationSentAt,
+  });
+
+  final String orderId;
+  final String customerEmail;
+  final String? customerPhone;
+  final String? address;
+  final int subtotal;
+  final List<AdminOrderItem> items;
+  final DateTime? paidAt;
+  final String? trackingId;
+  final String? trackingUrl;
+  final DateTime? shippingConfirmationSentAt;
+
+  bool get isSubmittedForDelivery => shippingConfirmationSentAt != null;
+
+  factory AdminOrder.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'];
+    final items = rawItems is List
+        ? rawItems
+              .whereType<Map>()
+              .map(
+                (item) => AdminOrderItem.fromJson(item.cast<String, dynamic>()),
+              )
+              .toList()
+        : <AdminOrderItem>[];
+    final subtotal = (json['amount'] as num?)?.toInt() ?? 0;
+    return AdminOrder(
+      orderId: (json['order_id'] ?? '').toString(),
+      customerEmail: (json['customer_email'] ?? '').toString(),
+      customerPhone: json['customer_phone']?.toString(),
+      address: json['user_address']?.toString(),
+      subtotal: subtotal,
+      items: items.isEmpty
+          ? [
+              AdminOrderItem(
+                name: (json['product'] ?? 'Order item').toString(),
+                quantity: 1,
+                amount: subtotal,
+              ),
+            ]
+          : items,
+      paidAt: DateTime.tryParse((json['paid_at'] ?? '').toString()),
+      trackingId: json['tracking_id']?.toString(),
+      trackingUrl: json['tracking_url']?.toString(),
+      shippingConfirmationSentAt: DateTime.tryParse(
+        (json['shipping_confirmation_sent_at'] ?? '').toString(),
+      ),
+    );
+  }
+}
+
 class _ImageUploadTicket {
   const _ImageUploadTicket({required this.path, required this.uploadUrl});
 
@@ -138,6 +228,28 @@ class AdminService {
         .whereType<Map<String, dynamic>>()
         .map(SitePolicy.fromJson)
         .toList();
+  }
+
+  Future<List<AdminOrder>> getOrders() async {
+    final response = await _request('GET', _uri('orders'));
+    final data = _decode(response);
+    if (data is! List<dynamic>) throw AdminException('Invalid order data.');
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(AdminOrder.fromJson)
+        .toList();
+  }
+
+  Future<AdminOrder> submitShippingConfirmation(
+    AdminOrder order,
+    String trackingId,
+  ) async {
+    final response = await _request(
+      'POST',
+      _uri('shipping_confirmation'),
+      body: jsonEncode({'orderId': order.orderId, 'trackingId': trackingId}),
+    );
+    return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
   Future<SitePolicy> updatePolicy(SitePolicy policy) async {
