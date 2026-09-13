@@ -218,10 +218,13 @@ class _AboutSection extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final mobile = useCompactLayout(context, breakpoint: 700);
+      final viewport = MediaQuery.sizeOf(context);
+      final stacked =
+          mobile || (viewport.height > viewport.width && viewport.width < 1100);
       final copy = Text(
         'Over time, the true essence of handmade and hand-painted has slowly been lost. Kalasthali is an attempt to bring it back - by celebrating traditional art forms, forgotten techniques, and the beauty of creating by hand.\n\nInspired by nature, Pichwai, Lippan, textured art, and other traditional Indian crafts, Kalasthali creates home decor and wearable art that blends heritage with contemporary aesthetics. Our pieces are designed to fit effortlessly into modern lifestyles while preserving the charm, character and soul of our artistic heritage.\n\nBecause for us, handmade is more than a technique - it is a way of keeping art and history alive.\n\nKalasthali - where heritage meets contemporary living.',
         style: GoogleFonts.ibmPlexSans(
-          fontSize: mobile ? 18 : 25,
+          fontSize: mobile ? 18 : (stacked ? 22 : 25),
           height: 1.22,
           color: Colors.black,
         ),
@@ -238,7 +241,9 @@ class _AboutSection extends StatelessWidget {
       );
 
       return Padding(
-        padding: EdgeInsets.symmetric(horizontal: mobile ? 28 : 38),
+        padding: EdgeInsets.symmetric(
+          horizontal: mobile ? 28 : (stacked ? 42 : 38),
+        ),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1580),
@@ -246,13 +251,13 @@ class _AboutSection extends StatelessWidget {
               children: [
                 const _SectionHeader(title: 'About'),
                 SizedBox(height: mobile ? 56 : 92),
-                if (mobile) ...[
-                  copy,
-                  const SizedBox(height: 42),
+                if (stacked) ...[
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 390),
+                    constraints: BoxConstraints(maxWidth: mobile ? 390 : 460),
                     child: portrait,
                   ),
+                  SizedBox(height: mobile ? 42 : 56),
+                  copy,
                 ] else
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,

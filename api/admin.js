@@ -225,7 +225,7 @@ async function sendShippingConfirmation(order, trackingId) {
   }
   const url = trackingUrl(trackingId);
   const response = await fetch(
-    `${supabaseUrl}/functions/v1/send-shipping-order-confirmation`,
+    `${supabaseUrl}/functions/v1/send-shipping-confirmation`,
     {
       method: 'POST',
       headers: {

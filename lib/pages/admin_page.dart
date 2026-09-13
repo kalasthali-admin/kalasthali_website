@@ -608,7 +608,7 @@ class _AdminDashboard extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              'Product Admin',
+                              'Admin Panel',
                               style: GoogleFonts.dmSerifDisplay(
                                 fontSize: mobile ? 38 : 52,
                                 color: const Color(0xFF5B351A),
@@ -621,13 +621,6 @@ class _AdminDashboard extends StatelessWidget {
                             icon: const Icon(Icons.refresh),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Add, delete, or edit products and their images from one place.',
-                        style: GoogleFonts.ibmPlexSans(
-                          fontSize: mobile ? 16 : 18,
-                        ),
                       ),
                       if (error != null) ...[
                         const SizedBox(height: 14),
