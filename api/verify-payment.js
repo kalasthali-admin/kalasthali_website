@@ -91,10 +91,12 @@ function normaliseItems(value, amount, productCode) {
   });
 
   const itemTotal = items.reduce((total, item) => total + item.line_total, 0);
+  const quantityTotal = items.reduce((total, item) => total + item.quantity, 0);
   if (
     !items.some((item) => item.product_code === productCode) ||
     !Number.isSafeInteger(itemTotal) ||
-    itemTotal !== amount
+    itemTotal !== amount ||
+    quantityTotal > 10
   ) {
     const error = new Error('Sale item total does not match the order amount.');
     error.status = 400;

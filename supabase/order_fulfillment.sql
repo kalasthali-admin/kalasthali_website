@@ -10,13 +10,21 @@ alter table public.sales
   add column if not exists out_for_delivery_at timestamp with time zone,
   add column if not exists delivered_at timestamp with time zone,
   add column if not exists cancelled_at timestamp with time zone,
+  add column if not exists cancellation_message text,
   add column if not exists return_status text
-    check (return_status in ('requested', 'accepted_for_return', 'refund_processed')),
+    check (return_status in ('requested', 'accepted_for_return', 'refund_processed', 'rejected')),
   add column if not exists return_requested_at timestamp with time zone,
   add column if not exists return_evidence jsonb not null default '[]'::jsonb,
   add column if not exists return_tracking_id text,
+  add column if not exists return_tracking_url text,
   add column if not exists return_accepted_at timestamp with time zone,
-  add column if not exists refund_processed_at timestamp with time zone;
+  add column if not exists refund_processed_at timestamp with time zone,
+  add column if not exists return_rejected_at timestamp with time zone,
+  add column if not exists return_rejection_reason text;
+
+alter table public.sales drop constraint if exists sales_return_status_check;
+alter table public.sales add constraint sales_return_status_check
+  check (return_status in ('requested', 'accepted_for_return', 'refund_processed', 'rejected'));
 
 -- Existing shipment-confirmed orders entered before order_status was introduced
 -- are already on their way to the customer.

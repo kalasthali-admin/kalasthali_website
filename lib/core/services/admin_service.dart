@@ -92,6 +92,7 @@ class AdminOrder {
     this.returnEvidenceUrls = const [],
     this.returnTrackingId,
     this.refundProcessedAt,
+    this.returnRejectionReason,
   });
 
   final String orderId;
@@ -113,6 +114,7 @@ class AdminOrder {
   final List<String> returnEvidenceUrls;
   final String? returnTrackingId;
   final DateTime? refundProcessedAt;
+  final String? returnRejectionReason;
 
   bool get isSubmittedForDelivery => orderStatus == 'out_for_delivery';
   bool get isDelivered => orderStatus == 'delivered';
@@ -173,6 +175,7 @@ class AdminOrder {
       refundProcessedAt: DateTime.tryParse(
         (json['refund_processed_at'] ?? '').toString(),
       ),
+      returnRejectionReason: json['return_rejection_reason']?.toString(),
     );
   }
 }
@@ -287,15 +290,29 @@ class AdminService {
     AdminOrder order,
     String trackingId,
   ) async {
+    final normalizedTrackingId = _validTrackingId(trackingId);
+    final url = _trackingUrl(normalizedTrackingId);
+    await _invokeFunction('send-shipping-confirmation', {
+      'order_id': order.orderId,
+      'tracking_id': normalizedTrackingId,
+      'tracking_url': url,
+    });
     final response = await _request(
       'POST',
       _uri('shipping_confirmation'),
-      body: jsonEncode({'orderId': order.orderId, 'trackingId': trackingId}),
+      body: jsonEncode({
+        'orderId': order.orderId,
+        'trackingId': normalizedTrackingId,
+        'trackingUrl': url,
+      }),
     );
     return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
   Future<AdminOrder> markDelivered(AdminOrder order) async {
+    await _invokeFunction('send-delivery-confirmation', {
+      'order_id': order.orderId,
+    });
     final response = await _request(
       'POST',
       _uri('mark_delivered'),
@@ -305,10 +322,22 @@ class AdminService {
   }
 
   Future<AdminOrder> acceptReturn(AdminOrder order, String trackingId) async {
+    final normalizedTrackingId = _validTrackingId(trackingId);
+    final url = _trackingUrl(normalizedTrackingId);
+    await _invokeFunction('send-return-status', {
+      'order_id': order.orderId,
+      'status': 'accepted',
+      'pickup_tracking_id': normalizedTrackingId,
+      'pickup_tracking_url': url,
+    });
     final response = await _request(
       'POST',
       _uri('accept_return'),
-      body: jsonEncode({'orderId': order.orderId, 'trackingId': trackingId}),
+      body: jsonEncode({
+        'orderId': order.orderId,
+        'trackingId': normalizedTrackingId,
+        'trackingUrl': url,
+      }),
     );
     return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
@@ -320,6 +349,55 @@ class AdminService {
       body: jsonEncode({'orderId': order.orderId}),
     );
     return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<AdminOrder> rejectReturn(AdminOrder order, String reason) async {
+    final normalizedReason = reason.trim();
+    if (normalizedReason.length < 3 || normalizedReason.length > 500) {
+      throw const AdminException(
+        'Enter a return rejection reason between 3 and 500 characters.',
+      );
+    }
+    await _invokeFunction('send-return-status', {
+      'order_id': order.orderId,
+      'status': 'rejected',
+      'rejection_reason': normalizedReason,
+    });
+    final response = await _request(
+      'POST',
+      _uri('reject_return'),
+      body: jsonEncode({'orderId': order.orderId, 'reason': normalizedReason}),
+    );
+    return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  String _validTrackingId(String value) {
+    final id = value.trim();
+    if (!RegExp(r'^[A-Za-z0-9_-]{3,100}$').hasMatch(id)) {
+      throw const AdminException(
+        'Enter a valid tracking ID using 3 to 100 letters, numbers, hyphens, or underscores.',
+      );
+    }
+    return id;
+  }
+
+  String _trackingUrl(String trackingId) =>
+      'https://www.delhivery.com/track/package/${Uri.encodeComponent(trackingId)}';
+
+  Future<void> _invokeFunction(String name, Map<String, dynamic> body) async {
+    try {
+      await Supabase.instance.client.functions.invoke(name, body: body);
+    } on FunctionException catch (error) {
+      throw AdminException(
+        error.details?.toString() ??
+            error.reasonPhrase ??
+            'Could not send the order email.',
+      );
+    } catch (_) {
+      throw const AdminException(
+        'Could not contact the order notification service.',
+      );
+    }
   }
 
   Future<SitePolicy> updatePolicy(SitePolicy policy) async {

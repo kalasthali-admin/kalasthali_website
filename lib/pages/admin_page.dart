@@ -250,6 +250,13 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Future<void> _rejectReturn(AdminOrder order, String reason) async {
+    await _updateOrder(
+      () => _service.rejectReturn(order, reason),
+      'Return rejected for ${order.orderId}.',
+    );
+  }
+
   Future<void> _updateOrder(
     Future<AdminOrder> Function() operation,
     String successMessage,
@@ -452,6 +459,7 @@ class _AdminPageState extends State<AdminPage> {
             onMarkDelivered: _markDelivered,
             onAcceptReturn: _acceptReturn,
             onMarkRefundProcessed: _markRefundProcessed,
+            onRejectReturn: _rejectReturn,
           );
         },
       ),
@@ -581,6 +589,7 @@ class _AdminDashboard extends StatelessWidget {
     required this.onMarkDelivered,
     required this.onAcceptReturn,
     required this.onMarkRefundProcessed,
+    required this.onRejectReturn,
   });
 
   final bool loading;
@@ -604,6 +613,7 @@ class _AdminDashboard extends StatelessWidget {
   final Future<void> Function(AdminOrder order, String trackingId)
   onAcceptReturn;
   final Future<void> Function(AdminOrder order) onMarkRefundProcessed;
+  final Future<void> Function(AdminOrder order, String reason) onRejectReturn;
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
@@ -749,6 +759,7 @@ class _AdminDashboard extends StatelessWidget {
                           error: ordersError,
                           onAcceptReturn: onAcceptReturn,
                           onMarkRefundProcessed: onMarkRefundProcessed,
+                          onRejectReturn: onRejectReturn,
                         )
                       else ...[
                         Row(
@@ -1157,6 +1168,7 @@ class _DeliveryStatus extends StatelessWidget {
         'requested' => 'RETURN REQUESTED',
         'accepted_for_return' => 'RETURN ACCEPTED',
         'refund_processed' => 'REFUND PROCESSED',
+        'rejected' => 'RETURN REJECTED',
         'out_for_delivery' => 'OUT FOR DELIVERY',
         'delivered' => 'DELIVERED',
         'cancelled' => 'CANCELLED',
@@ -1335,6 +1347,7 @@ class _ReturnRequestsTab extends StatelessWidget {
     required this.error,
     required this.onAcceptReturn,
     required this.onMarkRefundProcessed,
+    required this.onRejectReturn,
   });
 
   final List<AdminOrder> orders;
@@ -1343,6 +1356,7 @@ class _ReturnRequestsTab extends StatelessWidget {
   final Future<void> Function(AdminOrder order, String trackingId)
   onAcceptReturn;
   final Future<void> Function(AdminOrder order) onMarkRefundProcessed;
+  final Future<void> Function(AdminOrder order, String reason) onRejectReturn;
 
   @override
   Widget build(BuildContext context) {
@@ -1444,6 +1458,18 @@ class _ReturnRequestsTab extends StatelessWidget {
             child: const Text('Close'),
           ),
           if (order.returnStatus == 'requested')
+            OutlinedButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                final reason = await showDialog<String>(
+                  context: context,
+                  builder: (_) => const _ReturnRejectionDialog(),
+                );
+                if (reason != null) await onRejectReturn(order, reason);
+              },
+              child: const Text('REJECT RETURN'),
+            ),
+          if (order.returnStatus == 'requested')
             FilledButton(
               onPressed: () async {
                 Navigator.pop(dialogContext);
@@ -1475,6 +1501,48 @@ class _ReturnTrackingIdDialog extends StatefulWidget {
   @override
   State<_ReturnTrackingIdDialog> createState() =>
       _ReturnTrackingIdDialogState();
+}
+
+class _ReturnRejectionDialog extends StatefulWidget {
+  const _ReturnRejectionDialog();
+
+  @override
+  State<_ReturnRejectionDialog> createState() => _ReturnRejectionDialogState();
+}
+
+class _ReturnRejectionDialogState extends State<_ReturnRejectionDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final reason = _controller.text.trim();
+    if (reason.length >= 3) Navigator.pop(context, reason);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Reject return'),
+    content: TextField(
+      controller: _controller,
+      autofocus: true,
+      maxLines: 3,
+      maxLength: 500,
+      onSubmitted: (_) => _submit(),
+      decoration: const InputDecoration(labelText: 'Reason for rejection'),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _submit, child: const Text('Reject return')),
+    ],
+  );
 }
 
 class _ReturnTrackingIdDialogState extends State<_ReturnTrackingIdDialog> {

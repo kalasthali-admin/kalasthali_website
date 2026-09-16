@@ -78,8 +78,12 @@ class _OrderSuccessContent extends StatelessWidget {
       ),
       const SizedBox(height: 8),
       Text(
-        'An invoice will be sent to your phone number or email: ${details.contactTarget}.',
-        style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.35),
+        'Your invoice will be shared via email.',
+        style: GoogleFonts.ibmPlexSans(
+          fontSize: 18,
+          height: 1.35,
+          fontWeight: FontWeight.w700,
+        ),
       ),
       const SizedBox(height: 24),
       const Divider(color: Color(0xFFD5B48A)),
@@ -113,6 +117,11 @@ class _OrderSuccessContent extends StatelessWidget {
           ),
           style: FilledButton.styleFrom(
             backgroundColor: const Color(0xFFA35710),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            minimumSize: const Size(0, 41),
+            textStyle: GoogleFonts.ibmPlexSans(fontSize: 15),
           ),
           child: const Text('Continue shopping'),
         ),

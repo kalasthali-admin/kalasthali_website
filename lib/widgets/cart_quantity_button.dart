@@ -63,7 +63,17 @@ class _CartQuantityButtonState extends State<CartQuantityButton> {
   }
 
   Future<void> _add() async {
-    final added = await CartService.instance.add(widget.product);
+    bool added;
+    try {
+      added = await CartService.instance.add(widget.product);
+    } on CartQuantityException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+      return;
+    }
     if (!mounted) return;
     if (!added) {
       Navigator.pushNamed(context, '/account');
@@ -84,10 +94,18 @@ class _CartQuantityButtonState extends State<CartQuantityButton> {
   }
 
   Future<void> _change(int current, int delta) async {
-    await CartService.instance.setQuantity(
-      widget.product.code,
-      current + delta,
-    );
+    try {
+      await CartService.instance.setQuantity(
+        widget.product.code,
+        current + delta,
+      );
+    } on CartQuantityException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
     if (mounted) _refresh();
   }
 

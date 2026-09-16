@@ -38,6 +38,7 @@ class CartService {
   CartService._();
 
   static final CartService instance = CartService._();
+  static const maxTotalQuantity = 10;
 
   final _client = Supabase.instance.client;
   final cartVersion = StreamController<int>.broadcast();
@@ -86,6 +87,9 @@ class CartService {
         .eq('code', product.code)
         .maybeSingle();
     final quantity = ((existing?['quantity'] as num?)?.toInt() ?? 0) + 1;
+    if (await _totalQuantity(user.id) + 1 > maxTotalQuantity) {
+      throw const CartQuantityException('A cart can contain at most 10 items.');
+    }
 
     if (existing == null) {
       await table.insert({
@@ -114,6 +118,11 @@ class CartService {
       return;
     }
 
+    if (await _totalQuantity(user.id, excluding: productCode) + quantity >
+        maxTotalQuantity) {
+      throw const CartQuantityException('A cart can contain at most 10 items.');
+    }
+
     await _client
         .from('user_cart')
         .update({'quantity': quantity})
@@ -138,4 +147,24 @@ class CartService {
     _version += 1;
     cartVersion.add(_version);
   }
+
+  Future<int> _totalQuantity(String userId, {String? excluding}) async {
+    final rows =
+        await _client
+                .from('user_cart')
+                .select('code, quantity')
+                .eq('user', userId)
+            as List;
+    return rows
+        .where((row) => row['code'] != excluding)
+        .fold<int>(
+          0,
+          (total, row) => total + ((row['quantity'] as num?)?.toInt() ?? 0),
+        );
+  }
+}
+
+class CartQuantityException implements Exception {
+  const CartQuantityException(this.message);
+  final String message;
 }

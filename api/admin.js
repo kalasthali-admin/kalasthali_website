@@ -218,46 +218,6 @@ function orderStatus(order) {
   return order.order_status || (order.shipping_confirmation_sent_at ? 'out_for_delivery' : 'order_placed');
 }
 
-async function sendShippingConfirmation(order, trackingId) {
-  const subtotal = Number(order.amount);
-  if (!Number.isFinite(subtotal) || subtotal < 0) {
-    throw new Error('The saved order total is invalid.');
-  }
-  const customerEmail = String(order.customer_email || '').trim();
-  if (!customerEmail || !order.order_id) {
-    throw new Error('The saved order is missing an order ID or customer email.');
-  }
-  const url = trackingUrl(trackingId);
-  const response = await fetch(
-    `${supabaseUrl}/functions/v1/send-shipping-confirmation`,
-    {
-      method: 'POST',
-      headers: {
-        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        customer_email: customerEmail,
-        order_id: order.order_id,
-        products: saleItems(order.items, order.product, subtotal),
-        subtotal,
-        tracking_id: trackingId,
-        tracking_url: url,
-      }),
-    },
-  );
-  if (!response.ok) {
-    let message = 'The shipping confirmation email could not be sent.';
-    try {
-      const data = await response.json();
-      message = data?.error || data?.message || message;
-    } catch (_) {}
-    throw new Error(message);
-  }
-  return url;
-}
-
 async function signedReturnEvidence(paths) {
   if (!Array.isArray(paths) || paths.length === 0) return [];
   return Promise.all(paths.map(async (path) => {
@@ -273,7 +233,7 @@ async function signedReturnEvidence(paths) {
 
 async function adminOrders() {
   const orders = await supabaseFetch(
-    '/rest/v1/sales?select=order_id,customer_email,customer_phone,user_address,product,amount,items,paid_at,razorpay_payment_id,tracking_id,tracking_url,shipping_confirmation_sent_at,order_status,out_for_delivery_at,delivered_at,cancelled_at,return_status,return_requested_at,return_evidence,return_tracking_id,return_accepted_at,refund_processed_at&order=paid_at.desc',
+    '/rest/v1/sales?select=order_id,customer_email,customer_phone,user_address,product,amount,items,paid_at,razorpay_payment_id,tracking_id,tracking_url,shipping_confirmation_sent_at,order_status,out_for_delivery_at,delivered_at,cancelled_at,return_status,return_requested_at,return_evidence,return_tracking_id,return_tracking_url,return_accepted_at,refund_processed_at,return_rejected_at,return_rejection_reason&order=paid_at.desc',
   );
   return Promise.all(orders.map(async (order) => ({
     ...order,
@@ -428,11 +388,12 @@ module.exports = async (req, res) => {
     if (action === 'shipping_confirmation' && req.method === 'POST') {
       const orderId = String(body.orderId || '').trim();
       const trackingId = String(body.trackingId || '').trim();
-      if (!orderId || !trackingId) {
+      const url = String(body.trackingUrl || '').trim();
+      if (!orderId || !trackingId || !url) {
         return json(res, 400, { error: 'An order ID and tracking ID are required.' });
       }
-      if (trackingId.length > 100) {
-        return json(res, 400, { error: 'The tracking ID is too long.' });
+      if (!/^[A-Za-z0-9_-]{3,100}$/.test(trackingId) || !url.startsWith('https://www.delhivery.com/track/package/')) {
+        return json(res, 400, { error: 'A valid tracking ID and tracking URL are required.' });
       }
       const orders = await supabaseFetch(
         `/rest/v1/sales?select=*&order_id=eq.${encodeURIComponent(orderId)}&limit=1`,
@@ -445,7 +406,6 @@ module.exports = async (req, res) => {
       if (order.shipping_confirmation_sent_at) {
         return json(res, 409, { error: 'A delivery confirmation has already been sent for this order.' });
       }
-      const url = await sendShippingConfirmation(order, trackingId);
       const updated = await supabaseFetch(
         `/rest/v1/sales?order_id=eq.${encodeURIComponent(orderId)}`,
         {
@@ -481,7 +441,8 @@ module.exports = async (req, res) => {
     if (action === 'accept_return' && req.method === 'POST') {
       const orderId = String(body.orderId || '').trim();
       const trackingId = String(body.trackingId || '').trim();
-      if (!orderId || !trackingId || trackingId.length > 100) {
+      const trackingUrl = String(body.trackingUrl || '').trim();
+      if (!orderId || !/^[A-Za-z0-9_-]{3,100}$/.test(trackingId) || !trackingUrl.startsWith('https://www.delhivery.com/track/package/')) {
         return json(res, 400, { error: 'A valid return tracking ID is required.' });
       }
       const orders = await supabaseFetch(`/rest/v1/sales?select=*&order_id=eq.${encodeURIComponent(orderId)}&limit=1`);
@@ -493,6 +454,7 @@ module.exports = async (req, res) => {
         body: JSON.stringify({
           return_status: 'accepted_for_return',
           return_tracking_id: trackingId,
+          return_tracking_url: trackingUrl,
           return_accepted_at: new Date().toISOString(),
         }),
       });
@@ -510,6 +472,27 @@ module.exports = async (req, res) => {
       const updated = await supabaseFetch(`/rest/v1/sales?order_id=eq.${encodeURIComponent(orderId)}`, {
         method: 'PATCH', headers: { Prefer: 'return=representation' },
         body: JSON.stringify({ return_status: 'refund_processed', refund_processed_at: new Date().toISOString() }),
+      });
+      return json(res, 200, updated[0]);
+    }
+
+    if (action === 'reject_return' && req.method === 'POST') {
+      const orderId = String(body.orderId || '').trim();
+      const reason = String(body.reason || '').trim();
+      if (!orderId || reason.length < 3 || reason.length > 500) {
+        return json(res, 400, { error: 'A return rejection reason between 3 and 500 characters is required.' });
+      }
+      const orders = await supabaseFetch(`/rest/v1/sales?select=*&order_id=eq.${encodeURIComponent(orderId)}&limit=1`);
+      const order = orders[0];
+      if (!order) return json(res, 404, { error: 'Order not found.' });
+      if (order.return_status !== 'requested') return json(res, 409, { error: 'This return request has already been processed.' });
+      const updated = await supabaseFetch(`/rest/v1/sales?order_id=eq.${encodeURIComponent(orderId)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          return_status: 'rejected',
+          return_rejection_reason: reason,
+          return_rejected_at: new Date().toISOString(),
+        }),
       });
       return json(res, 200, updated[0]);
     }

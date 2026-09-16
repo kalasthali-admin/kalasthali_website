@@ -21,13 +21,16 @@ class CheckoutPage extends StatefulWidget {
   State<CheckoutPage> createState() => _CheckoutPageState();
 }
 
-Future<void> showProductCheckoutSheet(BuildContext context, Product product) =>
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _ProductCheckoutSheet(product: product),
-    );
+Future<void> showProductCheckoutSheet(BuildContext context, Product product) {
+  final desktop = MediaQuery.sizeOf(context).width >= 700;
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    constraints: desktop ? const BoxConstraints(maxWidth: 655) : null,
+    builder: (_) => _ProductCheckoutSheet(product: product),
+  );
+}
 
 class _ProductCheckoutSheet extends StatefulWidget {
   const _ProductCheckoutSheet({required this.product});
@@ -73,79 +76,85 @@ class _ProductCheckoutSheetState extends State<_ProductCheckoutSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => DraggableScrollableSheet(
-    initialChildSize: .62,
-    minChildSize: .46,
-    maxChildSize: .94,
-    expand: false,
-    builder: (context, controller) => Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFD6BFA6),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        border: Border(
-          top: BorderSide(color: Color(0xFF5B351A), width: 2),
-          left: BorderSide(color: Color(0xFF5B351A), width: 2),
-          right: BorderSide(color: Color(0xFF5B351A), width: 2),
+  Widget build(BuildContext context) {
+    final viewport = MediaQuery.sizeOf(context);
+    final desktop = viewport.width >= 700;
+    final extraHeight = desktop ? 30 / viewport.height : 0.0;
+    return DraggableScrollableSheet(
+      initialChildSize: .62 + extraHeight,
+      minChildSize: .46,
+      maxChildSize: .94,
+      expand: false,
+      builder: (context, controller) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFD6BFA6),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          border: Border(
+            top: BorderSide(color: Color(0xFF5B351A), width: 2),
+            left: BorderSide(color: Color(0xFF5B351A), width: 2),
+            right: BorderSide(color: Color(0xFF5B351A), width: 2),
+          ),
         ),
-      ),
-      child: ListView(
-        controller: controller,
-        padding: const EdgeInsets.fromLTRB(30, 14, 30, 32),
-        children: [
-          Center(
-            child: Container(
-              width: 46,
-              height: 5,
-              decoration: BoxDecoration(
-                color: const Color(0xFF8C684D),
-                borderRadius: BorderRadius.circular(99),
+        child: ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(30, 14, 30, 32),
+          children: [
+            Center(
+              child: Container(
+                width: 46,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8C684D),
+                  borderRadius: BorderRadius.circular(99),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 18),
-          if (_success != null)
-            _ProductSheetSuccess(details: _success!)
-          else ...[
-            _OrderSummary(product: widget.product),
-            const SizedBox(height: 22),
-            FutureBuilder<List<Map<String, dynamic>>>(
-              future: _addresses,
-              builder: (context, snapshot) {
-                final addresses = snapshot.data ?? const [];
-                final selected = _selected(addresses);
-                if (AuthService.currentUser == null) {
-                  return const _SignInForCheckout();
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _DeliveryPanel(
-                      addresses: addresses,
-                      loading: snapshot.connectionState != ConnectionState.done,
-                      updating: false,
-                      onAddressSelected: (id) =>
-                          setState(() => _selectedAddressId = id),
-                      onAddAddress: () =>
-                          Navigator.pushNamed(context, '/account'),
-                    ),
-                    const SizedBox(height: 20),
-                    _PaymentPanel(
-                      product: widget.product,
-                      address: selected,
-                      canContinue: selected != null,
-                      actionLabel: 'Order Now',
-                      onOrderCompleted: (details) =>
-                          setState(() => _success = details),
-                    ),
-                  ],
-                );
-              },
-            ),
+            const SizedBox(height: 18),
+            if (_success != null)
+              _ProductSheetSuccess(details: _success!)
+            else ...[
+              _OrderSummary(product: widget.product),
+              const SizedBox(height: 22),
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: _addresses,
+                builder: (context, snapshot) {
+                  final addresses = snapshot.data ?? const [];
+                  final selected = _selected(addresses);
+                  if (AuthService.currentUser == null) {
+                    return const _SignInForCheckout();
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _DeliveryPanel(
+                        addresses: addresses,
+                        loading:
+                            snapshot.connectionState != ConnectionState.done,
+                        updating: false,
+                        onAddressSelected: (id) =>
+                            setState(() => _selectedAddressId = id),
+                        onAddAddress: () =>
+                            Navigator.pushNamed(context, '/account'),
+                      ),
+                      const SizedBox(height: 20),
+                      _PaymentPanel(
+                        product: widget.product,
+                        address: selected,
+                        canContinue: selected != null,
+                        actionLabel: 'Order Now',
+                        onOrderCompleted: (details) =>
+                            setState(() => _success = details),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
           ],
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _ProductSheetSuccess extends StatelessWidget {
@@ -165,15 +174,25 @@ class _ProductSheetSuccess extends StatelessWidget {
       ),
       const SizedBox(height: 10),
       Text(
-        'An invoice will be sent to your phone number or email: ${details.contactTarget}.',
-        style: GoogleFonts.ibmPlexSans(fontSize: 18),
+        'Your invoice will be shared via email.',
+        style: GoogleFonts.ibmPlexSans(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+        ),
       ),
       const SizedBox(height: 18),
       Text(details.address, style: GoogleFonts.ibmPlexSans(fontSize: 16)),
       const SizedBox(height: 22),
       FilledButton(
         onPressed: () => Navigator.pop(context),
-        style: FilledButton.styleFrom(backgroundColor: const Color(0xFFA35710)),
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFFA35710),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          minimumSize: const Size(0, 41),
+          textStyle: GoogleFonts.ibmPlexSans(fontSize: 15),
+        ),
         child: const Text('Continue shopping'),
       ),
     ],

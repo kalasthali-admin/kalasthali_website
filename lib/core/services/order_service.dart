@@ -24,6 +24,7 @@ class _ReturnUploadTicket {
 class OrderService {
   OrderService._();
   static final instance = OrderService._();
+  var _cancellationInFlight = false;
 
   Uri _uri(String action) => Uri.base.replace(
     path: '/api/orders',
@@ -72,8 +73,33 @@ class OrderService {
     return data;
   }
 
-  Future<void> cancelOrder(String orderId) async {
-    _decode(await _post('cancel', {'orderId': orderId}));
+  Future<void> cancelOrder(String orderId, String cancellationMessage) async {
+    if (_cancellationInFlight) {
+      throw const OrderServiceException(
+        'Cancellation is already being processed.',
+      );
+    }
+    final message = cancellationMessage.trim();
+    if (message.length < 3 || message.length > 500) {
+      throw const OrderServiceException(
+        'Enter a cancellation message between 3 and 500 characters.',
+      );
+    }
+    _cancellationInFlight = true;
+    try {
+      await _invokeFunction('send-cancellation-confirmation', {
+        'order_id': orderId,
+        'cancellation_message': message,
+      });
+      _decode(
+        await _post('cancel', {
+          'orderId': orderId,
+          'cancellationMessage': message,
+        }),
+      );
+    } finally {
+      _cancellationInFlight = false;
+    }
   }
 
   Future<void> requestReturn(
@@ -117,6 +143,22 @@ class OrderService {
     _decode(
       await _post('request_return', {'orderId': orderId, 'evidence': evidence}),
     );
+  }
+
+  Future<void> _invokeFunction(String name, Map<String, dynamic> body) async {
+    try {
+      await Supabase.instance.client.functions.invoke(name, body: body);
+    } on FunctionException catch (error) {
+      throw OrderServiceException(
+        error.details?.toString() ??
+            error.reasonPhrase ??
+            'Could not send the order email.',
+      );
+    } catch (_) {
+      throw const OrderServiceException(
+        'Could not contact the order notification service.',
+      );
+    }
   }
 }
 

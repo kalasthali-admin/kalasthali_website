@@ -1242,12 +1242,21 @@ class _OrderCard extends StatelessWidget {
   }
 
   Future<void> _cancel(BuildContext context) async {
+    final message = TextEditingController(
+      text: 'Your order has been cancelled.',
+    );
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Cancel order?'),
-        content: const Text(
-          'This order will be cancelled. This action cannot be undone.',
+        content: TextField(
+          controller: message,
+          maxLength: 500,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Cancellation message',
+            helperText: 'This message will be included in the email.',
+          ),
         ),
         actions: [
           TextButton(
@@ -1262,10 +1271,14 @@ class _OrderCard extends StatelessWidget {
       ),
     );
     if (confirmed != true) {
+      message.dispose();
       return;
     }
     try {
-      await OrderService.instance.cancelOrder(order['order_id'].toString());
+      await OrderService.instance.cancelOrder(
+        order['order_id'].toString(),
+        message.text,
+      );
       onChanged();
     } on OrderServiceException catch (error) {
       if (context.mounted) {
@@ -1273,6 +1286,8 @@ class _OrderCard extends StatelessWidget {
           context,
         ).showSnackBar(SnackBar(content: Text(error.message)));
       }
+    } finally {
+      message.dispose();
     }
   }
 
@@ -1284,8 +1299,15 @@ class _OrderCard extends StatelessWidget {
       builder: (_) =>
           _ReturnRequestSheet(orderId: order['order_id'].toString()),
     );
-    if (submitted == true) {
+    if (submitted == true && context.mounted) {
       onChanged();
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Your return request has been submitted.'),
+          ),
+        );
     }
   }
 }
@@ -1314,6 +1336,7 @@ class _CustomerOrderStatus extends StatelessWidget {
       'requested' => 'RETURN REQUESTED',
       'accepted_for_return' => 'RETURN ACCEPTED',
       'refund_processed' => 'REFUND PROCESSED',
+      'rejected' => 'RETURN REJECTED',
       _ => switch (status) {
         'out_for_delivery' => 'OUT FOR DELIVERY',
         'delivered' => 'DELIVERED',
@@ -1408,86 +1431,86 @@ class _ReturnRequestSheetState extends State<_ReturnRequestSheet> {
 
   @override
   Widget build(BuildContext context) => SafeArea(
-    child: Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        20,
-        20,
-        20 + MediaQuery.viewInsetsOf(context).bottom,
+    bottom: false,
+    child: Container(
+      padding: const EdgeInsets.all(22),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFEF5E6),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Container(
-        padding: const EdgeInsets.all(22),
-        decoration: const BoxDecoration(
-          color: Color(0xFFFEF5E6),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Request a return',
-              style: GoogleFonts.dmSerifDisplay(
-                fontSize: 32,
-                color: const Color(0xFF5B351A),
-              ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Request a return',
+            style: GoogleFonts.dmSerifDisplay(
+              fontSize: 32,
+              color: const Color(0xFF5B351A),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Upload clear photos of the product you received. This is required to submit your request.',
-              style: GoogleFonts.ibmPlexSans(fontSize: 16),
-            ),
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(context).pushNamed('/refund-policy'),
-              child: const Text('Read the return and refund policy'),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (var index = 0; index < _images.length; index++)
-                  Stack(
-                    children: [
-                      Image.memory(
-                        _images[index].bytes,
-                        width: 84,
-                        height: 84,
-                        fit: BoxFit.cover,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Upload clear photos of the product you received. This is required to submit your request.',
+            style: GoogleFonts.ibmPlexSans(fontSize: 16),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pushNamed('/refund-policy'),
+            child: const Text('Read the return and refund policy'),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var index = 0; index < _images.length; index++)
+                Stack(
+                  children: [
+                    Image.memory(
+                      _images[index].bytes,
+                      width: 84,
+                      height: 84,
+                      fit: BoxFit.cover,
+                    ),
+                    Positioned(
+                      top: -8,
+                      right: -8,
+                      child: IconButton(
+                        onPressed: _submitting
+                            ? null
+                            : () => setState(() => _images.removeAt(index)),
+                        icon: const Icon(Icons.cancel),
                       ),
-                      Positioned(
-                        top: -8,
-                        right: -8,
-                        child: IconButton(
-                          onPressed: _submitting
-                              ? null
-                              : () => setState(() => _images.removeAt(index)),
-                          icon: const Icon(Icons.cancel),
-                        ),
-                      ),
-                    ],
-                  ),
-                if (_images.length < 5)
-                  OutlinedButton.icon(
-                    onPressed: _submitting ? null : _pickImages,
-                    icon: const Icon(Icons.add_photo_alternate_outlined),
-                    label: const Text('ADD PHOTOS'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _submitting || _images.isEmpty ? null : _submit,
-                child: Text(
-                  _submitting ? 'SUBMITTING...' : 'SUBMIT RETURN REQUEST',
+                    ),
+                  ],
                 ),
+              if (_images.length < 5)
+                OutlinedButton.icon(
+                  onPressed: _submitting ? null : _pickImages,
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  label: const Text('ADD PHOTOS'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          if (_submitting) ...[
+            const LinearProgressIndicator(
+              minHeight: 3,
+              color: Color(0xFFA35710),
+              backgroundColor: Color(0xFFE2D2C0),
+            ),
+            const SizedBox(height: 12),
+          ],
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _submitting || _images.isEmpty ? null : _submit,
+              child: Text(
+                _submitting ? 'SUBMITTING...' : 'SUBMIT RETURN REQUEST',
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     ),
   );

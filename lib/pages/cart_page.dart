@@ -69,6 +69,12 @@ class _CartPageState extends State<CartPage> {
           _items = Future.value(refreshedItems);
         });
       }
+    } on CartQuantityException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(error.message)));
+      }
     } finally {
       if (mounted) setState(() => _cartUpdating = false);
     }

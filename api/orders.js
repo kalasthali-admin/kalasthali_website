@@ -96,12 +96,20 @@ module.exports = async function handler(req, res) {
     if (!order) return json(res, 404, { error: 'Order not found.' });
 
     if (action === 'cancel' && req.method === 'POST') {
+      const cancellationMessage = String(body.cancellationMessage || '').trim();
       if (orderStatus(order) !== 'order_placed' || !isWithin(order.paid_at, 24)) {
         return json(res, 409, { error: 'This order can no longer be cancelled.' });
       }
+      if (cancellationMessage.length < 3 || cancellationMessage.length > 500) {
+        return json(res, 400, { error: 'A cancellation message between 3 and 500 characters is required.' });
+      }
       const updated = await supabaseFetch(`/rest/v1/sales?order_id=eq.${encodeURIComponent(orderId)}`, {
         method: 'PATCH', headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ order_status: 'cancelled', cancelled_at: new Date().toISOString() }),
+        body: JSON.stringify({
+          order_status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          cancellation_message: cancellationMessage,
+        }),
       });
       return json(res, 200, updated[0]);
     }
