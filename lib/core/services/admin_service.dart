@@ -83,6 +83,15 @@ class AdminOrder {
     this.trackingId,
     this.trackingUrl,
     this.shippingConfirmationSentAt,
+    this.orderStatus = 'order_placed',
+    this.deliveredAt,
+    this.cancelledAt,
+    this.returnStatus,
+    this.returnRequestedAt,
+    this.returnEvidence = const [],
+    this.returnEvidenceUrls = const [],
+    this.returnTrackingId,
+    this.refundProcessedAt,
   });
 
   final String orderId;
@@ -95,8 +104,20 @@ class AdminOrder {
   final String? trackingId;
   final String? trackingUrl;
   final DateTime? shippingConfirmationSentAt;
+  final String orderStatus;
+  final DateTime? deliveredAt;
+  final DateTime? cancelledAt;
+  final String? returnStatus;
+  final DateTime? returnRequestedAt;
+  final List<String> returnEvidence;
+  final List<String> returnEvidenceUrls;
+  final String? returnTrackingId;
+  final DateTime? refundProcessedAt;
 
-  bool get isSubmittedForDelivery => shippingConfirmationSentAt != null;
+  bool get isSubmittedForDelivery => orderStatus == 'out_for_delivery';
+  bool get isDelivered => orderStatus == 'delivered';
+  bool get isCancelled => orderStatus == 'cancelled';
+  bool get hasReturnRequest => returnStatus != null;
 
   factory AdminOrder.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'];
@@ -129,6 +150,28 @@ class AdminOrder {
       trackingUrl: json['tracking_url']?.toString(),
       shippingConfirmationSentAt: DateTime.tryParse(
         (json['shipping_confirmation_sent_at'] ?? '').toString(),
+      ),
+      orderStatus:
+          (json['order_status'] ??
+                  (json['shipping_confirmation_sent_at'] != null
+                      ? 'out_for_delivery'
+                      : 'order_placed'))
+              .toString(),
+      deliveredAt: DateTime.tryParse((json['delivered_at'] ?? '').toString()),
+      cancelledAt: DateTime.tryParse((json['cancelled_at'] ?? '').toString()),
+      returnStatus: json['return_status']?.toString(),
+      returnRequestedAt: DateTime.tryParse(
+        (json['return_requested_at'] ?? '').toString(),
+      ),
+      returnEvidence: (json['return_evidence'] as List<dynamic>? ?? [])
+          .map((entry) => entry.toString())
+          .toList(),
+      returnEvidenceUrls: (json['return_evidence_urls'] as List<dynamic>? ?? [])
+          .map((entry) => entry.toString())
+          .toList(),
+      returnTrackingId: json['return_tracking_id']?.toString(),
+      refundProcessedAt: DateTime.tryParse(
+        (json['refund_processed_at'] ?? '').toString(),
       ),
     );
   }
@@ -248,6 +291,33 @@ class AdminService {
       'POST',
       _uri('shipping_confirmation'),
       body: jsonEncode({'orderId': order.orderId, 'trackingId': trackingId}),
+    );
+    return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<AdminOrder> markDelivered(AdminOrder order) async {
+    final response = await _request(
+      'POST',
+      _uri('mark_delivered'),
+      body: jsonEncode({'orderId': order.orderId}),
+    );
+    return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<AdminOrder> acceptReturn(AdminOrder order, String trackingId) async {
+    final response = await _request(
+      'POST',
+      _uri('accept_return'),
+      body: jsonEncode({'orderId': order.orderId, 'trackingId': trackingId}),
+    );
+    return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<AdminOrder> markRefundProcessed(AdminOrder order) async {
+    final response = await _request(
+      'POST',
+      _uri('refund_processed'),
+      body: jsonEncode({'orderId': order.orderId}),
     );
     return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }

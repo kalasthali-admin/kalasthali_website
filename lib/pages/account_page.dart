@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/responsive.dart';
 import '../core/services/auth_service.dart';
 import '../core/services/product_service.dart';
+import '../core/services/order_service.dart';
 import '../core/services/seo_service.dart';
 import '../widgets/app_footer.dart';
 import '../widgets/app_scaffold.dart';
@@ -504,7 +506,9 @@ class _AccountDetailsState extends State<_AccountDetails> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true) {
+      return;
+    }
     await Supabase.instance.client.from('user_addresses').delete().eq('id', id);
     _refresh();
   }
@@ -736,7 +740,7 @@ class _AccountDetailsState extends State<_AccountDetails> {
               for (final order in snapshot.data!)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 18),
-                  child: _OrderCard(order: order),
+                  child: _OrderCard(order: order, onChanged: _refresh),
                 ),
             ],
           );
@@ -1120,15 +1124,23 @@ class _AddressCardActions extends StatelessWidget {
 }
 
 class _OrderCard extends StatelessWidget {
-  const _OrderCard({required this.order});
+  const _OrderCard({required this.order, required this.onChanged});
 
   final Map<String, dynamic> order;
+  final VoidCallback onChanged;
 
   @override
   Widget build(BuildContext context) {
     final items = _orderItems(order);
     final paidAt = DateTime.tryParse((order['paid_at'] ?? '').toString());
 
+    final status = _customerOrderStatus(order);
+    final canCancel =
+        status == 'order_placed' && _within24Hours(order['paid_at']);
+    final canReturn =
+        status == 'delivered' &&
+        order['return_status'] == null &&
+        _within24Hours(order['delivered_at']);
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 760),
       child: Material(
@@ -1139,61 +1151,88 @@ class _OrderCard extends StatelessWidget {
           child: Ink(
             padding: const EdgeInsets.all(16),
             decoration: _orderCardDecoration(),
-            child: Row(
+            child: Column(
               children: [
-                _OrderLead(items: items),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        items.length == 1 ? items.first.name : 'Cart order',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.dmSerifDisplay(
-                          fontSize: 24,
-                          color: const Color(0xFF5B351A),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        items.length == 1
-                            ? 'Qty ${items.first.quantity}'
-                            : '${items.length} items purchased',
-                        style: GoogleFonts.ibmPlexSans(fontSize: 16),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        [
-                          'Order ${order['order_id']}',
-                          if (paidAt != null) _dateLabel(paidAt),
-                        ].join(' • '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.ibmPlexSans(
-                          fontSize: 13,
-                          color: const Color(0xFF746D64),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                Row(
                   children: [
-                    Text(
-                      '₹${order['amount'] ?? '-'}',
-                      style: GoogleFonts.ibmPlexSans(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
+                    _OrderLead(items: items),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            items.length == 1 ? items.first.name : 'Cart order',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.dmSerifDisplay(
+                              fontSize: 24,
+                              color: const Color(0xFF5B351A),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            items.length == 1
+                                ? 'Qty ${items.first.quantity}'
+                                : '${items.length} items purchased',
+                            style: GoogleFonts.ibmPlexSans(fontSize: 16),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            [
+                              'Order ${order['order_id']}',
+                              if (paidAt != null) _dateLabel(paidAt),
+                            ].join(' • '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.ibmPlexSans(
+                              fontSize: 13,
+                              color: const Color(0xFF746D64),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    const Icon(Icons.chevron_right, color: Color(0xFF5B351A)),
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '₹${order['amount'] ?? '-'}',
+                          style: GoogleFonts.ibmPlexSans(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        const Icon(
+                          Icons.chevron_right,
+                          color: Color(0xFF5B351A),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _CustomerOrderStatus(
+                    status: status,
+                    returnStatus: order['return_status']?.toString(),
+                  ),
+                ),
+                if (canCancel || canReturn) ...[
+                  const SizedBox(height: 14),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton(
+                      onPressed: canCancel
+                          ? () => _cancel(context)
+                          : () => _requestReturn(context),
+                      child: Text(canCancel ? 'CANCEL ORDER' : 'RETURN ORDER'),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1201,6 +1240,257 @@ class _OrderCard extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _cancel(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel order?'),
+        content: const Text(
+          'This order will be cancelled. This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep order'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Cancel order'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    try {
+      await OrderService.instance.cancelOrder(order['order_id'].toString());
+      onChanged();
+    } on OrderServiceException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
+  }
+
+  Future<void> _requestReturn(BuildContext context) async {
+    final submitted = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) =>
+          _ReturnRequestSheet(orderId: order['order_id'].toString()),
+    );
+    if (submitted == true) {
+      onChanged();
+    }
+  }
+}
+
+String _customerOrderStatus(Map<String, dynamic> order) =>
+    (order['order_status'] ??
+            (order['shipping_confirmation_sent_at'] == null
+                ? 'order_placed'
+                : 'out_for_delivery'))
+        .toString();
+
+bool _within24Hours(dynamic value) {
+  final timestamp = DateTime.tryParse((value ?? '').toString());
+  return timestamp != null &&
+      DateTime.now().isBefore(timestamp.add(const Duration(hours: 24)));
+}
+
+class _CustomerOrderStatus extends StatelessWidget {
+  const _CustomerOrderStatus({required this.status, this.returnStatus});
+  final String status;
+  final String? returnStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = switch (returnStatus) {
+      'requested' => 'RETURN REQUESTED',
+      'accepted_for_return' => 'RETURN ACCEPTED',
+      'refund_processed' => 'REFUND PROCESSED',
+      _ => switch (status) {
+        'out_for_delivery' => 'OUT FOR DELIVERY',
+        'delivered' => 'DELIVERED',
+        'cancelled' => 'CANCELLED',
+        _ => 'ORDER PLACED',
+      },
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: status == 'cancelled'
+            ? const Color(0xFFE8D0D0)
+            : const Color(0xFFE2C7A0),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.ibmPlexSans(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _ReturnRequestSheet extends StatefulWidget {
+  const _ReturnRequestSheet({required this.orderId});
+  final String orderId;
+
+  @override
+  State<_ReturnRequestSheet> createState() => _ReturnRequestSheetState();
+}
+
+class _ReturnRequestSheetState extends State<_ReturnRequestSheet> {
+  final List<ReturnImageUpload> _images = [];
+  var _submitting = false;
+
+  Future<void> _pickImages() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: true,
+      withData: true,
+    );
+    if (result == null) {
+      return;
+    }
+    final selected = <ReturnImageUpload>[];
+    for (final file in result.files) {
+      final bytes = file.bytes;
+      final mime = switch (file.extension?.toLowerCase()) {
+        'jpg' || 'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        _ => null,
+      };
+      if (bytes != null && bytes.isNotEmpty && mime != null) {
+        selected.add(ReturnImageUpload(bytes: bytes, contentType: mime));
+      }
+    }
+    setState(() {
+      _images.addAll(selected);
+      if (_images.length > 5) {
+        _images.removeRange(5, _images.length);
+      }
+    });
+  }
+
+  Future<void> _submit() async {
+    if (_images.isEmpty) {
+      return;
+    }
+    setState(() => _submitting = true);
+    try {
+      await OrderService.instance.requestReturn(widget.orderId, _images);
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } on OrderServiceException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    child: Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        20 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(22),
+        decoration: const BoxDecoration(
+          color: Color(0xFFFEF5E6),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Request a return',
+              style: GoogleFonts.dmSerifDisplay(
+                fontSize: 32,
+                color: const Color(0xFF5B351A),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Upload clear photos of the product you received. This is required to submit your request.',
+              style: GoogleFonts.ibmPlexSans(fontSize: 16),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(context).pushNamed('/refund-policy'),
+              child: const Text('Read the return and refund policy'),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (var index = 0; index < _images.length; index++)
+                  Stack(
+                    children: [
+                      Image.memory(
+                        _images[index].bytes,
+                        width: 84,
+                        height: 84,
+                        fit: BoxFit.cover,
+                      ),
+                      Positioned(
+                        top: -8,
+                        right: -8,
+                        child: IconButton(
+                          onPressed: _submitting
+                              ? null
+                              : () => setState(() => _images.removeAt(index)),
+                          icon: const Icon(Icons.cancel),
+                        ),
+                      ),
+                    ],
+                  ),
+                if (_images.length < 5)
+                  OutlinedButton.icon(
+                    onPressed: _submitting ? null : _pickImages,
+                    icon: const Icon(Icons.add_photo_alternate_outlined),
+                    label: const Text('ADD PHOTOS'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _submitting || _images.isEmpty ? null : _submit,
+                child: Text(
+                  _submitting ? 'SUBMITTING...' : 'SUBMIT RETURN REQUEST',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 BoxDecoration _orderCardDecoration() => BoxDecoration(

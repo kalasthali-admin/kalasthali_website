@@ -214,6 +214,10 @@ function trackingUrl(trackingId) {
   return `https://www.delhivery.com/track/package/${encodeURIComponent(trackingId)}`;
 }
 
+function orderStatus(order) {
+  return order.order_status || (order.shipping_confirmation_sent_at ? 'out_for_delivery' : 'order_placed');
+}
+
 async function sendShippingConfirmation(order, trackingId) {
   const subtotal = Number(order.amount);
   if (!Number.isFinite(subtotal) || subtotal < 0) {
@@ -252,6 +256,29 @@ async function sendShippingConfirmation(order, trackingId) {
     throw new Error(message);
   }
   return url;
+}
+
+async function signedReturnEvidence(paths) {
+  if (!Array.isArray(paths) || paths.length === 0) return [];
+  return Promise.all(paths.map(async (path) => {
+    const signed = await supabaseFetch(
+      `/storage/v1/object/sign/return_evidence/${encodeURIComponent(path)}`,
+      { method: 'POST', body: JSON.stringify({ expiresIn: 3600 }) },
+    );
+    return signed.signedURL?.startsWith('http')
+      ? signed.signedURL
+      : `${supabaseUrl}/storage/v1${signed.signedURL}`;
+  }));
+}
+
+async function adminOrders() {
+  const orders = await supabaseFetch(
+    '/rest/v1/sales?select=order_id,customer_email,customer_phone,user_address,product,amount,items,paid_at,razorpay_payment_id,tracking_id,tracking_url,shipping_confirmation_sent_at,order_status,out_for_delivery_at,delivered_at,cancelled_at,return_status,return_requested_at,return_evidence,return_tracking_id,return_accepted_at,refund_processed_at&order=paid_at.desc',
+  );
+  return Promise.all(orders.map(async (order) => ({
+    ...order,
+    return_evidence_urls: await signedReturnEvidence(order.return_evidence),
+  })));
 }
 
 async function moveImage(sourceKey, destinationKey) {
@@ -395,13 +422,7 @@ module.exports = async (req, res) => {
     }
 
     if (action === 'orders' && req.method === 'GET') {
-      return json(
-        res,
-        200,
-        await supabaseFetch(
-          '/rest/v1/sales?select=order_id,customer_email,customer_phone,user_address,product,amount,items,paid_at,razorpay_payment_id,tracking_id,tracking_url,shipping_confirmation_sent_at&order=paid_at.desc',
-        ),
-      );
+      return json(res, 200, await adminOrders());
     }
 
     if (action === 'shipping_confirmation' && req.method === 'POST') {
@@ -418,6 +439,9 @@ module.exports = async (req, res) => {
       );
       const order = orders[0];
       if (!order) return json(res, 404, { error: 'Order not found.' });
+      if (orderStatus(order) !== 'order_placed') {
+        return json(res, 409, { error: 'Only newly placed orders can be submitted for delivery.' });
+      }
       if (order.shipping_confirmation_sent_at) {
         return json(res, 409, { error: 'A delivery confirmation has already been sent for this order.' });
       }
@@ -431,9 +455,62 @@ module.exports = async (req, res) => {
             tracking_id: trackingId,
             tracking_url: url,
             shipping_confirmation_sent_at: new Date().toISOString(),
+            order_status: 'out_for_delivery',
+            out_for_delivery_at: new Date().toISOString(),
           }),
         },
       );
+      return json(res, 200, updated[0]);
+    }
+
+    if (action === 'mark_delivered' && req.method === 'POST') {
+      const orderId = String(body.orderId || '').trim();
+      const orders = await supabaseFetch(`/rest/v1/sales?select=*&order_id=eq.${encodeURIComponent(orderId)}&limit=1`);
+      const order = orders[0];
+      if (!order) return json(res, 404, { error: 'Order not found.' });
+      if (orderStatus(order) !== 'out_for_delivery') {
+        return json(res, 409, { error: 'Only orders out for delivery can be marked delivered.' });
+      }
+      const updated = await supabaseFetch(`/rest/v1/sales?order_id=eq.${encodeURIComponent(orderId)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ order_status: 'delivered', delivered_at: new Date().toISOString() }),
+      });
+      return json(res, 200, updated[0]);
+    }
+
+    if (action === 'accept_return' && req.method === 'POST') {
+      const orderId = String(body.orderId || '').trim();
+      const trackingId = String(body.trackingId || '').trim();
+      if (!orderId || !trackingId || trackingId.length > 100) {
+        return json(res, 400, { error: 'A valid return tracking ID is required.' });
+      }
+      const orders = await supabaseFetch(`/rest/v1/sales?select=*&order_id=eq.${encodeURIComponent(orderId)}&limit=1`);
+      const order = orders[0];
+      if (!order) return json(res, 404, { error: 'Order not found.' });
+      if (order.return_status !== 'requested') return json(res, 409, { error: 'This return request has already been processed.' });
+      const updated = await supabaseFetch(`/rest/v1/sales?order_id=eq.${encodeURIComponent(orderId)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          return_status: 'accepted_for_return',
+          return_tracking_id: trackingId,
+          return_accepted_at: new Date().toISOString(),
+        }),
+      });
+      return json(res, 200, updated[0]);
+    }
+
+    if (action === 'refund_processed' && req.method === 'POST') {
+      const orderId = String(body.orderId || '').trim();
+      const orders = await supabaseFetch(`/rest/v1/sales?select=*&order_id=eq.${encodeURIComponent(orderId)}&limit=1`);
+      const order = orders[0];
+      if (!order) return json(res, 404, { error: 'Order not found.' });
+      if (order.return_status !== 'accepted_for_return') {
+        return json(res, 409, { error: 'Accept the return before recording the refund.' });
+      }
+      const updated = await supabaseFetch(`/rest/v1/sales?order_id=eq.${encodeURIComponent(orderId)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ return_status: 'refund_processed', refund_processed_at: new Date().toISOString() }),
+      });
       return json(res, 200, updated[0]);
     }
 

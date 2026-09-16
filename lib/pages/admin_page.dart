@@ -229,6 +229,49 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _markDelivered(AdminOrder order) async {
+    await _updateOrder(
+      () => _service.markDelivered(order),
+      'Order ${order.orderId} marked as delivered.',
+    );
+  }
+
+  Future<void> _acceptReturn(AdminOrder order, String trackingId) async {
+    await _updateOrder(
+      () => _service.acceptReturn(order, trackingId),
+      'Return accepted for ${order.orderId}.',
+    );
+  }
+
+  Future<void> _markRefundProcessed(AdminOrder order) async {
+    await _updateOrder(
+      () => _service.markRefundProcessed(order),
+      'Refund marked as processed for ${order.orderId}.',
+    );
+  }
+
+  Future<void> _updateOrder(
+    Future<AdminOrder> Function() operation,
+    String successMessage,
+  ) async {
+    setState(() => _loading = true);
+    try {
+      final updated = await operation();
+      if (!mounted) return;
+      setState(() {
+        _orders = [
+          for (final current in _orders)
+            if (current.orderId == updated.orderId) updated else current,
+        ];
+      });
+      _showMessage(successMessage);
+    } on AdminException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   void _replaceGallery(AdminGallery updated) {
     setState(() {
       final index = _gallery.indexWhere((entry) => entry.code == updated.code);
@@ -406,6 +449,9 @@ class _AdminPageState extends State<AdminPage> {
             onDelete: _deleteProduct,
             onSavePolicy: _savePolicy,
             onSubmitShippingConfirmation: _submitShippingConfirmation,
+            onMarkDelivered: _markDelivered,
+            onAcceptReturn: _acceptReturn,
+            onMarkRefundProcessed: _markRefundProcessed,
           );
         },
       ),
@@ -532,6 +578,9 @@ class _AdminDashboard extends StatelessWidget {
     required this.onDelete,
     required this.onSavePolicy,
     required this.onSubmitShippingConfirmation,
+    required this.onMarkDelivered,
+    required this.onAcceptReturn,
+    required this.onMarkRefundProcessed,
   });
 
   final bool loading;
@@ -551,10 +600,14 @@ class _AdminDashboard extends StatelessWidget {
   final Future<void> Function(SitePolicy) onSavePolicy;
   final Future<void> Function(AdminOrder order, String trackingId)
   onSubmitShippingConfirmation;
+  final Future<void> Function(AdminOrder order) onMarkDelivered;
+  final Future<void> Function(AdminOrder order, String trackingId)
+  onAcceptReturn;
+  final Future<void> Function(AdminOrder order) onMarkRefundProcessed;
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
-    length: 4,
+    length: 5,
     child: LayoutBuilder(
       builder: (context, constraints) {
         final tabController = DefaultTabController.of(context);
@@ -592,11 +645,15 @@ class _AdminDashboard extends StatelessWidget {
             final showOrders = tabController.index == 1;
             final showOrderHistory = tabController.index == 2;
             final showPolicies = tabController.index == 3;
+            final showReturnRequests = tabController.index == 4;
             final ordersToPrepare = orders
-                .where((order) => !order.isSubmittedForDelivery)
+                .where((order) => !order.isDelivered && !order.isCancelled)
                 .toList();
             final orderHistory = orders
-                .where((order) => order.isSubmittedForDelivery)
+                .where((order) => order.isDelivered || order.isCancelled)
+                .toList();
+            final returnRequests = orders
+                .where((order) => order.hasReturnRequest)
                 .toList();
             return SingleChildScrollView(
               primary: true,
@@ -642,7 +699,7 @@ class _AdminDashboard extends StatelessWidget {
                           border: Border.all(color: const Color(0xFFD5B48A)),
                         ),
                         child: TabBar(
-                          isScrollable: mobile,
+                          isScrollable: mobile || constraints.maxWidth < 900,
                           labelColor: const Color(0xFF5B351A),
                           unselectedLabelColor: const Color(0xFF765F4B),
                           indicatorColor: const Color(0xFFA35710),
@@ -655,6 +712,7 @@ class _AdminDashboard extends StatelessWidget {
                             Tab(text: 'Orders'),
                             Tab(text: 'Order History'),
                             Tab(text: 'Site Policies'),
+                            Tab(text: 'Return Requests'),
                           ],
                         ),
                       ),
@@ -666,6 +724,7 @@ class _AdminDashboard extends StatelessWidget {
                           error: ordersError,
                           onSubmitShippingConfirmation:
                               onSubmitShippingConfirmation,
+                          onMarkDelivered: onMarkDelivered,
                         )
                       else if (showOrderHistory)
                         _OrdersTab(
@@ -674,6 +733,7 @@ class _AdminDashboard extends StatelessWidget {
                           error: ordersError,
                           onSubmitShippingConfirmation:
                               onSubmitShippingConfirmation,
+                          onMarkDelivered: onMarkDelivered,
                           history: true,
                         )
                       else if (showPolicies)
@@ -681,6 +741,14 @@ class _AdminDashboard extends StatelessWidget {
                           policies: policies,
                           loading: loading,
                           onSave: onSavePolicy,
+                        )
+                      else if (showReturnRequests)
+                        _ReturnRequestsTab(
+                          orders: returnRequests,
+                          loading: loading,
+                          error: ordersError,
+                          onAcceptReturn: onAcceptReturn,
+                          onMarkRefundProcessed: onMarkRefundProcessed,
                         )
                       else ...[
                         Row(
@@ -860,6 +928,7 @@ class _OrdersTab extends StatelessWidget {
     required this.loading,
     required this.error,
     required this.onSubmitShippingConfirmation,
+    required this.onMarkDelivered,
     this.history = false,
   });
 
@@ -868,6 +937,7 @@ class _OrdersTab extends StatelessWidget {
   final String? error;
   final Future<void> Function(AdminOrder order, String trackingId)
   onSubmitShippingConfirmation;
+  final Future<void> Function(AdminOrder order) onMarkDelivered;
   final bool history;
 
   @override
@@ -897,8 +967,8 @@ class _OrdersTab extends StatelessWidget {
     if (orders.isEmpty) {
       return Text(
         history
-            ? 'No submitted orders yet.'
-            : 'No paid orders are ready for delivery.',
+            ? 'No completed or cancelled orders yet.'
+            : 'No active orders need fulfillment.',
         style: GoogleFonts.ibmPlexSans(fontSize: 18),
       );
     }
@@ -915,8 +985,8 @@ class _OrdersTab extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           history
-              ? 'Submitted orders and their saved delivery tracking details.'
-              : 'Review a paid order, add its tracking ID, and email the customer their delivery confirmation.',
+              ? 'Delivered and cancelled orders remain available for reference.'
+              : 'Dispatch newly placed orders, then mark them delivered once complete.',
           style: GoogleFonts.ibmPlexSans(fontSize: 18),
         ),
         const SizedBox(height: 20),
@@ -953,7 +1023,7 @@ class _OrdersTab extends StatelessWidget {
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Close'),
           ),
-          if (!order.isSubmittedForDelivery)
+          if (order.orderStatus == 'order_placed')
             FilledButton.icon(
               onPressed: () async {
                 Navigator.pop(dialogContext);
@@ -964,6 +1034,15 @@ class _OrdersTab extends StatelessWidget {
               },
               icon: const Icon(Icons.local_shipping_outlined),
               label: const Text('SUBMIT FOR DELIVERY'),
+            ),
+          if (order.isSubmittedForDelivery)
+            FilledButton.icon(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                await onMarkDelivered(order);
+              },
+              icon: const Icon(Icons.task_alt_outlined),
+              label: const Text('MARK AS DELIVERED'),
             ),
         ],
       ),
@@ -1004,8 +1083,12 @@ class _OrderCard extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              order.isSubmittedForDelivery
-                  ? Icons.mark_email_read_outlined
+              order.isDelivered
+                  ? Icons.task_alt_outlined
+                  : order.isCancelled
+                  ? Icons.cancel_outlined
+                  : order.isSubmittedForDelivery
+                  ? Icons.local_shipping_outlined
                   : Icons.inventory_2_outlined,
               color: const Color(0xFF914B0D),
               size: 30,
@@ -1060,13 +1143,25 @@ class _DeliveryStatus extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
     decoration: BoxDecoration(
-      color: order.isSubmittedForDelivery
+      color: order.isDelivered
           ? const Color(0xFFD8E8D0)
+          : order.isCancelled
+          ? const Color(0xFFE8D0D0)
+          : order.isSubmittedForDelivery
+          ? const Color(0xFFE2C7A0)
           : const Color(0xFFE2C7A0),
       borderRadius: BorderRadius.circular(99),
     ),
     child: Text(
-      order.isSubmittedForDelivery ? 'SUBMITTED' : 'TO PREPARE',
+      switch (order.returnStatus ?? order.orderStatus) {
+        'requested' => 'RETURN REQUESTED',
+        'accepted_for_return' => 'RETURN ACCEPTED',
+        'refund_processed' => 'REFUND PROCESSED',
+        'out_for_delivery' => 'OUT FOR DELIVERY',
+        'delivered' => 'DELIVERED',
+        'cancelled' => 'CANCELLED',
+        _ => 'ORDER PLACED',
+      },
       style: GoogleFonts.ibmPlexSans(
         fontSize: 12,
         fontWeight: FontWeight.w700,
@@ -1229,6 +1324,194 @@ class _TrackingIdDialogState extends State<_TrackingIdDialog> {
         child: const Text('Cancel'),
       ),
       FilledButton(onPressed: _submit, child: const Text('Send confirmation')),
+    ],
+  );
+}
+
+class _ReturnRequestsTab extends StatelessWidget {
+  const _ReturnRequestsTab({
+    required this.orders,
+    required this.loading,
+    required this.error,
+    required this.onAcceptReturn,
+    required this.onMarkRefundProcessed,
+  });
+
+  final List<AdminOrder> orders;
+  final bool loading;
+  final String? error;
+  final Future<void> Function(AdminOrder order, String trackingId)
+  onAcceptReturn;
+  final Future<void> Function(AdminOrder order) onMarkRefundProcessed;
+
+  @override
+  Widget build(BuildContext context) {
+    if (error != null) {
+      return Text(error!, style: GoogleFonts.ibmPlexSans(fontSize: 17));
+    }
+    if (loading && orders.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (orders.isEmpty) {
+      return Text(
+        'No return requests yet.',
+        style: GoogleFonts.ibmPlexSans(fontSize: 18),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Return Requests',
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: 38,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Review customer evidence, accept the return with a tracking ID, then record the refund.',
+          style: GoogleFonts.ibmPlexSans(fontSize: 18),
+        ),
+        const SizedBox(height: 20),
+        for (final order in orders)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _OrderCard(
+              order: order,
+              disabled: loading,
+              onOpen: () => _open(context, order),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _open(BuildContext context, AdminOrder order) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Return ${order.orderId}',
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: 30,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 580),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _OrderDetails(order: order),
+                const SizedBox(height: 18),
+                _OrderDetailLabel(label: 'Customer evidence'),
+                if (order.returnEvidenceUrls.isEmpty)
+                  Text(
+                    'No return images were available.',
+                    style: GoogleFonts.ibmPlexSans(fontSize: 16),
+                  )
+                else
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      for (final url in order.returnEvidenceUrls)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.network(
+                            url,
+                            width: 130,
+                            height: 130,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => const SizedBox(
+                              width: 130,
+                              height: 130,
+                              child: ColoredBox(color: Color(0xFFD8D0C3)),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+          if (order.returnStatus == 'requested')
+            FilledButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                final trackingId = await showDialog<String>(
+                  context: context,
+                  builder: (_) => const _ReturnTrackingIdDialog(),
+                );
+                if (trackingId != null) await onAcceptReturn(order, trackingId);
+              },
+              child: const Text('ACCEPT FOR RETURN'),
+            ),
+          if (order.returnStatus == 'accepted_for_return')
+            FilledButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                await onMarkRefundProcessed(order);
+              },
+              child: const Text('REFUND PROCESSED'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReturnTrackingIdDialog extends StatefulWidget {
+  const _ReturnTrackingIdDialog();
+
+  @override
+  State<_ReturnTrackingIdDialog> createState() =>
+      _ReturnTrackingIdDialogState();
+}
+
+class _ReturnTrackingIdDialogState extends State<_ReturnTrackingIdDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final id = _controller.text.trim();
+    if (id.isNotEmpty) Navigator.pop(context, id);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(
+      'Return tracking ID',
+      style: GoogleFonts.dmSerifDisplay(
+        fontSize: 30,
+        color: const Color(0xFF5B351A),
+      ),
+    ),
+    content: TextField(
+      controller: _controller,
+      autofocus: true,
+      onSubmitted: (_) => _submit(),
+      decoration: const InputDecoration(labelText: 'Tracking ID'),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _submit, child: const Text('Accept return')),
     ],
   );
 }

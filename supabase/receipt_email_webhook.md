@@ -55,7 +55,7 @@ begin
   perform net.http_post(
     url := 'https://dddriininznavwrsrgww.supabase.co/functions/v1/send-order-receipt',
     headers := jsonb_build_object(
-      'Content-Type', 'application/json',
+      'Content-Type', 'application/json',-
       'x-order-receipt-secret', webhook_secret
     ),
     body := jsonb_build_object(
