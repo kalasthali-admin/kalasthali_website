@@ -60,7 +60,9 @@ class HomePage extends StatelessWidget {
                       ),
                       const SizedBox(height: 110),
                       const _ShopByCategory(),
-                      const SizedBox(height: 80),
+                      SizedBox(height: isMobile ? 88 : 120),
+                      const _ContactSection(),
+                      const SizedBox(height: 96),
                     ],
                   ),
                 ),
@@ -463,6 +465,98 @@ class _SectionHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ContactSection extends StatelessWidget {
+  const _ContactSection();
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final mobile = useCompactLayout(context, breakpoint: 700);
+      Widget card(IconData icon, String title, String detail) => Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: mobile ? 22 : 38,
+          vertical: mobile ? 24 : 34,
+        ),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFFA35710), width: 1.5),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x332D1E12),
+              blurRadius: 8,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: mobile ? 44 : 58, color: const Color(0xFF1F1E25)),
+            const SizedBox(width: 22),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: mobile ? 24 : 28,
+                    ),
+                  ),
+                  Text(
+                    detail,
+                    style: GoogleFonts.ibmPlexSans(fontSize: mobile ? 15 : 18),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+      final email = card(
+        Icons.forward_to_inbox_outlined,
+        'Email',
+        'contact@kalasthali.co',
+      );
+      final phone = card(
+        Icons.forum_outlined,
+        'Call or WhatsApp',
+        '+91 95303 24000',
+      );
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: mobile ? 28 : 38),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1180),
+            child: Column(
+              children: [
+                const _SectionHeader(title: 'Get In Touch'),
+                SizedBox(height: mobile ? 20 : 24),
+                Text(
+                  'For queries regarding products, partnerships and business, contact us',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.ibmPlexSans(fontSize: mobile ? 15 : 17),
+                ),
+                SizedBox(height: mobile ? 34 : 58),
+                if (mobile)
+                  Column(children: [email, const SizedBox(height: 18), phone])
+                else
+                  Row(
+                    children: [
+                      Expanded(child: email),
+                      const SizedBox(width: 34),
+                      Expanded(child: phone),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _CategoryDivider extends StatelessWidget {
