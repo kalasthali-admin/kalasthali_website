@@ -233,7 +233,7 @@ async function signedReturnEvidence(paths) {
 
 async function adminOrders() {
   const orders = await supabaseFetch(
-    '/rest/v1/sales?select=order_id,customer_email,customer_phone,user_address,product,amount,items,paid_at,razorpay_payment_id,tracking_id,tracking_url,shipping_confirmation_sent_at,order_status,out_for_delivery_at,delivered_at,cancelled_at,return_status,return_requested_at,return_evidence,return_tracking_id,return_tracking_url,return_accepted_at,refund_processed_at,return_rejected_at,return_rejection_reason&order=paid_at.desc',
+    '/rest/v1/sales?select=order_id,customer_email,customer_phone,user_address,product,amount,items,paid_at,razorpay_payment_id,tracking_id,tracking_url,shipping_confirmation_sent_at,order_status,out_for_delivery_at,delivered_at,cancelled_at,return_status,return_requested_at,return_evidence,return_tracking_id,return_tracking_url,return_accepted_at,refund_processed_at,refund_id,refund_amount,refund_message,return_rejected_at,return_rejection_reason&order=paid_at.desc',
   );
   return Promise.all(orders.map(async (order) => ({
     ...order,
@@ -463,15 +463,30 @@ module.exports = async (req, res) => {
 
     if (action === 'refund_processed' && req.method === 'POST') {
       const orderId = String(body.orderId || '').trim();
+      const refundId = String(body.refundId || '').trim();
+      const refundAmount = Number(body.refundAmount);
+      const refundMessage = String(body.refundMessage || '').trim();
+      if (!orderId || !refundId || !Number.isSafeInteger(refundAmount) || refundAmount <= 0 || !refundMessage) {
+        return json(res, 400, { error: 'A refund ID, positive refund amount, and refund message are required.' });
+      }
       const orders = await supabaseFetch(`/rest/v1/sales?select=*&order_id=eq.${encodeURIComponent(orderId)}&limit=1`);
       const order = orders[0];
       if (!order) return json(res, 404, { error: 'Order not found.' });
-      if (order.return_status !== 'accepted_for_return') {
-        return json(res, 409, { error: 'Accept the return before recording the refund.' });
+      if (order.refund_processed_at) {
+        return json(res, 409, { error: 'A refund has already been recorded for this order.' });
+      }
+      if (order.return_status !== 'accepted_for_return' && orderStatus(order) !== 'cancelled') {
+        return json(res, 409, { error: 'Only accepted returns or cancelled orders can be refunded.' });
       }
       const updated = await supabaseFetch(`/rest/v1/sales?order_id=eq.${encodeURIComponent(orderId)}`, {
         method: 'PATCH', headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ return_status: 'refund_processed', refund_processed_at: new Date().toISOString() }),
+        body: JSON.stringify({
+          ...(order.return_status === 'accepted_for_return' ? { return_status: 'refund_processed' } : {}),
+          refund_processed_at: new Date().toISOString(),
+          refund_id: refundId,
+          refund_amount: refundAmount,
+          refund_message: refundMessage,
+        }),
       });
       return json(res, 200, updated[0]);
     }

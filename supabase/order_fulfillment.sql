@@ -19,6 +19,9 @@ alter table public.sales
   add column if not exists return_tracking_url text,
   add column if not exists return_accepted_at timestamp with time zone,
   add column if not exists refund_processed_at timestamp with time zone,
+  add column if not exists refund_id text,
+  add column if not exists refund_amount integer,
+  add column if not exists refund_message text,
   add column if not exists return_rejected_at timestamp with time zone,
   add column if not exists return_rejection_reason text;
 

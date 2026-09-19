@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -243,11 +242,27 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Future<void> _markRefundProcessed(AdminOrder order) async {
-    await _updateOrder(
-      () => _service.markRefundProcessed(order),
-      'Refund marked as processed for ${order.orderId}.',
-    );
+  Future<void> _markRefundProcessed(
+    AdminOrder order,
+    AdminRefundDetails refund,
+  ) async {
+    setState(() => _loading = true);
+    try {
+      final updated = await _service.markRefundProcessed(order, refund);
+      if (!mounted) return;
+      setState(() {
+        _orders = [
+          for (final current in _orders)
+            if (current.orderId == updated.orderId) updated else current,
+        ];
+      });
+      _showMessage('Refund marked as processed for ${order.orderId}.');
+    } on AdminException catch (error) {
+      if (mounted) _showMessage(error.message);
+      rethrow;
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _rejectReturn(AdminOrder order, String reason) async {
@@ -612,7 +627,8 @@ class _AdminDashboard extends StatelessWidget {
   final Future<void> Function(AdminOrder order) onMarkDelivered;
   final Future<void> Function(AdminOrder order, String trackingId)
   onAcceptReturn;
-  final Future<void> Function(AdminOrder order) onMarkRefundProcessed;
+  final Future<void> Function(AdminOrder order, AdminRefundDetails refund)
+  onMarkRefundProcessed;
   final Future<void> Function(AdminOrder order, String reason) onRejectReturn;
 
   @override
@@ -735,6 +751,7 @@ class _AdminDashboard extends StatelessWidget {
                           onSubmitShippingConfirmation:
                               onSubmitShippingConfirmation,
                           onMarkDelivered: onMarkDelivered,
+                          onMarkRefundProcessed: onMarkRefundProcessed,
                         )
                       else if (showOrderHistory)
                         _OrdersTab(
@@ -744,6 +761,7 @@ class _AdminDashboard extends StatelessWidget {
                           onSubmitShippingConfirmation:
                               onSubmitShippingConfirmation,
                           onMarkDelivered: onMarkDelivered,
+                          onMarkRefundProcessed: onMarkRefundProcessed,
                           history: true,
                         )
                       else if (showPolicies)
@@ -940,6 +958,7 @@ class _OrdersTab extends StatelessWidget {
     required this.error,
     required this.onSubmitShippingConfirmation,
     required this.onMarkDelivered,
+    required this.onMarkRefundProcessed,
     this.history = false,
   });
 
@@ -949,6 +968,8 @@ class _OrdersTab extends StatelessWidget {
   final Future<void> Function(AdminOrder order, String trackingId)
   onSubmitShippingConfirmation;
   final Future<void> Function(AdminOrder order) onMarkDelivered;
+  final Future<void> Function(AdminOrder order, AdminRefundDetails refund)
+  onMarkRefundProcessed;
   final bool history;
 
   @override
@@ -1054,6 +1075,22 @@ class _OrdersTab extends StatelessWidget {
               },
               icon: const Icon(Icons.task_alt_outlined),
               label: const Text('MARK AS DELIVERED'),
+            ),
+          if (order.isCancelled && order.refundProcessedAt == null)
+            FilledButton(
+              onPressed: () async {
+                final submitted = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => _RefundDetailsDialog(
+                    order: order,
+                    onSubmit: (refund) => onMarkRefundProcessed(order, refund),
+                  ),
+                );
+                if (submitted == true && dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
+              },
+              child: const Text('MARK REFUND PROCESSED'),
             ),
         ],
       ),
@@ -1164,16 +1201,18 @@ class _DeliveryStatus extends StatelessWidget {
       borderRadius: BorderRadius.circular(99),
     ),
     child: Text(
-      switch (order.returnStatus ?? order.orderStatus) {
-        'requested' => 'RETURN REQUESTED',
-        'accepted_for_return' => 'RETURN ACCEPTED',
-        'refund_processed' => 'REFUND PROCESSED',
-        'rejected' => 'RETURN REJECTED',
-        'out_for_delivery' => 'OUT FOR DELIVERY',
-        'delivered' => 'DELIVERED',
-        'cancelled' => 'CANCELLED',
-        _ => 'ORDER PLACED',
-      },
+      order.refundProcessedAt != null
+          ? 'REFUND PROCESSED'
+          : switch (order.returnStatus ?? order.orderStatus) {
+              'requested' => 'RETURN REQUESTED',
+              'accepted_for_return' => 'RETURN ACCEPTED',
+              'refund_processed' => 'REFUND PROCESSED',
+              'rejected' => 'RETURN REJECTED',
+              'out_for_delivery' => 'OUT FOR DELIVERY',
+              'delivered' => 'DELIVERED',
+              'cancelled' => 'CANCELLED',
+              _ => 'ORDER PLACED',
+            },
       style: GoogleFonts.ibmPlexSans(
         fontSize: 12,
         fontWeight: FontWeight.w700,
@@ -1355,7 +1394,8 @@ class _ReturnRequestsTab extends StatelessWidget {
   final String? error;
   final Future<void> Function(AdminOrder order, String trackingId)
   onAcceptReturn;
-  final Future<void> Function(AdminOrder order) onMarkRefundProcessed;
+  final Future<void> Function(AdminOrder order, AdminRefundDetails refund)
+  onMarkRefundProcessed;
   final Future<void> Function(AdminOrder order, String reason) onRejectReturn;
 
   @override
@@ -1402,6 +1442,22 @@ class _ReturnRequestsTab extends StatelessWidget {
   }
 
   Future<void> _open(BuildContext context, AdminOrder order) async {
+    if (useCompactLayout(context, breakpoint: 700)) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => _ReturnOrderBottomSheet(
+          order: order,
+          onClose: () => Navigator.pop(sheetContext),
+          onReject: () => _reject(context, sheetContext, order),
+          onAccept: () => _accept(context, sheetContext, order),
+          onRefundProcessed: () => _refund(context, sheetContext, order),
+          onImageTap: (url) => _openEvidenceViewer(context, url),
+        ),
+      );
+      return;
+    }
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1415,40 +1471,9 @@ class _ReturnRequestsTab extends StatelessWidget {
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 580),
           child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _OrderDetails(order: order),
-                const SizedBox(height: 18),
-                _OrderDetailLabel(label: 'Customer evidence'),
-                if (order.returnEvidenceUrls.isEmpty)
-                  Text(
-                    'No return images were available.',
-                    style: GoogleFonts.ibmPlexSans(fontSize: 16),
-                  )
-                else
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      for (final url in order.returnEvidenceUrls)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.network(
-                            url,
-                            width: 130,
-                            height: 130,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const SizedBox(
-                              width: 130,
-                              height: 130,
-                              child: ColoredBox(color: Color(0xFFD8D0C3)),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-              ],
+            child: _ReturnOrderContent(
+              order: order,
+              onImageTap: (url) => _openEvidenceViewer(context, url),
             ),
           ),
         ),
@@ -1460,32 +1485,21 @@ class _ReturnRequestsTab extends StatelessWidget {
           if (order.returnStatus == 'requested')
             OutlinedButton(
               onPressed: () async {
-                Navigator.pop(dialogContext);
-                final reason = await showDialog<String>(
-                  context: context,
-                  builder: (_) => const _ReturnRejectionDialog(),
-                );
-                if (reason != null) await onRejectReturn(order, reason);
+                await _reject(context, dialogContext, order);
               },
               child: const Text('REJECT RETURN'),
             ),
           if (order.returnStatus == 'requested')
             FilledButton(
               onPressed: () async {
-                Navigator.pop(dialogContext);
-                final trackingId = await showDialog<String>(
-                  context: context,
-                  builder: (_) => const _ReturnTrackingIdDialog(),
-                );
-                if (trackingId != null) await onAcceptReturn(order, trackingId);
+                await _accept(context, dialogContext, order);
               },
               child: const Text('ACCEPT FOR RETURN'),
             ),
           if (order.returnStatus == 'accepted_for_return')
             FilledButton(
               onPressed: () async {
-                Navigator.pop(dialogContext);
-                await onMarkRefundProcessed(order);
+                await _refund(context, dialogContext, order);
               },
               child: const Text('REFUND PROCESSED'),
             ),
@@ -1493,6 +1507,314 @@ class _ReturnRequestsTab extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _reject(
+    BuildContext parentContext,
+    BuildContext overlayContext,
+    AdminOrder order,
+  ) async {
+    Navigator.pop(overlayContext);
+    final reason = await showDialog<String>(
+      context: parentContext,
+      builder: (_) => const _ReturnRejectionDialog(),
+    );
+    if (reason != null) await onRejectReturn(order, reason);
+  }
+
+  Future<void> _accept(
+    BuildContext parentContext,
+    BuildContext overlayContext,
+    AdminOrder order,
+  ) async {
+    Navigator.pop(overlayContext);
+    final trackingId = await showDialog<String>(
+      context: parentContext,
+      builder: (_) => const _ReturnTrackingIdDialog(),
+    );
+    if (trackingId != null) await onAcceptReturn(order, trackingId);
+  }
+
+  Future<void> _refund(
+    BuildContext parentContext,
+    BuildContext overlayContext,
+    AdminOrder order,
+  ) async {
+    final submitted = await showDialog<bool>(
+      context: parentContext,
+      builder: (_) => _RefundDetailsDialog(
+        order: order,
+        onSubmit: (refund) => onMarkRefundProcessed(order, refund),
+      ),
+    );
+    if (submitted == true && overlayContext.mounted) {
+      Navigator.pop(overlayContext);
+    }
+  }
+
+  Future<void> _openEvidenceViewer(BuildContext context, String url) =>
+      showDialog<void>(
+        context: context,
+        barrierColor: const Color(0xE6000000),
+        useSafeArea: false,
+        builder: (_) => _ReturnEvidenceViewer(imageUrl: url),
+      );
+}
+
+class _ReturnOrderBottomSheet extends StatelessWidget {
+  const _ReturnOrderBottomSheet({
+    required this.order,
+    required this.onClose,
+    required this.onReject,
+    required this.onAccept,
+    required this.onRefundProcessed,
+    required this.onImageTap,
+  });
+
+  final AdminOrder order;
+  final VoidCallback onClose;
+  final Future<void> Function() onReject;
+  final Future<void> Function() onAccept;
+  final Future<void> Function() onRefundProcessed;
+  final ValueChanged<String> onImageTap;
+
+  @override
+  Widget build(BuildContext context) => DraggableScrollableSheet(
+    initialChildSize: .82,
+    minChildSize: .52,
+    maxChildSize: .94,
+    expand: false,
+    builder: (context, controller) => Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFFEF5E6),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: ListView(
+        controller: controller,
+        padding: const EdgeInsets.fromLTRB(22, 12, 22, 28),
+        children: [
+          Center(
+            child: Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFF9A8267),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Return ${order.orderId}',
+            style: GoogleFonts.dmSerifDisplay(
+              fontSize: 30,
+              color: const Color(0xFF5B351A),
+            ),
+          ),
+          const SizedBox(height: 18),
+          _ReturnOrderContent(order: order, onImageTap: onImageTap),
+          const SizedBox(height: 22),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              TextButton(onPressed: onClose, child: const Text('Close')),
+              if (order.returnStatus == 'requested')
+                OutlinedButton(
+                  onPressed: onReject,
+                  child: const Text('REJECT RETURN'),
+                ),
+              if (order.returnStatus == 'requested')
+                FilledButton(
+                  onPressed: onAccept,
+                  child: const Text('ACCEPT FOR RETURN'),
+                ),
+              if (order.returnStatus == 'accepted_for_return')
+                FilledButton(
+                  onPressed: onRefundProcessed,
+                  child: const Text('REFUND PROCESSED'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ReturnOrderContent extends StatelessWidget {
+  const _ReturnOrderContent({required this.order, required this.onImageTap});
+
+  final AdminOrder order;
+  final ValueChanged<String> onImageTap;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _OrderDetails(order: order),
+      const SizedBox(height: 18),
+      _OrderDetailLabel(label: 'Customer evidence'),
+      if (order.returnEvidenceUrls.isEmpty)
+        Text(
+          'No return images were available.',
+          style: GoogleFonts.ibmPlexSans(fontSize: 16),
+        )
+      else
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final url in order.returnEvidenceUrls)
+              Semantics(
+                button: true,
+                label: 'Open customer evidence image',
+                child: GestureDetector(
+                  onTap: () => onImageTap(url),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.network(
+                      url,
+                      width: 130,
+                      height: 130,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox(
+                        width: 130,
+                        height: 130,
+                        child: ColoredBox(color: Color(0xFFD8D0C3)),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+    ],
+  );
+}
+
+class _ReturnEvidenceViewer extends StatefulWidget {
+  const _ReturnEvidenceViewer({required this.imageUrl});
+
+  final String imageUrl;
+
+  @override
+  State<_ReturnEvidenceViewer> createState() => _ReturnEvidenceViewerState();
+}
+
+class _ReturnEvidenceViewerState extends State<_ReturnEvidenceViewer> {
+  static const _minZoom = 1.0;
+  static const _maxZoom = 4.0;
+  final _controller = TransformationController();
+
+  bool get _supportsTouchPinch =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+  double get _zoom => _controller.value.getMaxScaleOnAxis();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _setZoom(double zoom) {
+    final value = zoom.clamp(_minZoom, _maxZoom).toDouble();
+    _controller.value = Matrix4.diagonal3Values(value, value, 1);
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: SafeArea(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: InteractiveViewer(
+              transformationController: _controller,
+              minScale: _minZoom,
+              maxScale: _maxZoom,
+              panEnabled: _zoom > _minZoom,
+              scaleEnabled: _supportsTouchPinch,
+              onInteractionEnd: (_) => setState(() {}),
+              child: SizedBox.expand(
+                child: Image.network(
+                  widget.imageUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => const Center(
+                    child: Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.white,
+                      size: 48,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 16,
+            right: 16,
+            child: _EvidenceViewerButton(
+              icon: Icons.close,
+              tooltip: 'Close image viewer',
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 24,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _EvidenceViewerButton(
+                  icon: Icons.remove,
+                  tooltip: 'Zoom out',
+                  onPressed: _zoom <= _minZoom
+                      ? null
+                      : () => _setZoom(_zoom - .5),
+                ),
+                const SizedBox(width: 10),
+                _EvidenceViewerButton(
+                  icon: Icons.add,
+                  tooltip: 'Zoom in',
+                  onPressed: _zoom >= _maxZoom
+                      ? null
+                      : () => _setZoom(_zoom + .5),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _EvidenceViewerButton extends StatelessWidget {
+  const _EvidenceViewerButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xE6FEF5E6),
+    borderRadius: BorderRadius.circular(24),
+    child: IconButton(
+      icon: Icon(icon),
+      tooltip: tooltip,
+      onPressed: onPressed,
+      color: const Color(0xFF1F1E25),
+    ),
+  );
 }
 
 class _ReturnTrackingIdDialog extends StatefulWidget {
@@ -1541,6 +1863,128 @@ class _ReturnRejectionDialogState extends State<_ReturnRejectionDialog> {
         child: const Text('Cancel'),
       ),
       FilledButton(onPressed: _submit, child: const Text('Reject return')),
+    ],
+  );
+}
+
+class _RefundDetailsDialog extends StatefulWidget {
+  const _RefundDetailsDialog({required this.order, required this.onSubmit});
+
+  final AdminOrder order;
+  final Future<void> Function(AdminRefundDetails refund) onSubmit;
+
+  @override
+  State<_RefundDetailsDialog> createState() => _RefundDetailsDialogState();
+}
+
+class _RefundDetailsDialogState extends State<_RefundDetailsDialog> {
+  static const _defaultMessage =
+      'The refund has been processed to your original payment method. Depending on your bank or payment provider, it may take a few business days for the amount to reflect in your account.';
+
+  final _refundId = TextEditingController();
+  late final _amount = TextEditingController(
+    text: widget.order.subtotal.toString(),
+  );
+  final _message = TextEditingController(text: _defaultMessage);
+  var _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _refundId.dispose();
+    _amount.dispose();
+    _message.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final amount = int.tryParse(_amount.text.trim());
+    if (_refundId.text.trim().isEmpty ||
+        amount == null ||
+        amount <= 0 ||
+        _message.text.trim().isEmpty) {
+      setState(
+        () => _error =
+            'Enter a refund ID, a positive refund amount, and a refund message.',
+      );
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await widget.onSubmit(
+        AdminRefundDetails(
+          id: _refundId.text,
+          amount: amount,
+          message: _message.text,
+        ),
+      );
+      if (mounted) Navigator.pop(context, true);
+    } on AdminException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(
+      'Mark refund processed',
+      style: GoogleFonts.dmSerifDisplay(
+        fontSize: 30,
+        color: const Color(0xFF5B351A),
+      ),
+    ),
+    content: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 440),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _refundId,
+              enabled: !_submitting,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(labelText: 'Refund ID'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _amount,
+              enabled: !_submitting,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Refund amount (INR)',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _message,
+              enabled: !_submitting,
+              maxLines: 4,
+              maxLength: 500,
+              decoration: const InputDecoration(labelText: 'Refund message'),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(_error!, style: const TextStyle(color: Colors.red)),
+            ],
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _submitting ? null : () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: _submitting ? null : _submit,
+        child: Text(_submitting ? 'PROCESSING...' : 'MARK REFUND PROCESSED'),
+      ),
     ],
   );
 }

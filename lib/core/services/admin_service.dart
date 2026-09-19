@@ -71,6 +71,18 @@ class AdminOrderItem {
   );
 }
 
+class AdminRefundDetails {
+  const AdminRefundDetails({
+    required this.id,
+    required this.amount,
+    required this.message,
+  });
+
+  final String id;
+  final int amount;
+  final String message;
+}
+
 class AdminOrder {
   const AdminOrder({
     required this.orderId,
@@ -92,6 +104,9 @@ class AdminOrder {
     this.returnEvidenceUrls = const [],
     this.returnTrackingId,
     this.refundProcessedAt,
+    this.refundId,
+    this.refundAmount,
+    this.refundMessage,
     this.returnRejectionReason,
   });
 
@@ -114,6 +129,9 @@ class AdminOrder {
   final List<String> returnEvidenceUrls;
   final String? returnTrackingId;
   final DateTime? refundProcessedAt;
+  final String? refundId;
+  final int? refundAmount;
+  final String? refundMessage;
   final String? returnRejectionReason;
 
   bool get isSubmittedForDelivery => orderStatus == 'out_for_delivery';
@@ -175,6 +193,9 @@ class AdminOrder {
       refundProcessedAt: DateTime.tryParse(
         (json['refund_processed_at'] ?? '').toString(),
       ),
+      refundId: json['refund_id']?.toString(),
+      refundAmount: (json['refund_amount'] as num?)?.toInt(),
+      refundMessage: json['refund_message']?.toString(),
       returnRejectionReason: json['return_rejection_reason']?.toString(),
     );
   }
@@ -342,11 +363,35 @@ class AdminService {
     return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
-  Future<AdminOrder> markRefundProcessed(AdminOrder order) async {
+  Future<AdminOrder> markRefundProcessed(
+    AdminOrder order,
+    AdminRefundDetails refund,
+  ) async {
+    final refundId = refund.id.trim();
+    final message = refund.message.trim();
+    if (order.orderId.isEmpty ||
+        refundId.isEmpty ||
+        refund.amount <= 0 ||
+        message.isEmpty) {
+      throw const AdminException(
+        'Enter a refund ID, a positive refund amount, and a refund message.',
+      );
+    }
+    await _invokeFunction('send-refund-confirmation', {
+      'order_id': order.orderId,
+      'refund_id': refundId,
+      'refund_amount': refund.amount,
+      'refund_message': message,
+    });
     final response = await _request(
       'POST',
       _uri('refund_processed'),
-      body: jsonEncode({'orderId': order.orderId}),
+      body: jsonEncode({
+        'orderId': order.orderId,
+        'refundId': refundId,
+        'refundAmount': refund.amount,
+        'refundMessage': message,
+      }),
     );
     return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
   }
