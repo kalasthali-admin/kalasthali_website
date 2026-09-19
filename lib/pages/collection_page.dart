@@ -414,9 +414,16 @@ class _CollectionCardActions extends StatelessWidget {
       SizedBox(
         height: compact ? 34 : 38,
         child: FilledButton.icon(
-          onPressed: () => CheckoutNavigation.buyNow(context, product),
-          icon: Icon(Icons.shopping_bag_outlined, size: compact ? 15 : 17),
-          label: const Text('Buy Now'),
+          onPressed: product.isSoldOut
+              ? null
+              : () => CheckoutNavigation.buyNow(context, product),
+          icon: Icon(
+            product.isSoldOut
+                ? Icons.block_outlined
+                : Icons.shopping_bag_outlined,
+            size: compact ? 15 : 17,
+          ),
+          label: Text(product.isSoldOut ? 'SOLD OUT' : 'Buy Now'),
           style: FilledButton.styleFrom(
             backgroundColor: const Color(0xFFA35710),
             padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),

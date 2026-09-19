@@ -285,6 +285,7 @@ class _ShopByCategory extends StatelessWidget {
       builder: (context, constraints) {
         final isMobile = useCompactLayout(context, breakpoint: 700);
         final showThreeColumns = constraints.maxWidth >= 1200;
+        final gridWidth = constraints.maxWidth.clamp(0.0, 1580.0).toDouble();
         final tileWidth = isMobile
             ? constraints.maxWidth - 32
             : (constraints.maxWidth > 560
@@ -321,6 +322,12 @@ class _ShopByCategory extends StatelessWidget {
                       imagePath: 'lib/assets/category_grid/dresses_small.png',
                       onTap: () => _goToCollection(context, 'dresses'),
                     ),
+                    const SizedBox(height: 30),
+                    _CategoryButton(
+                      label: 'Dupatta',
+                      imagePath: 'lib/assets/category_grid/dupattas_small.png',
+                      onTap: () => _goToCollection(context, 'dupatta'),
+                    ),
                   ] else if (showThreeColumns) ...[
                     Row(
                       children: [
@@ -352,6 +359,16 @@ class _ShopByCategory extends StatelessWidget {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 30),
+                    SizedBox(
+                      width: (gridWidth - 60) / 3,
+                      child: _CategoryButton(
+                        label: 'Dupatta',
+                        imagePath:
+                            'lib/assets/category_grid/dupattas_large.png',
+                        onTap: () => _goToCollection(context, 'dupatta'),
+                      ),
+                    ),
                   ] else ...[
                     Row(
                       children: [
@@ -377,13 +394,28 @@ class _ShopByCategory extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 30),
-                    SizedBox(
-                      width: tileWidth,
-                      child: _CategoryButton(
-                        label: 'Dresses',
-                        imagePath: 'lib/assets/category_grid/dresses_large.png',
-                        onTap: () => _goToCollection(context, 'dresses'),
-                      ),
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: tileWidth,
+                          child: _CategoryButton(
+                            label: 'Dresses',
+                            imagePath:
+                                'lib/assets/category_grid/dresses_large.png',
+                            onTap: () => _goToCollection(context, 'dresses'),
+                          ),
+                        ),
+                        const SizedBox(width: 28),
+                        SizedBox(
+                          width: tileWidth,
+                          child: _CategoryButton(
+                            label: 'Dupatta',
+                            imagePath:
+                                'lib/assets/category_grid/dupattas_large.png',
+                            onTap: () => _goToCollection(context, 'dupatta'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                   SizedBox(height: isMobile ? 44 : 50),

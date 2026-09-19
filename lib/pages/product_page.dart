@@ -669,10 +669,14 @@ class _PurchaseActions extends StatelessWidget {
           ),
         ),
         _PurchaseButton(
-          label: 'Buy Now',
-          icon: Icons.shopping_bag_outlined,
+          label: product.isSoldOut ? 'SOLD OUT' : 'Buy Now',
+          icon: product.isSoldOut
+              ? Icons.block_outlined
+              : Icons.shopping_bag_outlined,
           compact: compact,
-          onPressed: () => CheckoutNavigation.buyNow(context, product),
+          onPressed: product.isSoldOut
+              ? null
+              : () => CheckoutNavigation.buyNow(context, product),
         ),
       ];
       if (compact) {
@@ -697,7 +701,7 @@ class _PurchaseButton extends StatelessWidget {
     this.compact = false,
   });
   final String label;
-  final Future<void> Function() onPressed;
+  final Future<void> Function()? onPressed;
   final IconData? icon;
   final bool compact;
 
@@ -706,7 +710,7 @@ class _PurchaseButton extends StatelessWidget {
     width: compact ? double.infinity : 180,
     height: 56,
     child: FilledButton(
-      onPressed: () => onPressed(),
+      onPressed: onPressed == null ? null : () => onPressed!(),
       style: FilledButton.styleFrom(
         backgroundColor: const Color(0xFFA35710),
         padding: const EdgeInsets.symmetric(horizontal: 14),

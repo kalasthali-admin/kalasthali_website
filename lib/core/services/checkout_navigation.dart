@@ -7,6 +7,7 @@ class CheckoutNavigation {
   CheckoutNavigation._();
 
   static Future<void> buyNow(BuildContext context, Product product) async {
+    if (product.isSoldOut) return;
     await showProductCheckoutSheet(context, product);
   }
 }

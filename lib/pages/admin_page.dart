@@ -8,6 +8,7 @@ import '../core/models/site_policy.dart';
 import '../core/responsive.dart';
 import '../core/services/admin_service.dart';
 import '../core/services/auth_service.dart';
+import '../core/services/admin_push_service.dart';
 import '../core/services/image_upload_converter.dart';
 import '../widgets/app_scaffold.dart';
 
@@ -718,6 +719,8 @@ class _AdminDashboard extends StatelessWidget {
                         Text(error!, style: const TextStyle(color: Colors.red)),
                       ],
                       const SizedBox(height: 24),
+                      const _OrderNotificationsSetting(),
+                      const SizedBox(height: 18),
                       Container(
                         decoration: BoxDecoration(
                           color: const Color(0xFFE9E2D6),
@@ -946,6 +949,112 @@ class _AdminDashboard extends StatelessWidget {
       },
     ),
   );
+}
+
+class _OrderNotificationsSetting extends StatefulWidget {
+  const _OrderNotificationsSetting();
+
+  @override
+  State<_OrderNotificationsSetting> createState() =>
+      _OrderNotificationsSettingState();
+}
+
+class _OrderNotificationsSettingState
+    extends State<_OrderNotificationsSetting> {
+  final _push = AdminPushService();
+  bool _loading = false;
+  bool _enabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (AdminPushService.isSupported) _readState();
+  }
+
+  Future<void> _readState() async {
+    final enabled = await _push.isEnabled();
+    if (mounted) setState(() => _enabled = enabled);
+  }
+
+  Future<void> _update() async {
+    setState(() => _loading = true);
+    try {
+      if (_enabled) {
+        await _push.disable();
+      } else {
+        await _push.enable();
+      }
+      if (!mounted) return;
+      setState(() => _enabled = !_enabled);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _enabled
+                ? 'Order notifications enabled on this device.'
+                : 'Order notifications disabled on this device.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', '')),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final supported = AdminPushService.isSupported;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE9E2D6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD5B48A)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.notifications_outlined, color: Color(0xFF5B351A)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Order notifications',
+                  style: GoogleFonts.ibmPlexSans(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  supported
+                      ? (_enabled
+                            ? 'Order notifications enabled on this device.'
+                            : 'Receive an alert whenever a new paid order is placed.')
+                      : 'Web Push is unavailable in this browser or VAPID is not configured.',
+                  style: GoogleFonts.ibmPlexSans(fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          OutlinedButton(
+            onPressed: !supported || _loading ? null : _update,
+            child: _loading
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(_enabled ? 'DISABLE' : 'ENABLE'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 String _adminCategoryKey(String value) =>
@@ -2433,6 +2542,7 @@ class _ProductEditorState extends State<_ProductEditor> {
   final formKey = GlobalKey<FormState>();
   late final Map<String, TextEditingController> fields;
   late bool isPopular;
+  late bool isSoldOut;
   final List<_PendingImage> pendingImages = [];
   var thumbnailIndex = 0;
 
@@ -2452,6 +2562,7 @@ class _ProductEditorState extends State<_ProductEditor> {
       ),
     };
     isPopular = product?.isPopular ?? false;
+    isSoldOut = product?.isSoldOut ?? false;
   }
 
   @override
@@ -2473,6 +2584,7 @@ class _ProductEditorState extends State<_ProductEditor> {
                 ? null
                 : entry.value.text.trim(),
           'is_popular': isPopular,
+          'is_sold_out': isSoldOut,
         },
         images: List.unmodifiable(pendingImages),
         thumbnailIndex: thumbnailIndex,
@@ -2742,6 +2854,13 @@ class _ProductEditorState extends State<_ProductEditor> {
                 value: isPopular,
                 activeThumbColor: const Color(0xFFA35710),
                 onChanged: (value) => setState(() => isPopular = value),
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Mark as Sold Out'),
+                value: isSoldOut,
+                activeThumbColor: const Color(0xFFA35710),
+                onChanged: (value) => setState(() => isSoldOut = value),
               ),
               const SizedBox(height: 14),
               SizedBox(

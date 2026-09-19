@@ -7,6 +7,7 @@ class Product {
   final String? sizes;
   final String? price;
   final bool? isPopular;
+  final bool isSoldOut;
 
   Product({
     required this.code,
@@ -17,6 +18,7 @@ class Product {
     this.sizes,
     this.price,
     this.isPopular,
+    this.isSoldOut = false,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,7 @@ class Product {
       sizes: json['sizes'] as String?,
       price: json['price'] as String?,
       isPopular: json['is_popular'] as bool?,
+      isSoldOut: json['is_sold_out'] as bool? ?? false,
     );
   }
 
@@ -41,5 +44,6 @@ class Product {
     'sizes': sizes,
     'price': price,
     'is_popular': isPopular,
+    'is_sold_out': isSoldOut,
   };
 }

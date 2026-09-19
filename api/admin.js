@@ -3,7 +3,6 @@ const crypto = require('crypto');
 const adminEmails = new Set([
   'admin.kalasthali@gmail.com',
   'nisharohilla651@gmail.com',
-  'rehaan.tamboli26@gmail.com',
 ]);
 
 const allowedFields = [
@@ -15,6 +14,7 @@ const allowedFields = [
   'sizes',
   'price',
   'is_popular',
+  'is_sold_out',
 ];
 const imageNamePattern = /^(thumbnail|pimage\d+|\d+)\.webp$/i;
 // Image bytes upload directly to Supabase through a short-lived signed URL,
@@ -117,6 +117,9 @@ function productPayload(source, { allowCode }) {
   }
   if (product.is_popular != null && typeof product.is_popular !== 'boolean') {
     throw new Error('is_popular must be true or false.');
+  }
+  if (product.is_sold_out != null && typeof product.is_sold_out !== 'boolean') {
+    throw new Error('is_sold_out must be true or false.');
   }
   return product;
 }

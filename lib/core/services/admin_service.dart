@@ -430,19 +430,51 @@ class AdminService {
       'https://www.delhivery.com/track/package/${Uri.encodeComponent(trackingId)}';
 
   Future<void> _invokeFunction(String name, Map<String, dynamic> body) async {
-    try {
-      await Supabase.instance.client.functions.invoke(name, body: body);
-    } on FunctionException catch (error) {
-      throw AdminException(
-        error.details?.toString() ??
-            error.reasonPhrase ??
-            'Could not send the order email.',
-      );
-    } catch (_) {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) {
       throw const AdminException(
-        'Could not contact the order notification service.',
+        'Your admin session has expired. Please sign in again and retry.',
       );
     }
+
+    try {
+      await Supabase.instance.client.functions.invoke(
+        name,
+        body: body,
+        // Edge Functions validate the caller with the same user JWT used by
+        // the admin API. Never use a privileged server key in the client.
+        headers: {'Authorization': 'Bearer ${session.accessToken}'},
+      );
+    } on FunctionException catch (error) {
+      throw AdminException(_functionErrorMessage(error));
+    } catch (_) {
+      throw const AdminException(
+        'Could not reach the order notification service. Please try again. '
+        'If this continues, verify the Edge Function CORS settings.',
+      );
+    }
+  }
+
+  String _functionErrorMessage(FunctionException error) {
+    if (error.status == 0) {
+      return 'Could not reach the order notification service. Verify that '
+          'the Edge Function allows requests from this website (CORS), then retry.';
+    }
+    if (error.status == 401 || error.status == 403) {
+      return 'Your account is not authorized to send order notifications.';
+    }
+    final details = error.details;
+    if (details is Map) {
+      for (final key in const ['error', 'message']) {
+        final value = details[key]?.toString().trim();
+        if (value != null && value.isNotEmpty) return value;
+      }
+    }
+    final detailText = details?.toString().trim();
+    if (detailText != null && detailText.isNotEmpty) return detailText;
+    final reason = error.reasonPhrase?.trim();
+    if (reason != null && reason.isNotEmpty) return reason;
+    return 'The order notification service could not complete this request.';
   }
 
   Future<SitePolicy> updatePolicy(SitePolicy policy) async {

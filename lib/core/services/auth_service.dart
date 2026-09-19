@@ -7,7 +7,6 @@ class AuthService {
   static const _adminEmails = {
     'admin.kalasthali@gmail.com',
     'nisharohilla651@gmail.com',
-    'rehaan.tamboli26@gmail.com'
   };
 
   static final _auth = Supabase.instance.client.auth;
