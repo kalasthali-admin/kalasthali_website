@@ -73,6 +73,32 @@
   <!-- Page Title -->
   <title>Kalasthali</title>
   <script src="push-bridge.js"></script>
+  <script>
+    // Flutter Web creates this hidden engine-only node while measuring fonts.
+    // It must not become crawlable page copy or an accessibility announcement.
+    (function () {
+      const measurementLabel = 'flutter typography measurement';
+      function hideMeasurementNode(node) {
+        if (!(node instanceof Element)) return;
+        const label = (node.getAttribute('aria-label') || node.textContent || '')
+          .trim()
+          .toLowerCase();
+        if (label !== measurementLabel) return;
+        node.setAttribute('aria-hidden', 'true');
+        node.style.display = 'none';
+      }
+      function scan(root) {
+        if (root instanceof Element) hideMeasurementNode(root);
+        root.querySelectorAll?.('[aria-label], flt-semantics').forEach(hideMeasurementNode);
+      }
+      new MutationObserver((records) => records.forEach((record) =>
+        record.addedNodes.forEach((node) => {
+          if (node.nodeType === Node.ELEMENT_NODE) scan(node);
+        }),
+      )).observe(document.documentElement, { childList: true, subtree: true });
+      scan(document.documentElement);
+    }());
+  </script>
 
   <script type="application/ld+json">
     {

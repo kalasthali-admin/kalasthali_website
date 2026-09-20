@@ -107,7 +107,8 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= 1200;
-    final showsTwoCards = !useCompactLayout(context, breakpoint: 700);
+    final isCompact = useCompactLayout(context, breakpoint: 700);
+    final showsTwoCards = !isCompact;
     final carouselWidth = isDesktop
         ? (screenWidth > 1656 ? 1600.0 : screenWidth - 56)
         : (screenWidth > 0 ? screenWidth : 360.0);
@@ -125,90 +126,58 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
         Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: carouselWidth),
-            child: Row(
-              children: [
-                // Previous button (Desktop only)
-                if (isDesktop)
-                  SizedBox(
-                    width: 70,
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: _previousPage,
-                        child: Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: const [
-                              BoxShadow(color: Colors.black12, blurRadius: 8),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.chevron_left,
-                            color: Color(0xFF914B0D),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                // Carousel
-                Expanded(
-                  child: SizedBox(
-                    height: isDesktop ? 500 : 635,
-                    child: Stack(
-                      children: [
-                        PageView.builder(
-                          controller: _pageController,
-                          onPageChanged: (index) {
-                            setState(() {
-                              _currentPage = index % _products.length;
-                            });
-                          },
-                          itemBuilder: (context, index) {
-                            final product = _products[index % _products.length];
-                            final card = isDesktop
-                                ? _DesktopProductCard(product: product)
-                                : _MobileProductCard(product: product);
+            child: SizedBox(
+              height: isDesktop ? 500 : 635,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  PageView.builder(
+                    controller: _pageController,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentPage = index % _products.length;
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      final product = _products[index % _products.length];
+                      final card = isDesktop
+                          ? _DesktopProductCard(product: product)
+                          : _MobileProductCard(product: product);
 
-                            return Padding(
-                              padding: showsTwoCards
-                                  ? const EdgeInsets.symmetric(horizontal: 15)
-                                  : const EdgeInsets.symmetric(horizontal: 6),
-                              child: card,
-                            );
-                          },
-                        ),
-                      ],
-                    ),
+                      return Padding(
+                        padding: showsTwoCards
+                            ? const EdgeInsets.symmetric(horizontal: 15)
+                            : const EdgeInsets.symmetric(horizontal: 6),
+                        child: card,
+                      );
+                    },
                   ),
-                ),
-                // Next button (Desktop only)
-                if (isDesktop)
-                  SizedBox(
-                    width: 70,
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: _nextPage,
-                        child: Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: const [
-                              BoxShadow(color: Colors.black12, blurRadius: 8),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.chevron_right,
-                            color: Color(0xFF914B0D),
-                          ),
+                  if (!isCompact)
+                    Positioned(
+                      left: 14,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: _CarouselArrow(
+                          icon: Icons.chevron_left,
+                          onTap: _previousPage,
                         ),
                       ),
                     ),
-                  ),
-              ],
+                  if (!isCompact)
+                    Positioned(
+                      right: 14,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: _CarouselArrow(
+                          icon: Icons.chevron_right,
+                          onTap: _nextPage,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -243,6 +212,29 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
       ],
     );
   }
+}
+
+class _CarouselArrow extends StatelessWidget {
+  const _CarouselArrow({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    elevation: 4,
+    shape: const CircleBorder(),
+    child: InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: SizedBox(
+        width: 50,
+        height: 50,
+        child: Icon(icon, color: const Color(0xFF914B0D)),
+      ),
+    ),
+  );
 }
 
 class _DesktopProductCard extends StatelessWidget {
