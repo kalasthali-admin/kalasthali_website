@@ -1035,7 +1035,7 @@ class _OrderNotificationsSettingState
                       ? (_enabled
                             ? 'Order notifications enabled on this device.'
                             : 'Receive an alert whenever a new paid order is placed.')
-                      : 'Web Push is unavailable in this browser or VAPID is not configured.',
+                      : AdminPushService.unavailableReason,
                   style: GoogleFonts.ibmPlexSans(fontSize: 13),
                 ),
               ],

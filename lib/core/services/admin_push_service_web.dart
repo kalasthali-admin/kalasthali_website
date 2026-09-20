@@ -14,8 +14,16 @@ external JSPromise<JSString> _disable();
 
 class AdminPushService {
   static const _vapidPublicKey = String.fromEnvironment('VAPID_PUBLIC_KEY');
-  static bool get isSupported =>
-      _vapidPublicKey.isNotEmpty && _supported().toDart;
+  static bool get isSupported => unavailableReason.isEmpty;
+  static String get unavailableReason {
+    if (_vapidPublicKey.isEmpty) {
+      return 'VAPID_PUBLIC_KEY was not included in this Vercel build.';
+    }
+    if (!_supported().toDart) {
+      return 'This browser does not support the required Web Push APIs.';
+    }
+    return '';
+  }
 
   Future<bool> isEnabled() async => (await _enabled().toDart).toDart;
 
