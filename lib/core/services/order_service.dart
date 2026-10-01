@@ -145,6 +145,36 @@ class OrderService {
     );
   }
 
+  Future<void> submitReview({
+    required String orderId,
+    required String productCode,
+    required int rating,
+    required String reviewText,
+  }) async {
+    final text = reviewText.trim();
+    if (orderId.isEmpty || productCode.isEmpty) {
+      throw const OrderServiceException(
+        'Order and product details are required.',
+      );
+    }
+    if (rating < 1 || rating > 5) {
+      throw const OrderServiceException('Choose a rating from 1 to 5 stars.');
+    }
+    if (text.length < 3 || text.length > 1000) {
+      throw const OrderServiceException(
+        'Enter a review between 3 and 1000 characters.',
+      );
+    }
+    _decode(
+      await _post('submit_review', {
+        'orderId': orderId,
+        'productCode': productCode,
+        'rating': rating,
+        'reviewText': text,
+      }),
+    );
+  }
+
   Future<void> _invokeFunction(String name, Map<String, dynamic> body) async {
     try {
       await Supabase.instance.client.functions.invoke(name, body: body);

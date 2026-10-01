@@ -24,6 +24,15 @@ class AuthService {
     redirectTo: kIsWeb ? '${Uri.base.origin}/account' : null,
   );
 
+  static Future<void> sendPasswordResetEmail(String email) =>
+      _auth.resetPasswordForEmail(
+        email,
+        redirectTo: kIsWeb ? '${Uri.base.origin}/reset-password' : null,
+      );
+
+  static Future<void> updatePassword(String password) =>
+      _auth.updateUser(UserAttributes(password: password));
+
   static String firstName(User user) {
     final metadata = user.userMetadata ?? const <String, dynamic>{};
     final suppliedName =

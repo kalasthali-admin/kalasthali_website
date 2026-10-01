@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/models/product.dart';
+import '../core/models/product_review.dart';
 import '../core/responsive.dart';
 import '../core/services/checkout_navigation.dart';
 import '../core/services/product_service.dart';
@@ -76,12 +77,187 @@ class _ProductDetails extends StatelessWidget {
                 ),
               ),
             ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  mobile ? 22 : 54,
+                  0,
+                  mobile ? 22 : 54,
+                  100,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1200),
+                    child: _ProductReviewsSection(productCode: product.code),
+                  ),
+                ),
+              ),
+            ),
             const AppFooterSliver(),
           ],
         );
       },
     );
   }
+}
+
+class _ProductReviewsSection extends StatelessWidget {
+  const _ProductReviewsSection({required this.productCode});
+
+  final String productCode;
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<ProductReview>>(
+    future: ProductService().getProductReviews(productCode),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      if (snapshot.hasError) {
+        return Text(
+          'Reviews are temporarily unavailable.',
+          style: GoogleFonts.ibmPlexSans(fontSize: 16),
+        );
+      }
+      final reviews = snapshot.data ?? const <ProductReview>[];
+      final average = reviews.isEmpty
+          ? 0.0
+          : reviews.fold<int>(0, (total, review) => total + review.rating) /
+                reviews.length;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(color: Color(0xFF65421F), thickness: 1),
+          const SizedBox(height: 28),
+          Wrap(
+            spacing: 18,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                'Customer Reviews',
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: 38,
+                  color: const Color(0xFF5B351A),
+                ),
+              ),
+              if (reviews.isNotEmpty) ...[
+                _ProductReviewStars(rating: average.round(), size: 22),
+                Text(
+                  '${average.toStringAsFixed(1)} (${reviews.length})',
+                  style: GoogleFonts.ibmPlexSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 24),
+          if (reviews.isEmpty)
+            Text(
+              'No reviews yet. Verified customers can review this product after delivery.',
+              style: GoogleFonts.ibmPlexSans(fontSize: 17, height: 1.35),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final twoColumns = constraints.maxWidth >= 760;
+                final width = twoColumns
+                    ? (constraints.maxWidth - 18) / 2
+                    : constraints.maxWidth;
+                return Wrap(
+                  spacing: 18,
+                  runSpacing: 18,
+                  children: [
+                    for (final review in reviews)
+                      SizedBox(
+                        width: width,
+                        child: _ProductReviewCard(review: review),
+                      ),
+                  ],
+                );
+              },
+            ),
+        ],
+      );
+    },
+  );
+}
+
+class _ProductReviewCard extends StatelessWidget {
+  const _ProductReviewCard({required this.review});
+
+  final ProductReview review;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: const Color(0xFFECE7DD),
+      border: Border.all(color: const Color(0xFFD5B48A)),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                review.reviewerName,
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: 22,
+                  color: const Color(0xFF5B351A),
+                ),
+              ),
+            ),
+            if (review.createdAt != null)
+              Text(
+                _reviewDate(review.createdAt!),
+                style: GoogleFonts.ibmPlexSans(
+                  fontSize: 13,
+                  color: const Color(0xFF746D64),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        _ProductReviewStars(rating: review.rating),
+        const SizedBox(height: 12),
+        Text(
+          review.text,
+          style: GoogleFonts.ibmPlexSans(fontSize: 16, height: 1.35),
+        ),
+      ],
+    ),
+  );
+}
+
+class _ProductReviewStars extends StatelessWidget {
+  const _ProductReviewStars({required this.rating, this.size = 19});
+
+  final int rating;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (var star = 1; star <= 5; star++)
+        Icon(
+          star <= rating ? Icons.star : Icons.star_border,
+          size: size,
+          color: const Color(0xFFA35710),
+        ),
+    ],
+  );
+}
+
+String _reviewDate(DateTime value) {
+  final local = value.toLocal();
+  return '${local.day.toString().padLeft(2, '0')}/'
+      '${local.month.toString().padLeft(2, '0')}/${local.year}';
 }
 
 class _MobileProductLayout extends StatelessWidget {

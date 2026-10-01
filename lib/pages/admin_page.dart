@@ -454,28 +454,43 @@ class _AdminPageState extends State<AdminPage> {
         builder: (context, snapshot) {
           final user = snapshot.data ?? AuthService.currentUser;
           if (!AuthService.isAdmin(user)) return const _AdminAccessDenied();
-          return _AdminDashboard(
-            loading: _loading,
-            error: _error,
-            products: _products,
-            gallery: _gallery,
-            policies: _policies,
-            orders: _orders,
-            ordersError: _ordersError,
-            productSearch: _productSearch,
-            selectedCategory: _selectedCategory,
-            onRefresh: _loadDashboard,
-            onCategorySelected: (category) =>
-                setState(() => _selectedCategory = category),
-            onCreate: () => _editProduct(),
-            onEdit: _editProduct,
-            onDelete: _deleteProduct,
-            onSavePolicy: _savePolicy,
-            onSubmitShippingConfirmation: _submitShippingConfirmation,
-            onMarkDelivered: _markDelivered,
-            onAcceptReturn: _acceptReturn,
-            onMarkRefundProcessed: _markRefundProcessed,
-            onRejectReturn: _rejectReturn,
+          return Stack(
+            children: [
+              _AdminDashboard(
+                loading: _loading,
+                error: _error,
+                products: _products,
+                gallery: _gallery,
+                policies: _policies,
+                orders: _orders,
+                ordersError: _ordersError,
+                productSearch: _productSearch,
+                selectedCategory: _selectedCategory,
+                onRefresh: _loadDashboard,
+                onCategorySelected: (category) =>
+                    setState(() => _selectedCategory = category),
+                onCreate: () => _editProduct(),
+                onEdit: _editProduct,
+                onDelete: _deleteProduct,
+                onSavePolicy: _savePolicy,
+                onSubmitShippingConfirmation: _submitShippingConfirmation,
+                onMarkDelivered: _markDelivered,
+                onAcceptReturn: _acceptReturn,
+                onMarkRefundProcessed: _markRefundProcessed,
+                onRejectReturn: _rejectReturn,
+              ),
+              if (_loading)
+                const Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: LinearProgressIndicator(
+                    minHeight: 4,
+                    color: Color(0xFFA35710),
+                    backgroundColor: Color(0xFFE2C7A0),
+                  ),
+                ),
+            ],
           );
         },
       ),
@@ -523,35 +538,44 @@ class _ImageUploadDialog extends StatelessWidget {
               color: const Color(0xFF5B351A),
             ),
           ),
-          content: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              if (processing)
-                const Padding(
-                  padding: EdgeInsets.only(top: 2),
-                  child: SizedBox.square(
-                    dimension: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
+              if (processing) ...[
+                const LinearProgressIndicator(
+                  color: Color(0xFFA35710),
+                  backgroundColor: Color(0xFFE2C7A0),
+                ),
+                const SizedBox(height: 16),
+              ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    processing
+                        ? Icons.hourglass_top
+                        : success
+                        ? Icons.check_circle_outline
+                        : Icons.error_outline,
+                    color: processing
+                        ? const Color(0xFFA35710)
+                        : success
+                        ? const Color(0xFF477A45)
+                        : Colors.red.shade700,
+                    size: 26,
                   ),
-                )
-              else
-                Icon(
-                  success ? Icons.check_circle_outline : Icons.error_outline,
-                  color: success
-                      ? const Color(0xFF477A45)
-                      : Colors.red.shade700,
-                  size: 26,
-                ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  processing
-                      ? current.message
-                      : success
-                      ? 'Your image was uploaded successfully.'
-                      : current.message,
-                  style: GoogleFonts.ibmPlexSans(fontSize: 17),
-                ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      processing
+                          ? current.message
+                          : success
+                          ? 'Your image was uploaded successfully.'
+                          : current.message,
+                      style: GoogleFonts.ibmPlexSans(fontSize: 17),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1018,38 +1042,50 @@ class _OrderNotificationsSettingState
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFD5B48A)),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.notifications_outlined, color: Color(0xFF5B351A)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Order notifications',
-                  style: GoogleFonts.ibmPlexSans(fontWeight: FontWeight.w700),
-                ),
-                Text(
-                  supported
-                      ? (_enabled
-                            ? 'Order notifications enabled on this device.'
-                            : 'Receive an alert whenever a new paid order is placed.')
-                      : AdminPushService.unavailableReason,
-                  style: GoogleFonts.ibmPlexSans(fontSize: 13),
-                ),
-              ],
+          if (_loading) ...[
+            const LinearProgressIndicator(
+              color: Color(0xFFA35710),
+              backgroundColor: Color(0xFFE2C7A0),
             ),
-          ),
-          const SizedBox(width: 12),
-          OutlinedButton(
-            onPressed: !supported || _loading ? null : _update,
-            child: _loading
-                ? const SizedBox.square(
-                    dimension: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(_enabled ? 'DISABLE' : 'ENABLE'),
+            const SizedBox(height: 12),
+          ],
+          Row(
+            children: [
+              const Icon(
+                Icons.notifications_outlined,
+                color: Color(0xFF5B351A),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Order notifications',
+                      style: GoogleFonts.ibmPlexSans(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      supported
+                          ? (_enabled
+                                ? 'Order notifications enabled on this device.'
+                                : 'Receive an alert whenever a new paid order is placed.')
+                          : AdminPushService.unavailableReason,
+                      style: GoogleFonts.ibmPlexSans(fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton(
+                onPressed: !supported || _loading ? null : _update,
+                child: Text(_enabled ? 'DISABLE' : 'ENABLE'),
+              ),
+            ],
           ),
         ],
       ),
@@ -2366,6 +2402,13 @@ class _GallerySheetState extends State<_GallerySheet> {
               ],
             ),
             const SizedBox(height: 8),
+            if (_busy || widget.loading) ...[
+              const LinearProgressIndicator(
+                color: Color(0xFFA35710),
+                backgroundColor: Color(0xFFE2C7A0),
+              ),
+              const SizedBox(height: 12),
+            ],
             Text(
               'Star an image to use it as the storefront thumbnail.',
               style: GoogleFonts.ibmPlexSans(fontSize: 16),

@@ -16,6 +16,7 @@ import 'pages/product_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/admin_page.dart';
 import 'pages/policy_page.dart';
+import 'pages/password_reset_page.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -53,6 +54,7 @@ class KalasthaliApp extends StatelessWidget {
   static const String privacyPolicyRoute = '/privacy-policy';
   static const String termsOfServiceRoute = '/terms-of-service';
   static const String refundPolicyRoute = '/refund-policy';
+  static const String passwordResetRoute = '/reset-password';
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +84,7 @@ class KalasthaliApp extends StatelessWidget {
         termsOfServiceRoute: (context) =>
             const PolicyPage(slug: 'terms-of-service'),
         refundPolicyRoute: (context) => const PolicyPage(slug: 'refund-policy'),
+        passwordResetRoute: (context) => const PasswordResetPage(),
       },
       onGenerateRoute: (settings) {
         final uri = Uri.parse(settings.name ?? '/');
@@ -114,6 +117,13 @@ class KalasthaliApp extends StatelessWidget {
           return MaterialPageRoute<void>(
             builder: (_) =>
                 CheckoutPage(productCode: uri.queryParameters['code'] ?? ''),
+            settings: settings,
+          );
+        }
+
+        if (uri.path == passwordResetRoute) {
+          return MaterialPageRoute<void>(
+            builder: (_) => const PasswordResetPage(),
             settings: settings,
           );
         }

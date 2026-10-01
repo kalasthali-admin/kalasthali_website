@@ -144,6 +144,31 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
     }
   }
 
+  Future<void> _forgotPassword() async {
+    final email = _email.text.trim();
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      setState(() => _message = 'Enter your email address first.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _message = null;
+    });
+    try {
+      await AuthService.sendPasswordResetEmail(email);
+      if (mounted) {
+        setState(() {
+          _message =
+              'If an account exists for this email, a password reset link has been sent.';
+        });
+      }
+    } on AuthException catch (error) {
+      if (mounted) setState(() => _message = error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(28),
@@ -218,6 +243,20 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
                   ? 'Use at least 6 characters.'
                   : null,
             ),
+            if (!_signUp)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _loading ? null : _forgotPassword,
+                  child: Text(
+                    'Forgot Password?',
+                    style: GoogleFonts.ibmPlexSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
             if (_message != null) ...[
               const SizedBox(height: 16),
               Text(
@@ -440,14 +479,31 @@ class _AccountDetailsState extends State<_AccountDetails> {
               as List)
           .cast<Map<String, dynamic>>();
 
-  Future<List<Map<String, dynamic>>> _loadOrders() async =>
-      (await Supabase.instance.client
-                  .from('sales')
-                  .select()
-                  .eq('user', widget.user.id)
-                  .order('paid_at', ascending: false)
-              as List)
-          .cast<Map<String, dynamic>>();
+  Future<List<Map<String, dynamic>>> _loadOrders() async {
+    final results = await Future.wait<dynamic>([
+      Supabase.instance.client
+          .from('sales')
+          .select()
+          .eq('user', widget.user.id)
+          .order('paid_at', ascending: false),
+      Supabase.instance.client.rpc('get_my_product_reviews'),
+    ]);
+    final orders = (results[0] as List).cast<Map<String, dynamic>>();
+    final reviews = (results[1] as List).cast<Map<String, dynamic>>();
+    return [
+      for (final order in orders)
+        {
+          ...order,
+          '_reviews': reviews
+              .where(
+                (review) => _orderItems(
+                  order,
+                ).any((item) => item.code == review['product_code'].toString()),
+              )
+              .toList(),
+        },
+    ];
+  }
 
   void _refresh() {
     setState(() {
@@ -1132,112 +1188,92 @@ class _OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = _orderItems(order);
-    final paidAt = DateTime.tryParse((order['paid_at'] ?? '').toString());
-
     final status = _customerOrderStatus(order);
+    final reviews = _orderReviews(order);
+    final productCodes = items
+        .map((item) => item.code)
+        .where((code) => code.isNotEmpty)
+        .toSet();
+    final reviewedCodes = reviews
+        .map((review) => (review['product_code'] ?? '').toString())
+        .toSet();
+    final allReviewed =
+        productCodes.isNotEmpty && productCodes.every(reviewedCodes.contains);
+    final nextReviewItem = items.cast<_InvoiceItem?>().firstWhere(
+      (item) =>
+          item != null &&
+          item.code.isNotEmpty &&
+          !reviewedCodes.contains(item.code),
+      orElse: () => null,
+    );
     final canCancel =
         status == 'order_placed' && _within24Hours(order['paid_at']);
     final canReturn =
         status == 'delivered' &&
         order['return_status'] == null &&
         _within24Hours(order['delivered_at']);
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 760),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => _showOrderSheet(context, order, items),
-          child: Ink(
-            padding: const EdgeInsets.all(16),
-            decoration: _orderCardDecoration(),
-            child: Column(
-              children: [
-                Row(
+    final quantity = items.fold<int>(0, (total, item) => total + item.quantity);
+    final total = _intValue(order['amount']);
+    final unitPrice = items.length == 1 && items.first.quantity > 0
+        ? items.first.lineTotal ~/ items.first.quantity
+        : total;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 760;
+        final details = _OrderProductSummary(
+          items: items,
+          quantity: quantity,
+          unitPrice: unitPrice,
+          total: total,
+          status: status,
+          returnStatus: order['return_status']?.toString(),
+          large: !stacked,
+        );
+        final actions = _OrderActionPanel(
+          onViewInvoice: () => _showOrderSheet(context, order, items),
+          secondaryLabel: canCancel ? 'CANCEL ORDER' : 'REQUEST REFUND',
+          onSecondary: canCancel
+              ? () => _cancel(context)
+              : canReturn
+              ? () => _requestReturn(context)
+              : null,
+          onViewProduct: items.length == 1 && items.first.code.isNotEmpty
+              ? () => Navigator.of(context).pushNamed(
+                  Uri(
+                    path: '/product',
+                    queryParameters: {'code': items.first.code},
+                  ).toString(),
+                )
+              : null,
+          reviewLabel: allReviewed ? 'VIEW REVIEW' : 'POST REVIEW',
+          onReview: allReviewed
+              ? () => _viewReviews(context, items, reviews)
+              : status == 'delivered' && nextReviewItem != null
+              ? () => _postReview(context, nextReviewItem)
+              : null,
+          large: !stacked,
+        );
+
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(stacked ? 16 : 24),
+          decoration: _orderCardDecoration(),
+          child: stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [details, const SizedBox(height: 16), actions],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    _OrderLead(items: items),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            items.length == 1 ? items.first.name : 'Cart order',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.dmSerifDisplay(
-                              fontSize: 24,
-                              color: const Color(0xFF5B351A),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            items.length == 1
-                                ? 'Qty ${items.first.quantity}'
-                                : '${items.length} items purchased',
-                            style: GoogleFonts.ibmPlexSans(fontSize: 16),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            [
-                              'Order ${order['order_id']}',
-                              if (paidAt != null) _dateLabel(paidAt),
-                            ].join(' • '),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.ibmPlexSans(
-                              fontSize: 13,
-                              color: const Color(0xFF746D64),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '₹${order['amount'] ?? '-'}',
-                          style: GoogleFonts.ibmPlexSans(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        const Icon(
-                          Icons.chevron_right,
-                          color: Color(0xFF5B351A),
-                        ),
-                      ],
-                    ),
+                    Expanded(child: details),
+                    const SizedBox(width: 28),
+                    SizedBox(width: 280, child: actions),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: _CustomerOrderStatus(
-                    status: status,
-                    returnStatus: order['return_status']?.toString(),
-                  ),
-                ),
-                if (canCancel || canReturn) ...[
-                  const SizedBox(height: 14),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: OutlinedButton(
-                      onPressed: canCancel
-                          ? () => _cancel(context)
-                          : () => _requestReturn(context),
-                      child: Text(canCancel ? 'CANCEL ORDER' : 'RETURN ORDER'),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1310,6 +1346,479 @@ class _OrderCard extends StatelessWidget {
         );
     }
   }
+
+  Future<void> _postReview(BuildContext context, _InvoiceItem item) async {
+    final submitted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _ReviewEditorDialog(
+        orderId: order['order_id'].toString(),
+        item: item,
+      ),
+    );
+    if (submitted == true && context.mounted) {
+      ProductService().invalidateProductReviews(item.code);
+      onChanged();
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Review submitted.')));
+    }
+  }
+
+  void _viewReviews(
+    BuildContext context,
+    List<_InvoiceItem> items,
+    List<Map<String, dynamic>> reviews,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _SubmittedReviewsDialog(items: items, reviews: reviews),
+    );
+  }
+}
+
+class _OrderProductSummary extends StatelessWidget {
+  const _OrderProductSummary({
+    required this.items,
+    required this.quantity,
+    required this.unitPrice,
+    required this.total,
+    required this.status,
+    required this.large,
+    this.returnStatus,
+  });
+
+  final List<_InvoiceItem> items;
+  final int quantity;
+  final int unitPrice;
+  final int total;
+  final String status;
+  final bool large;
+  final String? returnStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = items.first;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _OrderLead(items: items, large: large),
+        SizedBox(width: large ? 20 : 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (item.size?.isNotEmpty == true)
+                Text(
+                  'Size ${item.size}',
+                  style: GoogleFonts.ibmPlexSans(
+                    fontSize: large ? 14 : 12,
+                    color: const Color(0xFF746D64),
+                  ),
+                ),
+              Text(
+                items.length == 1 ? item.name : '${items.length} products',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: large ? 28 : 21,
+                  height: 1.05,
+                  color: const Color(0xFF5B351A),
+                ),
+              ),
+              SizedBox(height: large ? 22 : 14),
+              Wrap(
+                spacing: large ? 28 : 18,
+                runSpacing: 8,
+                children: [
+                  _OrderMetric(
+                    label: 'Price',
+                    value: '₹$unitPrice',
+                    large: large,
+                  ),
+                  _OrderMetric(
+                    label: 'Quantity',
+                    value: '$quantity',
+                    large: large,
+                  ),
+                  _OrderMetric(
+                    label: 'Total',
+                    value: '₹$total',
+                    large: large,
+                    bold: true,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 13),
+              _CustomerOrderStatus(status: status, returnStatus: returnStatus),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OrderMetric extends StatelessWidget {
+  const _OrderMetric({
+    required this.label,
+    required this.value,
+    required this.large,
+    this.bold = false,
+  });
+
+  final String label;
+  final String value;
+  final bool large;
+  final bool bold;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: GoogleFonts.ibmPlexSans(
+          fontSize: large ? 14 : 12,
+          color: const Color(0xFF746D64),
+        ),
+      ),
+      Text(
+        value,
+        style: GoogleFonts.ibmPlexSans(
+          fontSize: large ? 19 : 15,
+          fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+          color: const Color(0xFF111111),
+        ),
+      ),
+    ],
+  );
+}
+
+class _OrderActionPanel extends StatelessWidget {
+  const _OrderActionPanel({
+    required this.onViewInvoice,
+    required this.secondaryLabel,
+    required this.onSecondary,
+    required this.onViewProduct,
+    required this.reviewLabel,
+    required this.onReview,
+    required this.large,
+  });
+
+  final VoidCallback onViewInvoice;
+  final String secondaryLabel;
+  final VoidCallback? onSecondary;
+  final VoidCallback? onViewProduct;
+  final String reviewLabel;
+  final VoidCallback? onReview;
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _OrderActionButton(
+        label: 'VIEW INVOICE',
+        onPressed: onViewInvoice,
+        height: large ? 50 : 38,
+      ),
+      SizedBox(height: large ? 10 : 8),
+      _OrderActionButton(
+        label: secondaryLabel,
+        onPressed: onSecondary,
+        height: large ? 50 : 38,
+      ),
+      SizedBox(height: large ? 10 : 8),
+      Row(
+        children: [
+          Expanded(
+            child: _OrderActionButton(
+              label: 'VIEW PRODUCT',
+              onPressed: onViewProduct,
+              darkText: true,
+              height: large ? 50 : 38,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _OrderActionButton(
+              label: reviewLabel,
+              onPressed: onReview,
+              darkText: true,
+              height: large ? 50 : 38,
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+class _OrderActionButton extends StatelessWidget {
+  const _OrderActionButton({
+    required this.label,
+    required this.onPressed,
+    this.darkText = false,
+    this.height = 38,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final bool darkText;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: height,
+    child: OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: darkText
+            ? const Color(0xFF111111)
+            : const Color(0xFFA35710),
+        disabledForegroundColor: const Color(0xFF9A9187),
+        side: BorderSide(
+          color: onPressed == null
+              ? const Color(0xFFBEB4A7)
+              : const Color(0xFF8C684D),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        textStyle: GoogleFonts.ibmPlexSans(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      child: Text(label, textAlign: TextAlign.center),
+    ),
+  );
+}
+
+class _ReviewEditorDialog extends StatefulWidget {
+  const _ReviewEditorDialog({required this.orderId, required this.item});
+
+  final String orderId;
+  final _InvoiceItem item;
+
+  @override
+  State<_ReviewEditorDialog> createState() => _ReviewEditorDialogState();
+}
+
+class _ReviewEditorDialogState extends State<_ReviewEditorDialog> {
+  final _review = TextEditingController();
+  var _rating = 0;
+  var _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _review.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final text = _review.text.trim();
+    if (_rating < 1 || text.length < 3) {
+      setState(() => _error = 'Choose a star rating and enter your review.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await OrderService.instance.submitReview(
+        orderId: widget.orderId,
+        productCode: widget.item.code,
+        rating: _rating,
+        reviewText: text,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } on OrderServiceException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(
+      'Review ${widget.item.name}',
+      style: GoogleFonts.dmSerifDisplay(
+        fontSize: 30,
+        color: const Color(0xFF5B351A),
+      ),
+    ),
+    content: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 520),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Your rating',
+            style: GoogleFonts.ibmPlexSans(fontWeight: FontWeight.w700),
+          ),
+          Row(
+            children: [
+              for (var star = 1; star <= 5; star++)
+                IconButton(
+                  tooltip: '$star star${star == 1 ? '' : 's'}',
+                  onPressed: _submitting
+                      ? null
+                      : () => setState(() => _rating = star),
+                  icon: Icon(
+                    star <= _rating ? Icons.star : Icons.star_border,
+                    color: const Color(0xFFA35710),
+                    size: 30,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _review,
+            enabled: !_submitting,
+            minLines: 4,
+            maxLines: 7,
+            maxLength: 1000,
+            decoration: const InputDecoration(
+              labelText: 'Your review',
+              alignLabelWithHint: true,
+              border: OutlineInputBorder(),
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(_error!, style: const TextStyle(color: Colors.red)),
+          ],
+          if (_submitting) ...[
+            const SizedBox(height: 12),
+            const LinearProgressIndicator(),
+          ],
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _submitting ? null : () => Navigator.pop(context, false),
+        child: const Text('CANCEL'),
+      ),
+      FilledButton(
+        onPressed: _submitting ? null : _submit,
+        child: const Text('SUBMIT REVIEW'),
+      ),
+    ],
+  );
+}
+
+class _SubmittedReviewsDialog extends StatelessWidget {
+  const _SubmittedReviewsDialog({required this.items, required this.reviews});
+
+  final List<_InvoiceItem> items;
+  final List<Map<String, dynamic>> reviews;
+
+  @override
+  Widget build(BuildContext context) {
+    String productName(String code) =>
+        items
+            .where((item) => item.code == code)
+            .map((item) => item.name)
+            .firstOrNull ??
+        'Product';
+
+    return AlertDialog(
+      title: Text(
+        'Your review${reviews.length == 1 ? '' : 's'}',
+        style: GoogleFonts.dmSerifDisplay(
+          fontSize: 30,
+          color: const Color(0xFF5B351A),
+        ),
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final review in reviews)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECE7DD),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFD5B48A)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        productName((review['product_code'] ?? '').toString()),
+                        style: GoogleFonts.dmSerifDisplay(
+                          fontSize: 22,
+                          color: const Color(0xFF5B351A),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      _ReviewStars(
+                        rating: (review['rating'] as num?)?.toInt() ?? 0,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        (review['review_text'] ?? '').toString(),
+                        style: GoogleFonts.ibmPlexSans(
+                          fontSize: 15,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('CLOSE'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReviewStars extends StatelessWidget {
+  const _ReviewStars({required this.rating});
+
+  final int rating;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (var star = 1; star <= 5; star++)
+        Icon(
+          star <= rating ? Icons.star : Icons.star_border,
+          size: 19,
+          color: const Color(0xFFA35710),
+        ),
+    ],
+  );
+}
+
+List<Map<String, dynamic>> _orderReviews(Map<String, dynamic> order) {
+  final value = order['_reviews'];
+  if (value is! List) return const [];
+  return value
+      .whereType<Map>()
+      .map((review) => review.cast<String, dynamic>())
+      .toList();
 }
 
 String _customerOrderStatus(Map<String, dynamic> order) =>
@@ -1526,15 +2035,16 @@ BoxDecoration _orderCardDecoration() => BoxDecoration(
 );
 
 class _OrderLead extends StatelessWidget {
-  const _OrderLead({required this.items});
+  const _OrderLead({required this.items, this.large = false});
   final List<_InvoiceItem> items;
+  final bool large;
 
   @override
   Widget build(BuildContext context) {
     if (items.length > 1) {
       return Container(
-        width: 92,
-        height: 104,
+        width: large ? 150 : 92,
+        height: large ? 170 : 104,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: const Color(0xFFD6BFA6),
@@ -1546,11 +2056,14 @@ class _OrderLead extends StatelessWidget {
             Text(
               '${items.length}',
               style: GoogleFonts.dmSerifDisplay(
-                fontSize: 36,
+                fontSize: large ? 48 : 36,
                 color: const Color(0xFF5B351A),
               ),
             ),
-            Text('ITEMS', style: GoogleFonts.ibmPlexSans(fontSize: 12)),
+            Text(
+              'ITEMS',
+              style: GoogleFonts.ibmPlexSans(fontSize: large ? 15 : 12),
+            ),
           ],
         ),
       );
@@ -1558,8 +2071,8 @@ class _OrderLead extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
-        width: 92,
-        height: 104,
+        width: large ? 150 : 92,
+        height: large ? 170 : 104,
         child: FutureBuilder<String>(
           future: ProductService().getProductImageUrlAsync(items.first.code),
           builder: (context, snapshot) {

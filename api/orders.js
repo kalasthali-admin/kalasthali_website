@@ -76,6 +76,17 @@ function returnEligible(order) {
   return orderStatus(order) === 'delivered' && !order.return_status && isWithin(order.delivered_at, 24);
 }
 
+function orderItems(order) {
+  if (Array.isArray(order.items) && order.items.length) return order.items;
+  return [{ product_code: order.product_code }];
+}
+
+function reviewerName(user) {
+  const metadata = user.user_metadata || {};
+  const name = String(metadata.first_name || metadata.name || '').trim();
+  return (name || String(user.email || 'Customer').split('@')[0]).slice(0, 80);
+}
+
 function evidencePath(orderId, extension) {
   return `${orderId}/${crypto.randomBytes(16).toString('hex')}.${extension}`;
 }
@@ -147,6 +158,46 @@ module.exports = async function handler(req, res) {
         }),
       });
       return json(res, 200, updated[0]);
+    }
+
+    if (action === 'submit_review' && req.method === 'POST') {
+      const productCode = String(body.productCode || '').trim();
+      const rating = Number(body.rating);
+      const reviewText = String(body.reviewText || '').trim();
+      const purchased = orderItems(order).some(
+        (item) => String(item?.product_code || item?.code || '') === productCode,
+      );
+      if (!purchased) {
+        return json(res, 403, { error: 'This product is not part of the selected order.' });
+      }
+      if (orderStatus(order) !== 'delivered') {
+        return json(res, 409, { error: 'A review can be posted after the order is delivered.' });
+      }
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+        return json(res, 400, { error: 'Choose a rating from 1 to 5 stars.' });
+      }
+      if (reviewText.length < 3 || reviewText.length > 1000) {
+        return json(res, 400, { error: 'Enter a review between 3 and 1000 characters.' });
+      }
+      const existing = await supabaseFetch(
+        `/rest/v1/product_reviews?select=id&user_id=eq.${encodeURIComponent(user.id)}&product_code=eq.${encodeURIComponent(productCode)}&limit=1`,
+      );
+      if (existing.length > 0) {
+        return json(res, 409, { error: 'You have already reviewed this product.' });
+      }
+      const inserted = await supabaseFetch('/rest/v1/product_reviews', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          user_id: user.id,
+          order_id: orderId,
+          product_code: productCode,
+          reviewer_name: reviewerName(user),
+          rating,
+          review_text: reviewText,
+        }),
+      });
+      return json(res, 201, inserted[0]);
     }
     return json(res, 405, { error: 'Unsupported order action.' });
   } catch (error) {

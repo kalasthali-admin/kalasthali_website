@@ -318,7 +318,7 @@ class _CartProductCard extends StatelessWidget {
     final product = item.product;
     final price = _priceNumber(product?.price);
     final total = price == null ? null : price * item.quantity;
-    final mobile = MediaQuery.sizeOf(context).width < 650;
+    final mobile = useCompactLayout(context, breakpoint: 900);
 
     return Container(
       margin: EdgeInsets.only(bottom: mobile ? 32 : 22),
@@ -350,7 +350,9 @@ class _CartProductCard extends StatelessWidget {
         highlightColor: const Color(0x1AA35710),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final compact = constraints.maxWidth < 650;
+            // The cart itself becomes single-column below 900px. Switch the
+            // item composition before its desktop metrics row gets squeezed.
+            final compact = constraints.maxWidth < 760;
             if (compact) {
               return _CompactCartProductContent(
                 item: item,
