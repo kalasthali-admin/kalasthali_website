@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/models/order_success_details.dart';
 import '../core/models/product.dart';
-import '../core/models/user_account.dart';
+import '../core/responsive.dart';
 import '../core/services/auth_service.dart';
+import '../core/services/payment_service.dart';
 import '../core/services/product_service.dart';
-import '../core/services/user_account_service.dart';
+import 'order_success_page.dart';
 import '../widgets/app_footer.dart';
 import '../widgets/app_scaffold.dart';
 
@@ -18,27 +21,237 @@ class CheckoutPage extends StatefulWidget {
   State<CheckoutPage> createState() => _CheckoutPageState();
 }
 
+Future<void> showProductCheckoutSheet(BuildContext context, Product product) {
+  final desktop = MediaQuery.sizeOf(context).width >= 700;
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    constraints: desktop ? const BoxConstraints(maxWidth: 655) : null,
+    builder: (_) => _ProductCheckoutSheet(product: product),
+  );
+}
+
+class _ProductCheckoutSheet extends StatefulWidget {
+  const _ProductCheckoutSheet({required this.product});
+
+  final Product product;
+
+  @override
+  State<_ProductCheckoutSheet> createState() => _ProductCheckoutSheetState();
+}
+
+class _ProductCheckoutSheetState extends State<_ProductCheckoutSheet> {
+  late Future<List<Map<String, dynamic>>> _addresses;
+  String? _selectedAddressId;
+  OrderSuccessDetails? _success;
+
+  Future<List<Map<String, dynamic>>> _loadAddresses(String userId) async =>
+      (await Supabase.instance.client
+                  .from('user_addresses')
+                  .select()
+                  .eq('user_id', userId)
+                  .order('created_at')
+              as List)
+          .cast<Map<String, dynamic>>();
+
+  @override
+  void initState() {
+    super.initState();
+    final user = AuthService.currentUser;
+    _addresses = user == null
+        ? Future.value(const [])
+        : _loadAddresses(user.id);
+  }
+
+  Map<String, dynamic>? _selected(List<Map<String, dynamic>> addresses) {
+    if (addresses.isEmpty) return null;
+    final id = _selectedAddressId;
+    if (id != null) {
+      for (final address in addresses) {
+        if (address['id'] == id) return address;
+      }
+    }
+    return _selectedAddress(addresses);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewport = MediaQuery.sizeOf(context);
+    final desktop = viewport.width >= 700;
+    final extraHeight = desktop ? 30 / viewport.height : 0.0;
+    return DraggableScrollableSheet(
+      initialChildSize: .62 + extraHeight,
+      minChildSize: .46,
+      maxChildSize: .94,
+      expand: false,
+      builder: (context, controller) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFD6BFA6),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          border: Border(
+            top: BorderSide(color: Color(0xFF5B351A), width: 2),
+            left: BorderSide(color: Color(0xFF5B351A), width: 2),
+            right: BorderSide(color: Color(0xFF5B351A), width: 2),
+          ),
+        ),
+        child: ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(30, 14, 30, 32),
+          children: [
+            Center(
+              child: Container(
+                width: 46,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8C684D),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            if (_success != null)
+              _ProductSheetSuccess(details: _success!)
+            else ...[
+              _OrderSummary(product: widget.product),
+              const SizedBox(height: 22),
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: _addresses,
+                builder: (context, snapshot) {
+                  final addresses = snapshot.data ?? const [];
+                  final selected = _selected(addresses);
+                  if (AuthService.currentUser == null) {
+                    return const _SignInForCheckout();
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _DeliveryPanel(
+                        addresses: addresses,
+                        loading:
+                            snapshot.connectionState != ConnectionState.done,
+                        updating: false,
+                        onAddressSelected: (id) =>
+                            setState(() => _selectedAddressId = id),
+                        onAddAddress: () =>
+                            Navigator.pushNamed(context, '/account'),
+                      ),
+                      const SizedBox(height: 20),
+                      _PaymentPanel(
+                        product: widget.product,
+                        address: selected,
+                        canContinue: selected != null,
+                        actionLabel: 'Order Now',
+                        onOrderCompleted: (details) =>
+                            setState(() => _success = details),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductSheetSuccess extends StatelessWidget {
+  const _ProductSheetSuccess({required this.details});
+  final OrderSuccessDetails details;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Order placed successfully!',
+        style: GoogleFonts.dmSerifDisplay(
+          fontSize: 34,
+          color: const Color(0xFF5B351A),
+        ),
+      ),
+      const SizedBox(height: 10),
+      Text(
+        'Your invoice will be shared via email.',
+        style: GoogleFonts.ibmPlexSans(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(height: 18),
+      Text(details.address, style: GoogleFonts.ibmPlexSans(fontSize: 16)),
+      const SizedBox(height: 22),
+      FilledButton(
+        onPressed: () => Navigator.pop(context),
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFFA35710),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          minimumSize: const Size(0, 41),
+          textStyle: GoogleFonts.ibmPlexSans(fontSize: 15),
+        ),
+        child: const Text('Continue shopping'),
+      ),
+    ],
+  );
+}
+
 class _CheckoutPageState extends State<CheckoutPage> {
   late Future<Product?> _product;
-  Future<UserAccount?>? _account;
+  Future<List<Map<String, dynamic>>>? _addresses;
+  String? _addressesUserId;
+  var _addressUpdating = false;
+  OrderSuccessDetails? _orderSuccess;
 
   @override
   void initState() {
     super.initState();
     _product = ProductService().getProductByCode(widget.productCode);
-    final user = AuthService.currentUser;
-    if (user != null) _account = UserAccountService.instance.get(user.id);
   }
 
-  Future<void> _setDeliveryAddress(UserAccount? account) async {
-    final user = AuthService.currentUser;
-    if (user == null) return;
-    final updated = await showDialog<UserAccount>(
-      context: context,
-      builder: (_) => _DeliveryAddressDialog(account: account, userId: user.id),
-    );
-    if (updated != null && mounted)
-      setState(() => _account = Future.value(updated));
+  Future<List<Map<String, dynamic>>> _loadAddresses(String userId) async =>
+      (await Supabase.instance.client
+                  .from('user_addresses')
+                  .select()
+                  .eq('user_id', userId)
+                  .order('created_at')
+              as List)
+          .cast<Map<String, dynamic>>();
+
+  Future<List<Map<String, dynamic>>>? _addressesFor(User? user) {
+    if (user == null) return null;
+    if (_addressesUserId != user.id || _addresses == null) {
+      _addressesUserId = user.id;
+      _addresses = _loadAddresses(user.id);
+    }
+    return _addresses;
+  }
+
+  Future<void> _selectAddress(String id) async {
+    setState(() => _addressUpdating = true);
+    try {
+      await Supabase.instance.client
+          .from('user_addresses')
+          .update({'is_selected': true})
+          .eq('id', id);
+      if (!mounted || _addressesUserId == null) return;
+      setState(() {
+        _addresses = _loadAddresses(_addressesUserId!);
+      });
+    } finally {
+      if (mounted) setState(() => _addressUpdating = false);
+    }
+  }
+
+  void _goToAccountAddresses() {
+    Navigator.pushNamed(context, '/account');
+  }
+
+  void _showOrderSuccess(OrderSuccessDetails details) {
+    setState(() => _orderSuccess = details);
   }
 
   @override
@@ -46,98 +259,131 @@ class _CheckoutPageState extends State<CheckoutPage> {
     title: 'Checkout',
     currentRoute: '/checkout',
     centerBody: false,
-    body: FutureBuilder<Product?>(
-      future: _product,
-      builder: (context, productSnapshot) {
-        if (productSnapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final product = productSnapshot.data;
-        if (product == null) {
-          return const Center(
-            child: Text('This product is no longer available.'),
-          );
-        }
-        final user = AuthService.currentUser;
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final mobile = constraints.maxWidth < 800;
-            return SingleChildScrollView(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      mobile ? 22 : 54,
-                      mobile ? 62 : 88,
-                      mobile ? 22 : 54,
-                      mobile ? 76 : 110,
-                    ),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 1160),
-                        child: _CheckoutContent(
-                          product: product,
-                          userId: user?.id,
-                          account: _account,
-                          mobile: mobile,
-                          onSetDeliveryAddress: _setDeliveryAddress,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const AppFooter(),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    ),
+    body: _orderSuccess != null
+        ? OrderSuccessView(details: _orderSuccess!)
+        : FutureBuilder<Product?>(
+            future: _product,
+            builder: (context, productSnapshot) {
+              if (productSnapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final product = productSnapshot.data;
+              if (product == null) {
+                return const Center(
+                  child: Text('This product is no longer available.'),
+                );
+              }
+              return StreamBuilder<User?>(
+                stream: AuthService.userChanges,
+                initialData: AuthService.currentUser,
+                builder: (context, userSnapshot) {
+                  final user = userSnapshot.data ?? AuthService.currentUser;
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final mobile = useCompactLayout(context, breakpoint: 800);
+                      return CustomScrollView(
+                        primary: true,
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                mobile ? 22 : 54,
+                                mobile ? 62 : 88,
+                                mobile ? 22 : 54,
+                                mobile ? 76 : 110,
+                              ),
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 1160,
+                                  ),
+                                  child: _CheckoutContent(
+                                    product: product,
+                                    user: user,
+                                    addresses: _addressesFor(user),
+                                    addressUpdating: _addressUpdating,
+                                    mobile: mobile,
+                                    onAddressSelected: _selectAddress,
+                                    onAddAddress: _goToAccountAddresses,
+                                    onOrderCompleted: _showOrderSuccess,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const AppFooterSliver(),
+                        ],
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          ),
   );
 }
 
 class _CheckoutContent extends StatelessWidget {
   const _CheckoutContent({
     required this.product,
-    required this.userId,
-    required this.account,
+    required this.user,
+    required this.addresses,
+    required this.addressUpdating,
     required this.mobile,
-    required this.onSetDeliveryAddress,
+    required this.onAddressSelected,
+    required this.onAddAddress,
+    required this.onOrderCompleted,
   });
 
   final Product product;
-  final String? userId;
-  final Future<UserAccount?>? account;
+  final User? user;
+  final Future<List<Map<String, dynamic>>>? addresses;
+  final bool addressUpdating;
   final bool mobile;
-  final ValueChanged<UserAccount?> onSetDeliveryAddress;
+  final ValueChanged<String> onAddressSelected;
+  final VoidCallback onAddAddress;
+  final ValueChanged<OrderSuccessDetails> onOrderCompleted;
 
   @override
   Widget build(BuildContext context) {
     final order = _OrderSummary(product: product);
-    final detailPanel = userId == null
-        ? const Column(
+    final detailPanel = user == null
+        ? Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _SignInForCheckout(),
-              SizedBox(height: 20),
-              _PaymentPanel(canContinue: false),
+              const _SignInForCheckout(),
+              const SizedBox(height: 20),
+              _PaymentPanel(
+                product: product,
+                address: null,
+                canContinue: false,
+                onOrderCompleted: onOrderCompleted,
+              ),
             ],
           )
-        : FutureBuilder<UserAccount?>(
-            future: account,
+        : FutureBuilder<List<Map<String, dynamic>>>(
+            future: addresses,
             builder: (context, snapshot) {
-              final deliveryAddressReady =
-                  snapshot.data?.hasDeliveryAddress == true;
+              final addressList = snapshot.data ?? const [];
+              final selectedAddress = _selectedAddress(addressList);
+              final deliveryAddressReady = selectedAddress != null;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _DeliveryPanel(
-                    account: snapshot.data,
+                    addresses: addressList,
                     loading: snapshot.connectionState != ConnectionState.done,
-                    onSetAddress: () => onSetDeliveryAddress(snapshot.data),
+                    updating: addressUpdating,
+                    onAddressSelected: onAddressSelected,
+                    onAddAddress: onAddAddress,
                   ),
                   const SizedBox(height: 20),
-                  _PaymentPanel(canContinue: deliveryAddressReady),
+                  _PaymentPanel(
+                    product: product,
+                    address: selectedAddress,
+                    canContinue: deliveryAddressReady,
+                    onOrderCompleted: onOrderCompleted,
+                  ),
                 ],
               );
             },
@@ -156,7 +402,7 @@ class _CheckoutContent extends StatelessWidget {
         const SizedBox(height: 10),
         Text(
           'Review your selection before payment.',
-          style: GoogleFonts.blinker(fontSize: mobile ? 17 : 19),
+          style: GoogleFonts.ibmPlexSans(fontSize: mobile ? 17 : 19),
         ),
         const SizedBox(height: 30),
         if (mobile)
@@ -226,7 +472,7 @@ class _OrderSummary extends StatelessWidget {
                 children: [
                   Text(
                     product.type,
-                    style: GoogleFonts.blinker(
+                    style: GoogleFonts.ibmPlexSans(
                       fontSize: 15,
                       color: const Color(0xFF746D64),
                     ),
@@ -241,7 +487,7 @@ class _OrderSummary extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     'Code: ${product.code}',
-                    style: GoogleFonts.blinker(fontSize: 16),
+                    style: GoogleFonts.ibmPlexSans(fontSize: 16),
                   ),
                 ],
               ),
@@ -263,7 +509,7 @@ class _OrderSummary extends StatelessWidget {
             ),
             Text(
               _price,
-              style: GoogleFonts.blinker(
+              style: GoogleFonts.ibmPlexSans(
                 fontSize: 26,
                 fontWeight: FontWeight.w700,
               ),
@@ -295,7 +541,7 @@ class _SignInForCheckout extends StatelessWidget {
         const SizedBox(height: 10),
         Text(
           'Log in to save your delivery details and continue to payment.',
-          style: GoogleFonts.blinker(fontSize: 18, height: 1.3),
+          style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.3),
         ),
         const SizedBox(height: 18),
         FilledButton(
@@ -312,13 +558,18 @@ class _SignInForCheckout extends StatelessWidget {
 
 class _DeliveryPanel extends StatelessWidget {
   const _DeliveryPanel({
-    required this.account,
+    required this.addresses,
     required this.loading,
-    required this.onSetAddress,
+    required this.updating,
+    required this.onAddressSelected,
+    required this.onAddAddress,
   });
-  final UserAccount? account;
+
+  final List<Map<String, dynamic>> addresses;
   final bool loading;
-  final VoidCallback onSetAddress;
+  final bool updating;
+  final ValueChanged<String> onAddressSelected;
+  final VoidCallback onAddAddress;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -342,36 +593,33 @@ class _DeliveryPanel extends StatelessWidget {
               child: CircularProgressIndicator(),
             ),
           )
-        else if (account?.hasDeliveryAddress == true) ...[
-          Text(
-            account!.receiverName!,
-            style: GoogleFonts.blinker(
-              fontSize: 19,
-              fontWeight: FontWeight.w700,
+        else if (addresses.isNotEmpty) ...[
+          if (updating)
+            const LinearProgressIndicator(
+              minHeight: 2,
+              color: Color(0xFFA35710),
+              backgroundColor: Color(0xFFE2D2C0),
             ),
-          ),
-          Text(
-            account!.addressLine1!,
-            style: GoogleFonts.blinker(fontSize: 18),
-          ),
-          if (account!.addressLine2?.isNotEmpty == true)
-            Text(
-              account!.addressLine2!,
-              style: GoogleFonts.blinker(fontSize: 18),
+          if (updating) const SizedBox(height: 12),
+          for (final address in addresses)
+            _CheckoutAddressTile(
+              address: address,
+              selectedAddress: _selectedAddress(addresses),
+              enabled: !updating,
+              onSelected: onAddressSelected,
             ),
-          Text(
-            account!.statePincode!,
-            style: GoogleFonts.blinker(fontSize: 18),
-          ),
-          const SizedBox(height: 14),
-          TextButton.icon(
-            onPressed: onSetAddress,
-            icon: const Icon(Icons.edit_outlined),
-            label: const Text('Edit delivery address'),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: onAddAddress,
+              icon: const Icon(Icons.add_location_alt_outlined),
+              label: const Text('Manage saved addresses'),
+            ),
           ),
         ] else
           OutlinedButton.icon(
-            onPressed: onSetAddress,
+            onPressed: onAddAddress,
             icon: const Icon(Icons.add_location_alt_outlined),
             label: const Text('Set delivery address'),
           ),
@@ -380,9 +628,170 @@ class _DeliveryPanel extends StatelessWidget {
   );
 }
 
-class _PaymentPanel extends StatelessWidget {
-  const _PaymentPanel({required this.canContinue});
+class _CheckoutAddressTile extends StatelessWidget {
+  const _CheckoutAddressTile({
+    required this.address,
+    required this.selectedAddress,
+    required this.enabled,
+    required this.onSelected,
+  });
+
+  final Map<String, dynamic> address;
+  final Map<String, dynamic>? selectedAddress;
+  final bool enabled;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final id = address['id'] as String?;
+    final selected = id != null && id == selectedAddress?['id'];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: !enabled || id == null ? null : () => onSelected(id),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(8, 11, 14, 11),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFE7D0AE) : const Color(0xFFE2D2C0),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFFA35710)
+                  : const Color(0xFF8C684D),
+              width: selected ? 1.7 : 1,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                selected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+                color: selected
+                    ? const Color(0xFFA35710)
+                    : const Color(0xFF1F1E25),
+                size: 25,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _addressLines(address),
+                  style: GoogleFonts.ibmPlexSans(
+                    fontSize: 14,
+                    height: 1.08,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentPanel extends StatefulWidget {
+  const _PaymentPanel({
+    required this.product,
+    required this.address,
+    required this.canContinue,
+    required this.onOrderCompleted,
+    this.actionLabel = 'Continue to payment',
+  });
+
+  final Product product;
+  final Map<String, dynamic>? address;
   final bool canContinue;
+  final ValueChanged<OrderSuccessDetails> onOrderCompleted;
+  final String actionLabel;
+
+  @override
+  State<_PaymentPanel> createState() => _PaymentPanelState();
+}
+
+class _PaymentPanelState extends State<_PaymentPanel> {
+  var _paying = false;
+
+  Future<void> _pay() async {
+    final amount = _priceNumber(widget.product.price);
+    if (amount == null || amount <= 0) {
+      _showMessage('This product does not have a valid price yet.');
+      return;
+    }
+    if (!widget.canContinue || _paying) return;
+
+    setState(() => _paying = true);
+    try {
+      final result = await PaymentService.pay(
+        amountPaise: amount * 100,
+        receipt:
+            '${widget.product.code}_${DateTime.now().millisecondsSinceEpoch}',
+        description: widget.product.name,
+        customerName: widget.address?['receiver_name'] as String?,
+        customerEmail: AuthService.currentUser?.email,
+        customerContact: widget.address?['phone_number'] as String?,
+        notes: {
+          'source': 'buy_now',
+          'product_code': widget.product.code,
+          'product_name': widget.product.name,
+          'address_id': widget.address?['id'],
+        },
+        sale: {
+          'product': widget.product.name,
+          'amount': amount,
+          'product_code': widget.product.code,
+          'user_address': _addressLines(widget.address!),
+          'customer_email': AuthService.currentUser?.email,
+          'customer_phone': widget.address?['phone_number'],
+          'items': [
+            {
+              'product_name': widget.product.name,
+              'product_code': widget.product.code,
+              'product_type': widget.product.type,
+              'quantity': 1,
+              'unit_price': amount,
+              'line_total': amount,
+            },
+          ],
+        },
+      );
+      if (!mounted) return;
+      widget.onOrderCompleted(
+        OrderSuccessDetails(
+          orderId: result.orderId,
+          paymentId: result.paymentId,
+          address: _addressLines(widget.address!),
+          contactTarget:
+              (widget.address?['phone_number'] as String?) ??
+              AuthService.currentUser?.email ??
+              'your registered contact',
+          items: [
+            OrderSuccessItem(
+              name: widget.product.name,
+              code: widget.product.code,
+              quantity: 1,
+              amount: amount,
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _paying = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) => Container(
@@ -400,175 +809,31 @@ class _PaymentPanel extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Text(
-          'Secure Razorpay payment will be available here shortly.',
-          style: GoogleFonts.blinker(fontSize: 18, height: 1.3),
+          'You will now be redirected to the payment gateway.',
+          style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.3),
         ),
         const SizedBox(height: 18),
         SizedBox(
           width: double.infinity,
           height: 50,
           child: FilledButton(
-            onPressed: !canContinue
-                ? null
-                : () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Payment setup is coming soon.'),
-                    ),
-                  ),
+            onPressed: !widget.canContinue || _paying ? null : _pay,
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFA35710),
             ),
-            child: const Text('Continue to payment'),
+            child: _paying
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(widget.actionLabel),
           ),
         ),
       ],
-    ),
-  );
-}
-
-class _DeliveryAddressDialog extends StatefulWidget {
-  const _DeliveryAddressDialog({required this.account, required this.userId});
-  final UserAccount? account;
-  final String userId;
-
-  @override
-  State<_DeliveryAddressDialog> createState() => _DeliveryAddressDialogState();
-}
-
-class _DeliveryAddressDialogState extends State<_DeliveryAddressDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _name;
-  late final TextEditingController _line1;
-  late final TextEditingController _line2;
-  late final TextEditingController _statePincode;
-  var _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _name = TextEditingController(text: widget.account?.receiverName ?? '');
-    _line1 = TextEditingController(text: widget.account?.addressLine1 ?? '');
-    _line2 = TextEditingController(text: widget.account?.addressLine2 ?? '');
-    _statePincode = TextEditingController(
-      text: widget.account?.statePincode ?? '',
-    );
-  }
-
-  @override
-  void dispose() {
-    _name.dispose();
-    _line1.dispose();
-    _line2.dispose();
-    _statePincode.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
-    try {
-      final account = await UserAccountService.instance.saveDeliveryAddress(
-        userId: widget.userId,
-        receiverName: _name.text,
-        addressLine1: _line1.text,
-        addressLine2: _line2.text,
-        statePincode: _statePincode.text,
-      );
-      if (mounted) Navigator.pop(context, account);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not save the delivery address.')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(
-      'Delivery address',
-      style: GoogleFonts.dmSerifDisplay(
-        fontSize: 32,
-        color: const Color(0xFF5B351A),
-      ),
-    ),
-    content: SizedBox(
-      width: 440,
-      child: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _AddressField(
-                controller: _name,
-                label: 'Receiver name',
-                required: true,
-              ),
-              _AddressField(
-                controller: _line1,
-                label: 'Address line 1',
-                required: true,
-              ),
-              _AddressField(controller: _line2, label: 'Address line 2'),
-              _AddressField(
-                controller: _statePincode,
-                label: 'State with pincode',
-                required: true,
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: _saving ? null : () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: _saving ? null : _save,
-        child: _saving
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : const Text('Save address'),
-      ),
-    ],
-  );
-}
-
-class _AddressField extends StatelessWidget {
-  const _AddressField({
-    required this.controller,
-    required this.label,
-    this.required = false,
-  });
-  final TextEditingController controller;
-  final String label;
-  final bool required;
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 14),
-    child: TextFormField(
-      controller: controller,
-      validator: required
-          ? (value) => value == null || value.trim().isEmpty
-                ? '$label is required.'
-                : null
-          : null,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-      ),
     ),
   );
 }
@@ -581,3 +846,31 @@ BoxDecoration _panelDecoration() => BoxDecoration(
     BoxShadow(color: Color(0x1F2D1E12), blurRadius: 14, offset: Offset(0, 6)),
   ],
 );
+
+int? _priceNumber(String? price) {
+  if (price == null) return null;
+  return int.tryParse(price.replaceAll(RegExp(r'[^0-9]'), ''));
+}
+
+Map<String, dynamic>? _selectedAddress(List<Map<String, dynamic>> addresses) {
+  if (addresses.isEmpty) return null;
+  return addresses.firstWhere(
+    (address) => address['is_selected'] == true,
+    orElse: () => addresses.first,
+  );
+}
+
+String _addressLines(Map<String, dynamic> address) {
+  final cityState = [
+    address['city'],
+    address['state_pincode'],
+  ].whereType<String>().where((line) => line.trim().isNotEmpty).join(', ');
+  return [
+    address['receiver_name'],
+    address['address_line1'],
+    address['address_line2'],
+    cityState,
+    address['country'] ?? 'India',
+    address['phone_number'],
+  ].whereType<String>().where((line) => line.trim().isNotEmpty).join('\n');
+}

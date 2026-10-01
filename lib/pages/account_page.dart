@@ -1,8 +1,14 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/responsive.dart';
 import '../core/services/auth_service.dart';
+import '../core/services/product_service.dart';
+import '../core/services/order_service.dart';
 import '../core/services/seo_service.dart';
 import '../widgets/app_footer.dart';
 import '../widgets/app_scaffold.dart';
@@ -14,7 +20,7 @@ class AccountPage extends StatelessWidget {
   Widget build(BuildContext context) {
     SeoService.setPage(
       title: 'Account | Kalasthali By Nisha',
-      description: 'Sign in to your Kalasthali account.',
+      description: 'Sign in to your account.',
       path: '/account',
     );
     return AppScaffold(
@@ -28,32 +34,31 @@ class AccountPage extends StatelessWidget {
           final user = snapshot.data ?? AuthService.currentUser;
           return LayoutBuilder(
             builder: (context, constraints) {
-              final mobile = constraints.maxWidth < 700;
-              return Column(
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          mobile ? 22 : 54,
-                          mobile ? 70 : 104,
-                          mobile ? 22 : 54,
-                          mobile ? 88 : 120,
-                        ),
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: user == null ? 560 : 1100,
-                            ),
-                            child: user == null
-                                ? const _AccountAuthForm()
-                                : _AccountDetails(user: user),
+              final mobile = useCompactLayout(context, breakpoint: 700);
+              return CustomScrollView(
+                primary: true,
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        mobile ? 22 : 54,
+                        mobile ? 70 : 104,
+                        mobile ? 22 : 54,
+                        mobile ? 88 : 200,
+                      ),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: user == null ? 560 : 1100,
                           ),
+                          child: user == null
+                              ? const _AccountAuthForm()
+                              : _AccountDetails(user: user),
                         ),
                       ),
                     ),
                   ),
-                  const AppFooter(),
+                  const AppFooterSliver(),
                 ],
               );
             },
@@ -120,6 +125,50 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _loading = true;
+      _message = null;
+    });
+    try {
+      final launched = await AuthService.signInWithGoogle();
+      if (!launched && mounted) {
+        setState(() {
+          _message = 'Could not open Google sign-in. Please try again.';
+        });
+      }
+    } on AuthException catch (error) {
+      if (mounted) setState(() => _message = error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _email.text.trim();
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      setState(() => _message = 'Enter your email address first.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _message = null;
+    });
+    try {
+      await AuthService.sendPasswordResetEmail(email);
+      if (mounted) {
+        setState(() {
+          _message =
+              'If an account exists for this email, a password reset link has been sent.';
+        });
+      }
+    } on AuthException catch (error) {
+      if (mounted) setState(() => _message = error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(28),
@@ -137,112 +186,228 @@ class _AccountAuthFormState extends State<_AccountAuthForm> {
     ),
     child: Form(
       key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _signUp ? 'Create your account' : 'Welcome back',
-            style: GoogleFonts.dmSerifDisplay(
-              fontSize: 38,
-              color: const Color(0xFF5B351A),
+      child: AutofillGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _signUp ? 'Create your account' : 'Welcome back',
+              style: GoogleFonts.dmSerifDisplay(
+                fontSize: 38,
+                color: const Color(0xFF5B351A),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _signUp
-                ? 'Save your details now for a smoother checkout later.'
-                : 'Log in to access your Kalasthali account.',
-            style: GoogleFonts.blinker(fontSize: 18, height: 1.3),
-          ),
-          const SizedBox(height: 26),
-          if (_signUp) ...[
+            const SizedBox(height: 8),
+            Text(
+              _signUp
+                  ? 'Save your details now for a smoother checkout later.'
+                  : 'Log in to access your account.',
+              style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.3),
+            ),
+            const SizedBox(height: 26),
+            if (_signUp) ...[
+              _AuthField(
+                controller: _firstName,
+                label: 'First name',
+                textCapitalization: TextCapitalization.words,
+                autofillHints: const [AutofillHints.name],
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Enter your first name.'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+            ],
             _AuthField(
-              controller: _firstName,
-              label: 'First name',
-              textCapitalization: TextCapitalization.words,
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Enter your first name.'
+              controller: _email,
+              label: 'Email address',
+              keyboardType: TextInputType.emailAddress,
+              // Password managers identify email sign-in fields as usernames.
+              autofillHints: const [AutofillHints.username],
+              validator: (value) {
+                final email = value?.trim() ?? '';
+                return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)
+                    ? null
+                    : 'Enter a valid email address.';
+              },
+            ),
+            const SizedBox(height: 16),
+            _AuthField(
+              key: ValueKey('password-${_signUp ? 'new' : 'current'}'),
+              controller: _password,
+              label: 'Password',
+              obscureText: true,
+              autofillHints: [
+                _signUp ? AutofillHints.newPassword : AutofillHints.password,
+              ],
+              validator: (value) => (value?.length ?? 0) < 6
+                  ? 'Use at least 6 characters.'
                   : null,
             ),
-            const SizedBox(height: 16),
-          ],
-          _AuthField(
-            controller: _email,
-            label: 'Email address',
-            keyboardType: TextInputType.emailAddress,
-            validator: (value) {
-              final email = value?.trim() ?? '';
-              return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)
-                  ? null
-                  : 'Enter a valid email address.';
-            },
-          ),
-          const SizedBox(height: 16),
-          _AuthField(
-            controller: _password,
-            label: 'Password',
-            obscureText: true,
-            validator: (value) =>
-                (value?.length ?? 0) < 6 ? 'Use at least 6 characters.' : null,
-          ),
-          if (_message != null) ...[
-            const SizedBox(height: 16),
-            Text(
-              _message!,
-              style: GoogleFonts.blinker(
-                fontSize: 16,
-                color: const Color(0xFF914B0D),
-              ),
-            ),
-          ],
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: FilledButton(
-              onPressed: _loading ? null : _submit,
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFA35710),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+            if (!_signUp)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _loading ? null : _forgotPassword,
+                  child: Text(
+                    'Forgot Password?',
+                    style: GoogleFonts.ibmPlexSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
-              child: _loading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
+            if (_message != null) ...[
+              const SizedBox(height: 16),
+              Text(
+                _message!,
+                style: GoogleFonts.ibmPlexSans(
+                  fontSize: 16,
+                  color: const Color(0xFF914B0D),
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: FilledButton(
+                onPressed: _loading ? null : _submit,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFA35710),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: _loading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        _signUp ? 'Create account' : 'Log in',
+                        style: GoogleFonts.ibmPlexSans(fontSize: 19),
                       ),
-                    )
-                  : Text(
-                      _signUp ? 'Create account' : 'Log in',
-                      style: GoogleFonts.blinker(fontSize: 19),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Center(
-            child: TextButton(
-              onPressed: _loading
-                  ? null
-                  : () => setState(() {
-                      _signUp = !_signUp;
-                      _message = null;
-                    }),
-              child: Text(
-                _signUp
-                    ? 'Already have an account? Log in'
-                    : 'New to Kalasthali? Create an account',
-                style: GoogleFonts.blinker(fontSize: 17),
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                const Expanded(child: Divider()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'OR',
+                    style: GoogleFonts.ibmPlexSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF746D64),
+                    ),
+                  ),
+                ),
+                const Expanded(child: Divider()),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Center(
+              child: _GoogleAuthButton(
+                onPressed: _loading ? null : _signInWithGoogle,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Center(
+              child: TextButton(
+                onPressed: _loading
+                    ? null
+                    : () => setState(() {
+                        _signUp = !_signUp;
+                        _message = null;
+                      }),
+                child: Text(
+                  _signUp
+                      ? 'Already have an account? Log in'
+                      : 'New to Kalasthali? Create an account',
+                  style: GoogleFonts.ibmPlexSans(fontSize: 17),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   );
+}
+
+class _GoogleAuthButton extends StatefulWidget {
+  const _GoogleAuthButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  State<_GoogleAuthButton> createState() => _GoogleAuthButtonState();
+}
+
+class _GoogleAuthButtonState extends State<_GoogleAuthButton> {
+  var _hovered = false;
+  var _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null;
+    final lifted = enabled && _hovered && !_pressed;
+    return Semantics(
+      button: true,
+      label: 'Continue with Google',
+      child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() {
+          _hovered = false;
+          _pressed = false;
+        }),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: widget.onPressed,
+            onHover: (value) => setState(() => _hovered = value),
+            onHighlightChanged: (value) => setState(() => _pressed = value),
+            child: AnimatedScale(
+              duration: const Duration(milliseconds: 140),
+              scale: _pressed ? .98 : (lifted ? 1.025 : 1),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 140),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: lifted
+                      ? const [
+                          BoxShadow(
+                            color: Color(0x332D1E12),
+                            blurRadius: 12,
+                            offset: Offset(0, 5),
+                          ),
+                        ]
+                      : const [],
+                ),
+                child: Opacity(
+                  opacity: enabled ? 1 : .55,
+                  child: Image.asset(
+                    'lib/assets/google_auth_ico.png',
+                    height: 52,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _AuthField extends StatelessWidget {
@@ -253,6 +418,8 @@ class _AuthField extends StatelessWidget {
     this.keyboardType,
     this.obscureText = false,
     this.textCapitalization = TextCapitalization.none,
+    this.autofillHints,
+    super.key,
   });
 
   final TextEditingController controller;
@@ -261,6 +428,7 @@ class _AuthField extends StatelessWidget {
   final TextInputType? keyboardType;
   final bool obscureText;
   final TextCapitalization textCapitalization;
+  final Iterable<String>? autofillHints;
 
   @override
   Widget build(BuildContext context) => TextFormField(
@@ -268,8 +436,11 @@ class _AuthField extends StatelessWidget {
     validator: validator,
     keyboardType: keyboardType,
     obscureText: obscureText,
+    autofillHints: autofillHints,
+    enableSuggestions: !obscureText,
+    autocorrect: false,
     textCapitalization: textCapitalization,
-    style: GoogleFonts.blinker(fontSize: 18),
+    style: GoogleFonts.ibmPlexSans(fontSize: 18),
     decoration: InputDecoration(
       labelText: label,
       border: const OutlineInputBorder(),
@@ -285,13 +456,18 @@ class _AccountDetails extends StatefulWidget {
   State<_AccountDetails> createState() => _AccountDetailsState();
 }
 
+enum _AccountSection { dashboard, profile, addresses, orders, help }
+
 class _AccountDetailsState extends State<_AccountDetails> {
   late Future<List<Map<String, dynamic>>> _addresses;
+  late Future<List<Map<String, dynamic>>> _orders;
+  var _section = _AccountSection.dashboard;
 
   @override
   void initState() {
     super.initState();
     _addresses = _loadAddresses();
+    _orders = _loadOrders();
   }
 
   Future<List<Map<String, dynamic>>> _loadAddresses() async =>
@@ -303,93 +479,490 @@ class _AccountDetailsState extends State<_AccountDetails> {
               as List)
           .cast<Map<String, dynamic>>();
 
-  Future<void> _refresh() async =>
-      setState(() => _addresses = _loadAddresses());
+  Future<List<Map<String, dynamic>>> _loadOrders() async {
+    final results = await Future.wait<dynamic>([
+      Supabase.instance.client
+          .from('sales')
+          .select()
+          .eq('user', widget.user.id)
+          .order('paid_at', ascending: false),
+      Supabase.instance.client.rpc('get_my_product_reviews'),
+    ]);
+    final orders = (results[0] as List).cast<Map<String, dynamic>>();
+    final reviews = (results[1] as List).cast<Map<String, dynamic>>();
+    return [
+      for (final order in orders)
+        {
+          ...order,
+          '_reviews': reviews
+              .where(
+                (review) => _orderItems(
+                  order,
+                ).any((item) => item.code == review['product_code'].toString()),
+              )
+              .toList(),
+        },
+    ];
+  }
+
+  void _refresh() {
+    setState(() {
+      _addresses = _loadAddresses();
+      _orders = _loadOrders();
+    });
+  }
 
   Future<void> _select(String id) async {
     await Supabase.instance.client
         .from('user_addresses')
         .update({'is_selected': true})
         .eq('id', id);
-    await _refresh();
+    _refresh();
+  }
+
+  Future<void> _showAddressSheet([Map<String, dynamic>? address]) async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) =>
+          _AddressEditorSheet(userId: widget.user.id, address: address),
+    );
+    if (saved == true) _refresh();
   }
 
   Future<void> _delete(String id) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFFFEF5E6),
+        title: Text(
+          'Delete address?',
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: 30,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        content: Text(
+          'This saved address will be removed from your account.',
+          style: GoogleFonts.ibmPlexSans(fontSize: 17),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFA35710),
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
     await Supabase.instance.client.from('user_addresses').delete().eq('id', id);
-    await _refresh();
+    _refresh();
   }
 
+  Future<void> _showProfileEditor() async {
+    final controller = TextEditingController(
+      text: AuthService.firstName(widget.user),
+    );
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ProfileEditorSheet(controller: controller),
+    );
+    controller.dispose();
+    if (saved == true && mounted) setState(() {});
+  }
+
+  void _open(_AccountSection section) => setState(() => _section = section);
+
+  void _backToDashboard() =>
+      setState(() => _section = _AccountSection.dashboard);
+
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Hello, ${AuthService.firstName(widget.user)}',
-              style: GoogleFonts.dmSerifDisplay(
-                fontSize: 40,
-                color: const Color(0xFF5B351A),
+  Widget build(BuildContext context) {
+    return switch (_section) {
+      _AccountSection.dashboard => _buildDashboard(context),
+      _AccountSection.profile => _buildProfile(context),
+      _AccountSection.addresses => _buildAddresses(context),
+      _AccountSection.orders => _buildOrders(context),
+      _AccountSection.help => _buildHelp(context),
+    };
+  }
+
+  Widget _buildDashboard(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 700;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Hello, ${AuthService.firstName(widget.user)}',
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: 52,
+                  color: const Color(0xFF5B351A),
+                ),
               ),
             ),
-          ),
-          OutlinedButton(
-            onPressed: () => Supabase.instance.client.auth.signOut(),
-            child: const Text('LOG OUT'),
-          ),
-        ],
-      ),
-      const SizedBox(height: 10),
-      const Divider(color: Color(0xFF9A8267), thickness: 1),
-      const SizedBox(height: 26),
-      Row(
-        children: [
-          Expanded(
-            child: _ProfileValue(
-              label: 'EMAIL',
-              value: widget.user.email ?? 'No email address',
+            if (!compact)
+              OutlinedButton(
+                onPressed: () => Supabase.instance.client.auth.signOut(),
+                style: _sectionActionStyle(),
+                child: const Text('LOG OUT'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const _AccountDivider(),
+        const SizedBox(height: 62),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final singleColumn = constraints.maxWidth < 620;
+            final tiles = [
+              _AccountMenuTile(
+                title: 'ACCOUNT',
+                description: 'Edit your account details.',
+                icon: Icons.assignment_ind_outlined,
+                onTap: () => _open(_AccountSection.profile),
+              ),
+              _AccountMenuTile(
+                title: 'SAVED ADDRESSES',
+                description:
+                    'Add, edit or delete saved addresses for your orders.',
+                icon: Icons.add_home_work_outlined,
+                onTap: () => _open(_AccountSection.addresses),
+              ),
+              _AccountMenuTile(
+                title: 'ORDERS',
+                description: 'View products ordered by you.',
+                icon: Icons.inventory_2_outlined,
+                onTap: () => _open(_AccountSection.orders),
+              ),
+              _AccountMenuTile(
+                title: 'HELP',
+                description:
+                    'Connect with us for assistance regarding a product.',
+                icon: Icons.help_outline_rounded,
+                onTap: () => _open(_AccountSection.help),
+              ),
+            ];
+            if (singleColumn) {
+              return Column(
+                children: [
+                  for (final tile in tiles) ...[
+                    tile,
+                    const SizedBox(height: 18),
+                  ],
+                ],
+              );
+            }
+            return Wrap(
+              spacing: 38,
+              runSpacing: 42,
+              children: [
+                for (final tile in tiles)
+                  SizedBox(width: (constraints.maxWidth - 38) / 2, child: tile),
+              ],
+            );
+          },
+        ),
+        if (compact) ...[
+          const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => Supabase.instance.client.auth.signOut(),
+              style: _sectionActionStyle(),
+              child: const Text('LOG OUT'),
             ),
           ),
-          const Expanded(
-            child: _ProfileValue(label: 'PHONE NUMBER', value: 'Not added'),
-          ),
         ],
+      ],
+    );
+  }
+
+  Widget _buildProfile(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _BackButton(onPressed: _backToDashboard),
+      const SizedBox(height: 22),
+      _SectionTitle(
+        title: 'Account',
+        action: OutlinedButton(
+          onPressed: _showProfileEditor,
+          style: _sectionActionStyle(),
+          child: const Text('EDIT'),
+        ),
+      ),
+      const SizedBox(height: 42),
+      _ProfileValue(label: 'NAME', value: AuthService.firstName(widget.user)),
+      const SizedBox(height: 42),
+      _ProfileInfoGrid(
+        email: widget.user.email ?? 'No email address',
+        phone: widget.user.phone?.isNotEmpty == true
+            ? widget.user.phone!
+            : 'Not added',
+      ),
+    ],
+  );
+
+  Widget _buildAddresses(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _BackButton(onPressed: _backToDashboard),
+      const SizedBox(height: 22),
+      const _SectionTitle(title: 'Saved Addresses'),
+      const SizedBox(height: 22),
+      _AddressActionButton(
+        label: 'ADD ADDRESS',
+        icon: Icons.add,
+        onPressed: () => _showAddressSheet(),
       ),
       const SizedBox(height: 38),
-      Text(
-        'SAVED ADDRESSES',
-        style: GoogleFonts.blinker(fontWeight: FontWeight.w800, fontSize: 15),
-      ),
-      const SizedBox(height: 14),
       FutureBuilder<List<Map<String, dynamic>>>(
         future: _addresses,
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const CircularProgressIndicator();
-          if (snapshot.data!.isEmpty)
+          if (snapshot.data!.isEmpty) {
             return Text(
-              'No saved addresses yet. Add one during checkout.',
-              style: GoogleFonts.blinker(fontSize: 17),
+              'No saved addresses yet.',
+              style: GoogleFonts.ibmPlexSans(fontSize: 18),
             );
-          return Column(
-            children: snapshot.data!
-                .map(
-                  (address) => Padding(
-                    padding: const EdgeInsets.only(bottom: 18),
-                    child: _AddressCard(
-                      address: address,
-                      onSelect: _select,
-                      onDelete: _delete,
+          }
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 720;
+              return Wrap(
+                spacing: 46,
+                runSpacing: 28,
+                children: [
+                  for (final address in snapshot.data!)
+                    SizedBox(
+                      width: wide
+                          ? (constraints.maxWidth - 46) / 2
+                          : constraints.maxWidth,
+                      child: _AddressCard(
+                        address: address,
+                        onSelect: _select,
+                        onEdit: _showAddressSheet,
+                        onDelete: _delete,
+                      ),
                     ),
-                  ),
-                )
-                .toList(),
+                ],
+              );
+            },
           );
         },
       ),
     ],
   );
+
+  Widget _buildOrders(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _BackButton(onPressed: _backToDashboard),
+      const SizedBox(height: 22),
+      const _SectionTitle(title: 'YOUR ORDERS'),
+      const SizedBox(height: 62),
+      FutureBuilder<List<Map<String, dynamic>>>(
+        future: _orders,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Text(
+              'Could not load your orders. Please refresh and try again.',
+              style: GoogleFonts.ibmPlexSans(fontSize: 17),
+            );
+          }
+          if (!snapshot.hasData) return const CircularProgressIndicator();
+          if (snapshot.data!.isEmpty) {
+            return Text(
+              'No orders placed yet.',
+              style: GoogleFonts.ibmPlexSans(fontSize: 17),
+            );
+          }
+          return Column(
+            children: [
+              for (final order in snapshot.data!)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 18),
+                  child: _OrderCard(order: order, onChanged: _refresh),
+                ),
+            ],
+          );
+        },
+      ),
+    ],
+  );
+
+  Widget _buildHelp(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _BackButton(onPressed: _backToDashboard),
+      const SizedBox(height: 22),
+      const _SectionTitle(title: 'Help'),
+      const SizedBox(height: 48),
+      Container(
+        constraints: const BoxConstraints(maxWidth: 620),
+        padding: const EdgeInsets.all(28),
+        decoration: _orderCardDecoration(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'How can we help?',
+              style: GoogleFonts.dmSerifDisplay(
+                fontSize: 34,
+                color: const Color(0xFF5B351A),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'For help with a product or an existing order, contact Kalasthali By Nisha and include your order ID where applicable.',
+              style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.25),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 }
+
+class _AccountMenuTile extends StatelessWidget {
+  const _AccountMenuTile({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String title;
+  final String description;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Ink(
+        height: 166,
+        padding: const EdgeInsets.all(26),
+        decoration: _orderCardDecoration().copyWith(
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.ibmPlexSans(
+                      fontSize: 25,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF5B351A),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.1),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 18),
+            Icon(icon, size: 72, color: const Color(0xFFA35710)),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _BackButton extends StatelessWidget {
+  const _BackButton({required this.onPressed});
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => TextButton.icon(
+    onPressed: onPressed,
+    icon: const Icon(Icons.arrow_back, size: 22),
+    label: const Text('BACK'),
+    style: TextButton.styleFrom(
+      foregroundColor: const Color(0xFFA35710),
+      padding: EdgeInsets.zero,
+      textStyle: GoogleFonts.ibmPlexSans(
+        fontSize: 22,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  );
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title, this.action});
+  final String title;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: GoogleFonts.dmSerifDisplay(
+                fontSize: 52,
+                color: const Color(0xFF5B351A),
+              ),
+            ),
+          ),
+          if (action case final Widget action) action,
+        ],
+      ),
+      const SizedBox(height: 12),
+      const _AccountDivider(),
+    ],
+  );
+}
+
+class _AccountDivider extends StatelessWidget {
+  const _AccountDivider();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: const [
+      Icon(Icons.diamond, size: 13, color: Color(0xFF9A8267)),
+      Expanded(child: Divider(color: Color(0xFF9A8267), thickness: 1.5)),
+      Icon(Icons.diamond, size: 13, color: Color(0xFF9A8267)),
+    ],
+  );
+}
+
+ButtonStyle _sectionActionStyle() => OutlinedButton.styleFrom(
+  foregroundColor: const Color(0xFFA35710),
+  side: const BorderSide(color: Color(0xFF6A4529), width: 1.4),
+  minimumSize: const Size(188, 56),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  textStyle: GoogleFonts.ibmPlexSans(fontSize: 19, fontWeight: FontWeight.w800),
+);
 
 class _ProfileValue extends StatelessWidget {
   const _ProfileValue({required this.label, required this.value});
@@ -400,11 +973,48 @@ class _ProfileValue extends StatelessWidget {
     children: [
       Text(
         label,
-        style: GoogleFonts.blinker(fontWeight: FontWeight.w800, fontSize: 15),
+        style: GoogleFonts.ibmPlexSans(
+          fontWeight: FontWeight.w800,
+          fontSize: 15,
+        ),
       ),
       const SizedBox(height: 4),
-      Text(value, style: GoogleFonts.blinker(fontSize: 19)),
+      Text(value, style: GoogleFonts.ibmPlexSans(fontSize: 19)),
     ],
+  );
+}
+
+class _ProfileInfoGrid extends StatelessWidget {
+  const _ProfileInfoGrid({required this.email, required this.phone});
+
+  final String email;
+  final String phone;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      if (constraints.maxWidth < 620) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ProfileValue(label: 'EMAIL', value: email),
+            const SizedBox(height: 22),
+            _ProfileValue(label: 'PHONE NUMBER', value: phone),
+          ],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: _ProfileValue(label: 'EMAIL', value: email),
+          ),
+          Expanded(
+            child: _ProfileValue(label: 'PHONE NUMBER', value: phone),
+          ),
+        ],
+      );
+    },
   );
 }
 
@@ -412,79 +1022,1781 @@ class _AddressCard extends StatelessWidget {
   const _AddressCard({
     required this.address,
     required this.onSelect,
+    required this.onEdit,
     required this.onDelete,
   });
   final Map<String, dynamic> address;
   final ValueChanged<String> onSelect, onDelete;
+  final ValueChanged<Map<String, dynamic>> onEdit;
+
   @override
   Widget build(BuildContext context) {
     final selected = address['is_selected'] == true;
     final id = address['id'] as String;
-    return Container(
-      width: 640,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFD5B48A)),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [BoxShadow(color: Color(0x182D1E12), blurRadius: 10)],
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 700),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFECE7DD),
+          border: Border.all(color: const Color(0xFFD5B48A)),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A2D1E12),
+              blurRadius: 12,
+              offset: Offset(0, 5),
+            ),
+          ],
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final stackActions = constraints.maxWidth < 520;
+            final details = _AddressDetails(address: address);
+            final actions = _AddressCardActions(
+              selected: selected,
+              onSelect: () => onSelect(id),
+              onEdit: () => onEdit(address),
+              onDelete: () => onDelete(id),
+            );
+            if (stackActions) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [details, const SizedBox(height: 16), actions],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(child: details),
+                const SizedBox(width: 22),
+                SizedBox(width: 260, child: actions),
+              ],
+            );
+          },
+        ),
       ),
-      child: Row(
+    );
+  }
+}
+
+class _AddressDetails extends StatelessWidget {
+  const _AddressDetails({required this.address});
+
+  final Map<String, dynamic> address;
+
+  @override
+  Widget build(BuildContext context) {
+    final line2 = (address['address_line2'] ?? '').toString().trim();
+    final city = (address['city'] ?? '').toString().trim();
+    final statePincode = (address['state_pincode'] ?? '').toString().trim();
+    final locationLine = [
+      if (city.isNotEmpty) city,
+      if (statePincode.isNotEmpty) statePincode,
+    ].join(', ');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          address['receiver_name'] ?? '',
+          style: GoogleFonts.ibmPlexSans(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            height: 1.1,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(address['address_line1'] ?? '', style: _addressTextStyle()),
+        if (line2.isNotEmpty) Text(line2, style: _addressTextStyle()),
+        if (locationLine.isNotEmpty)
+          Text(locationLine, style: _addressTextStyle()),
+        Text(address['country'] ?? 'India', style: _addressTextStyle()),
+        const SizedBox(height: 14),
+        Text(address['phone_number'] ?? '', style: _addressTextStyle()),
+      ],
+    );
+  }
+}
+
+class _AddressCardActions extends StatelessWidget {
+  const _AddressCardActions({
+    required this.selected,
+    required this.onSelect,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final bool selected;
+  final VoidCallback onSelect;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      FilledButton(
+        onPressed: selected ? null : onSelect,
+        style: FilledButton.styleFrom(
+          backgroundColor: selected
+              ? const Color(0xFFC3A07D)
+              : const Color(0xFFA35710),
+          disabledBackgroundColor: const Color(0xFFA35710),
+          foregroundColor: Colors.white,
+          disabledForegroundColor: Colors.white,
+          minimumSize: const Size.fromHeight(48),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          textStyle: GoogleFonts.ibmPlexSans(
+            fontSize: 17,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        child: Text(selected ? 'SELECTED' : 'SELECT THIS ADDRESS'),
+      ),
+      const SizedBox(height: 10),
+      Row(
         children: [
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  address['receiver_name'] ?? '',
-                  style: GoogleFonts.blinker(fontSize: 16),
-                ),
-                Text(
-                  address['address_line1'] ?? '',
-                  style: GoogleFonts.blinker(fontSize: 15),
-                ),
-                if ((address['address_line2'] ?? '').toString().isNotEmpty)
-                  Text(
-                    address['address_line2'],
-                    style: GoogleFonts.blinker(fontSize: 15),
-                  ),
-                Text(
-                  '${address['city'] ?? ''}, ${address['state_pincode'] ?? ''}',
-                  style: GoogleFonts.blinker(fontSize: 15),
-                ),
-                Text(
-                  address['country'] ?? 'India',
-                  style: GoogleFonts.blinker(fontSize: 15),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  address['phone_number'] ?? '',
-                  style: GoogleFonts.blinker(fontSize: 15),
-                ),
-              ],
+            child: OutlinedButton.icon(
+              onPressed: onEdit,
+              icon: const Icon(Icons.edit_outlined, size: 16),
+              label: const Text('EDIT'),
+              style: _smallActionStyle(),
             ),
           ),
-          Column(
+          const SizedBox(width: 10),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline, size: 16),
+              label: const Text('DELETE'),
+              style: _smallActionStyle(),
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+class _OrderCard extends StatelessWidget {
+  const _OrderCard({required this.order, required this.onChanged});
+
+  final Map<String, dynamic> order;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = _orderItems(order);
+    final status = _customerOrderStatus(order);
+    final reviews = _orderReviews(order);
+    final productCodes = items
+        .map((item) => item.code)
+        .where((code) => code.isNotEmpty)
+        .toSet();
+    final reviewedCodes = reviews
+        .map((review) => (review['product_code'] ?? '').toString())
+        .toSet();
+    final allReviewed =
+        productCodes.isNotEmpty && productCodes.every(reviewedCodes.contains);
+    final nextReviewItem = items.cast<_InvoiceItem?>().firstWhere(
+      (item) =>
+          item != null &&
+          item.code.isNotEmpty &&
+          !reviewedCodes.contains(item.code),
+      orElse: () => null,
+    );
+    final canCancel =
+        status == 'order_placed' && _within24Hours(order['paid_at']);
+    final canReturn =
+        status == 'delivered' &&
+        order['return_status'] == null &&
+        _within24Hours(order['delivered_at']);
+    final quantity = items.fold<int>(0, (total, item) => total + item.quantity);
+    final total = _intValue(order['amount']);
+    final unitPrice = items.length == 1 && items.first.quantity > 0
+        ? items.first.lineTotal ~/ items.first.quantity
+        : total;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 760;
+        final details = _OrderProductSummary(
+          items: items,
+          quantity: quantity,
+          unitPrice: unitPrice,
+          total: total,
+          status: status,
+          returnStatus: order['return_status']?.toString(),
+          large: !stacked,
+        );
+        final actions = _OrderActionPanel(
+          onViewInvoice: () => _showOrderSheet(context, order, items),
+          secondaryLabel: canCancel ? 'CANCEL ORDER' : 'REQUEST REFUND',
+          onSecondary: canCancel
+              ? () => _cancel(context)
+              : canReturn
+              ? () => _requestReturn(context)
+              : null,
+          onViewProduct: items.length == 1 && items.first.code.isNotEmpty
+              ? () => Navigator.of(context).pushNamed(
+                  Uri(
+                    path: '/product',
+                    queryParameters: {'code': items.first.code},
+                  ).toString(),
+                )
+              : null,
+          reviewLabel: allReviewed ? 'VIEW REVIEW' : 'POST REVIEW',
+          onReview: allReviewed
+              ? () => _viewReviews(context, items, reviews)
+              : status == 'delivered' && nextReviewItem != null
+              ? () => _postReview(context, nextReviewItem)
+              : null,
+          large: !stacked,
+        );
+
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(stacked ? 16 : 24),
+          decoration: _orderCardDecoration(),
+          child: stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [details, const SizedBox(height: 16), actions],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: details),
+                    const SizedBox(width: 28),
+                    SizedBox(width: 280, child: actions),
+                  ],
+                ),
+        );
+      },
+    );
+  }
+
+  Future<void> _cancel(BuildContext context) async {
+    final message = TextEditingController(
+      text: 'Your order has been cancelled.',
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel order?'),
+        content: TextField(
+          controller: message,
+          maxLength: 500,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Cancellation message',
+            helperText: 'This message will be included in the email.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep order'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Cancel order'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      message.dispose();
+      return;
+    }
+    try {
+      await OrderService.instance.cancelOrder(
+        order['order_id'].toString(),
+        message.text,
+      );
+      onChanged();
+    } on OrderServiceException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      message.dispose();
+    }
+  }
+
+  Future<void> _requestReturn(BuildContext context) async {
+    final submitted = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) =>
+          _ReturnRequestSheet(orderId: order['order_id'].toString()),
+    );
+    if (submitted == true && context.mounted) {
+      onChanged();
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Your return request has been submitted.'),
+          ),
+        );
+    }
+  }
+
+  Future<void> _postReview(BuildContext context, _InvoiceItem item) async {
+    final submitted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _ReviewEditorDialog(
+        orderId: order['order_id'].toString(),
+        item: item,
+      ),
+    );
+    if (submitted == true && context.mounted) {
+      ProductService().invalidateProductReviews(item.code);
+      onChanged();
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Review submitted.')));
+    }
+  }
+
+  void _viewReviews(
+    BuildContext context,
+    List<_InvoiceItem> items,
+    List<Map<String, dynamic>> reviews,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _SubmittedReviewsDialog(items: items, reviews: reviews),
+    );
+  }
+}
+
+class _OrderProductSummary extends StatelessWidget {
+  const _OrderProductSummary({
+    required this.items,
+    required this.quantity,
+    required this.unitPrice,
+    required this.total,
+    required this.status,
+    required this.large,
+    this.returnStatus,
+  });
+
+  final List<_InvoiceItem> items;
+  final int quantity;
+  final int unitPrice;
+  final int total;
+  final String status;
+  final bool large;
+  final String? returnStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = items.first;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _OrderLead(items: items, large: large),
+        SizedBox(width: large ? 20 : 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              FilledButton(
-                onPressed: selected ? null : () => onSelect(id),
-                child: Text(selected ? 'SELECTED' : 'SELECT THIS ADDRESS'),
-              ),
-              Row(
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pushNamed(context, '/checkout'),
-                    child: const Text('EDIT'),
+              if (item.size?.isNotEmpty == true)
+                Text(
+                  'Size ${item.size}',
+                  style: GoogleFonts.ibmPlexSans(
+                    fontSize: large ? 14 : 12,
+                    color: const Color(0xFF746D64),
                   ),
-                  TextButton(
-                    onPressed: () => onDelete(id),
-                    child: const Text('DELETE'),
+                ),
+              Text(
+                items.length == 1 ? item.name : '${items.length} products',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: large ? 28 : 21,
+                  height: 1.05,
+                  color: const Color(0xFF5B351A),
+                ),
+              ),
+              SizedBox(height: large ? 22 : 14),
+              Wrap(
+                spacing: large ? 28 : 18,
+                runSpacing: 8,
+                children: [
+                  _OrderMetric(
+                    label: 'Price',
+                    value: '₹$unitPrice',
+                    large: large,
+                  ),
+                  _OrderMetric(
+                    label: 'Quantity',
+                    value: '$quantity',
+                    large: large,
+                  ),
+                  _OrderMetric(
+                    label: 'Total',
+                    value: '₹$total',
+                    large: large,
+                    bold: true,
                   ),
                 ],
               ),
+              const SizedBox(height: 13),
+              _CustomerOrderStatus(status: status, returnStatus: returnStatus),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OrderMetric extends StatelessWidget {
+  const _OrderMetric({
+    required this.label,
+    required this.value,
+    required this.large,
+    this.bold = false,
+  });
+
+  final String label;
+  final String value;
+  final bool large;
+  final bool bold;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: GoogleFonts.ibmPlexSans(
+          fontSize: large ? 14 : 12,
+          color: const Color(0xFF746D64),
+        ),
+      ),
+      Text(
+        value,
+        style: GoogleFonts.ibmPlexSans(
+          fontSize: large ? 19 : 15,
+          fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+          color: const Color(0xFF111111),
+        ),
+      ),
+    ],
+  );
+}
+
+class _OrderActionPanel extends StatelessWidget {
+  const _OrderActionPanel({
+    required this.onViewInvoice,
+    required this.secondaryLabel,
+    required this.onSecondary,
+    required this.onViewProduct,
+    required this.reviewLabel,
+    required this.onReview,
+    required this.large,
+  });
+
+  final VoidCallback onViewInvoice;
+  final String secondaryLabel;
+  final VoidCallback? onSecondary;
+  final VoidCallback? onViewProduct;
+  final String reviewLabel;
+  final VoidCallback? onReview;
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _OrderActionButton(
+        label: 'VIEW INVOICE',
+        onPressed: onViewInvoice,
+        height: large ? 50 : 38,
+      ),
+      SizedBox(height: large ? 10 : 8),
+      _OrderActionButton(
+        label: secondaryLabel,
+        onPressed: onSecondary,
+        height: large ? 50 : 38,
+      ),
+      SizedBox(height: large ? 10 : 8),
+      Row(
+        children: [
+          Expanded(
+            child: _OrderActionButton(
+              label: 'VIEW PRODUCT',
+              onPressed: onViewProduct,
+              darkText: true,
+              height: large ? 50 : 38,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _OrderActionButton(
+              label: reviewLabel,
+              onPressed: onReview,
+              darkText: true,
+              height: large ? 50 : 38,
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+class _OrderActionButton extends StatelessWidget {
+  const _OrderActionButton({
+    required this.label,
+    required this.onPressed,
+    this.darkText = false,
+    this.height = 38,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final bool darkText;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: height,
+    child: OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: darkText
+            ? const Color(0xFF111111)
+            : const Color(0xFFA35710),
+        disabledForegroundColor: const Color(0xFF9A9187),
+        side: BorderSide(
+          color: onPressed == null
+              ? const Color(0xFFBEB4A7)
+              : const Color(0xFF8C684D),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        textStyle: GoogleFonts.ibmPlexSans(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      child: Text(label, textAlign: TextAlign.center),
+    ),
+  );
+}
+
+class _ReviewEditorDialog extends StatefulWidget {
+  const _ReviewEditorDialog({required this.orderId, required this.item});
+
+  final String orderId;
+  final _InvoiceItem item;
+
+  @override
+  State<_ReviewEditorDialog> createState() => _ReviewEditorDialogState();
+}
+
+class _ReviewEditorDialogState extends State<_ReviewEditorDialog> {
+  final _review = TextEditingController();
+  var _rating = 0;
+  var _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _review.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final text = _review.text.trim();
+    if (_rating < 1 || text.length < 3) {
+      setState(() => _error = 'Choose a star rating and enter your review.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await OrderService.instance.submitReview(
+        orderId: widget.orderId,
+        productCode: widget.item.code,
+        rating: _rating,
+        reviewText: text,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } on OrderServiceException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(
+      'Review ${widget.item.name}',
+      style: GoogleFonts.dmSerifDisplay(
+        fontSize: 30,
+        color: const Color(0xFF5B351A),
+      ),
+    ),
+    content: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 520),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Your rating',
+            style: GoogleFonts.ibmPlexSans(fontWeight: FontWeight.w700),
+          ),
+          Row(
+            children: [
+              for (var star = 1; star <= 5; star++)
+                IconButton(
+                  tooltip: '$star star${star == 1 ? '' : 's'}',
+                  onPressed: _submitting
+                      ? null
+                      : () => setState(() => _rating = star),
+                  icon: Icon(
+                    star <= _rating ? Icons.star : Icons.star_border,
+                    color: const Color(0xFFA35710),
+                    size: 30,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _review,
+            enabled: !_submitting,
+            minLines: 4,
+            maxLines: 7,
+            maxLength: 1000,
+            decoration: const InputDecoration(
+              labelText: 'Your review',
+              alignLabelWithHint: true,
+              border: OutlineInputBorder(),
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(_error!, style: const TextStyle(color: Colors.red)),
+          ],
+          if (_submitting) ...[
+            const SizedBox(height: 12),
+            const LinearProgressIndicator(),
+          ],
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _submitting ? null : () => Navigator.pop(context, false),
+        child: const Text('CANCEL'),
+      ),
+      FilledButton(
+        onPressed: _submitting ? null : _submit,
+        child: const Text('SUBMIT REVIEW'),
+      ),
+    ],
+  );
+}
+
+class _SubmittedReviewsDialog extends StatelessWidget {
+  const _SubmittedReviewsDialog({required this.items, required this.reviews});
+
+  final List<_InvoiceItem> items;
+  final List<Map<String, dynamic>> reviews;
+
+  @override
+  Widget build(BuildContext context) {
+    String productName(String code) =>
+        items
+            .where((item) => item.code == code)
+            .map((item) => item.name)
+            .firstOrNull ??
+        'Product';
+
+    return AlertDialog(
+      title: Text(
+        'Your review${reviews.length == 1 ? '' : 's'}',
+        style: GoogleFonts.dmSerifDisplay(
+          fontSize: 30,
+          color: const Color(0xFF5B351A),
+        ),
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final review in reviews)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECE7DD),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFD5B48A)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        productName((review['product_code'] ?? '').toString()),
+                        style: GoogleFonts.dmSerifDisplay(
+                          fontSize: 22,
+                          color: const Color(0xFF5B351A),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      _ReviewStars(
+                        rating: (review['rating'] as num?)?.toInt() ?? 0,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        (review['review_text'] ?? '').toString(),
+                        style: GoogleFonts.ibmPlexSans(
+                          fontSize: 15,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('CLOSE'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReviewStars extends StatelessWidget {
+  const _ReviewStars({required this.rating});
+
+  final int rating;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (var star = 1; star <= 5; star++)
+        Icon(
+          star <= rating ? Icons.star : Icons.star_border,
+          size: 19,
+          color: const Color(0xFFA35710),
+        ),
+    ],
+  );
+}
+
+List<Map<String, dynamic>> _orderReviews(Map<String, dynamic> order) {
+  final value = order['_reviews'];
+  if (value is! List) return const [];
+  return value
+      .whereType<Map>()
+      .map((review) => review.cast<String, dynamic>())
+      .toList();
+}
+
+String _customerOrderStatus(Map<String, dynamic> order) =>
+    (order['order_status'] ??
+            (order['shipping_confirmation_sent_at'] == null
+                ? 'order_placed'
+                : 'out_for_delivery'))
+        .toString();
+
+bool _within24Hours(dynamic value) {
+  final timestamp = DateTime.tryParse((value ?? '').toString());
+  return timestamp != null &&
+      DateTime.now().isBefore(timestamp.add(const Duration(hours: 24)));
+}
+
+class _CustomerOrderStatus extends StatelessWidget {
+  const _CustomerOrderStatus({required this.status, this.returnStatus});
+  final String status;
+  final String? returnStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = switch (returnStatus) {
+      'requested' => 'RETURN REQUESTED',
+      'accepted_for_return' => 'RETURN ACCEPTED',
+      'refund_processed' => 'REFUND PROCESSED',
+      'rejected' => 'RETURN REJECTED',
+      _ => switch (status) {
+        'out_for_delivery' => 'OUT FOR DELIVERY',
+        'delivered' => 'DELIVERED',
+        'cancelled' => 'CANCELLED',
+        _ => 'ORDER PLACED',
+      },
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: status == 'cancelled'
+            ? const Color(0xFFE8D0D0)
+            : const Color(0xFFE2C7A0),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.ibmPlexSans(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _ReturnRequestSheet extends StatefulWidget {
+  const _ReturnRequestSheet({required this.orderId});
+  final String orderId;
+
+  @override
+  State<_ReturnRequestSheet> createState() => _ReturnRequestSheetState();
+}
+
+class _ReturnRequestSheetState extends State<_ReturnRequestSheet> {
+  final List<ReturnImageUpload> _images = [];
+  var _submitting = false;
+
+  Future<void> _pickImages() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: true,
+      withData: true,
+    );
+    if (result == null) {
+      return;
+    }
+    final selected = <ReturnImageUpload>[];
+    for (final file in result.files) {
+      final bytes = file.bytes;
+      final mime = switch (file.extension?.toLowerCase()) {
+        'jpg' || 'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        _ => null,
+      };
+      if (bytes != null && bytes.isNotEmpty && mime != null) {
+        selected.add(ReturnImageUpload(bytes: bytes, contentType: mime));
+      }
+    }
+    setState(() {
+      _images.addAll(selected);
+      if (_images.length > 5) {
+        _images.removeRange(5, _images.length);
+      }
+    });
+  }
+
+  Future<void> _submit() async {
+    if (_images.isEmpty) {
+      return;
+    }
+    setState(() => _submitting = true);
+    try {
+      await OrderService.instance.requestReturn(widget.orderId, _images);
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } on OrderServiceException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    bottom: false,
+    child: Container(
+      padding: const EdgeInsets.all(22),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFEF5E6),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Request a return',
+            style: GoogleFonts.dmSerifDisplay(
+              fontSize: 32,
+              color: const Color(0xFF5B351A),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Upload clear photos of the product you received. This is required to submit your request.',
+            style: GoogleFonts.ibmPlexSans(fontSize: 16),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pushNamed('/refund-policy'),
+            child: const Text('Read the return and refund policy'),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var index = 0; index < _images.length; index++)
+                Stack(
+                  children: [
+                    Image.memory(
+                      _images[index].bytes,
+                      width: 84,
+                      height: 84,
+                      fit: BoxFit.cover,
+                    ),
+                    Positioned(
+                      top: -8,
+                      right: -8,
+                      child: IconButton(
+                        onPressed: _submitting
+                            ? null
+                            : () => setState(() => _images.removeAt(index)),
+                        icon: const Icon(Icons.cancel),
+                      ),
+                    ),
+                  ],
+                ),
+              if (_images.length < 5)
+                OutlinedButton.icon(
+                  onPressed: _submitting ? null : _pickImages,
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  label: const Text('ADD PHOTOS'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          if (_submitting) ...[
+            const LinearProgressIndicator(
+              minHeight: 3,
+              color: Color(0xFFA35710),
+              backgroundColor: Color(0xFFE2D2C0),
+            ),
+            const SizedBox(height: 12),
+          ],
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _submitting || _images.isEmpty ? null : _submit,
+              child: Text(
+                _submitting ? 'SUBMITTING...' : 'SUBMIT RETURN REQUEST',
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+BoxDecoration _orderCardDecoration() => BoxDecoration(
+  color: const Color(0xFFECE7DD),
+  border: Border.all(color: const Color(0xFFD5B48A)),
+  borderRadius: BorderRadius.circular(16),
+  boxShadow: const [
+    BoxShadow(color: Color(0x1A2D1E12), blurRadius: 12, offset: Offset(0, 5)),
+  ],
+);
+
+class _OrderLead extends StatelessWidget {
+  const _OrderLead({required this.items, this.large = false});
+  final List<_InvoiceItem> items;
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.length > 1) {
+      return Container(
+        width: large ? 150 : 92,
+        height: large ? 170 : 104,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0xFFD6BFA6),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${items.length}',
+              style: GoogleFonts.dmSerifDisplay(
+                fontSize: large ? 48 : 36,
+                color: const Color(0xFF5B351A),
+              ),
+            ),
+            Text(
+              'ITEMS',
+              style: GoogleFonts.ibmPlexSans(fontSize: large ? 15 : 12),
+            ),
+          ],
+        ),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: large ? 150 : 92,
+        height: large ? 170 : 104,
+        child: FutureBuilder<String>(
+          future: ProductService().getProductImageUrlAsync(items.first.code),
+          builder: (context, snapshot) {
+            final url = snapshot.data;
+            return url == null || url.isEmpty
+                ? const ColoredBox(color: Color(0xFFD8D0C3))
+                : Image.network(
+                    url,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) =>
+                        const ColoredBox(color: Color(0xFFD8D0C3)),
+                  );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+void _showOrderSheet(
+  BuildContext context,
+  Map<String, dynamic> order,
+  List<_InvoiceItem> items,
+) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => _OrderDetailsSheet(order: order, items: items),
+  );
+}
+
+class _OrderDetailsSheet extends StatelessWidget {
+  const _OrderDetailsSheet({required this.order, required this.items});
+  final Map<String, dynamic> order;
+  final List<_InvoiceItem> items;
+
+  @override
+  Widget build(BuildContext context) => DraggableScrollableSheet(
+    initialChildSize: .78,
+    minChildSize: .45,
+    maxChildSize: .94,
+    builder: (context, scrollController) => Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFFEF5E6),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: ListView(
+        controller: scrollController,
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        children: [
+          Center(
+            child: Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFF9A8267),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Order details',
+            style: GoogleFonts.dmSerifDisplay(
+              fontSize: 34,
+              color: const Color(0xFF5B351A),
+            ),
+          ),
+          const SizedBox(height: 16),
+          for (final item in items) _OrderSheetItem(item: item),
+          const SizedBox(height: 18),
+          _InvoicePanel(order: order, items: items),
+        ],
+      ),
+    ),
+  );
+}
+
+class _OrderSheetItem extends StatelessWidget {
+  const _OrderSheetItem({required this.item});
+  final _InvoiceItem item;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xFFECE7DD),
+      border: Border.all(color: const Color(0xFFD5B48A)),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.name,
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: 22,
+                  color: const Color(0xFF5B351A),
+                ),
+              ),
+              Text(
+                [
+                  item.code,
+                  if (item.size?.isNotEmpty == true) 'Size ${item.size}',
+                  'Qty ${item.quantity}',
+                ].join(' • '),
+                style: GoogleFonts.ibmPlexSans(fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: item.code.isEmpty
+                    ? null
+                    : () {
+                        final navigator = Navigator.of(context);
+                        navigator.pop();
+                        navigator.pushNamed(
+                          Uri(
+                            path: '/product',
+                            queryParameters: {'code': item.code},
+                          ).toString(),
+                        );
+                      },
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('VIEW PRODUCT'),
+              ),
+            ],
+          ),
+        ),
+        Text(
+          '₹${item.lineTotal}',
+          style: GoogleFonts.ibmPlexSans(
+            fontSize: 19,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _InvoicePanel extends StatelessWidget {
+  const _InvoicePanel({required this.order, required this.items});
+
+  final Map<String, dynamic> order;
+  final List<_InvoiceItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final paidAt = DateTime.tryParse((order['paid_at'] ?? '').toString());
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF5E6),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF8C684D), width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Invoice',
+                  style: GoogleFonts.dmSerifDisplay(
+                    fontSize: 30,
+                    color: const Color(0xFF5B351A),
+                  ),
+                ),
+              ),
+              Text(
+                paidAt == null ? '' : _dateLabel(paidAt),
+                style: GoogleFonts.ibmPlexSans(fontSize: 14),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Bill from: Kalasthali By Nisha',
+            style: GoogleFonts.ibmPlexSans(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Bill to:',
+            style: GoogleFonts.ibmPlexSans(fontWeight: FontWeight.w700),
+          ),
+          Text(
+            order['user_address']?.toString() ?? '',
+            style: GoogleFonts.ibmPlexSans(fontSize: 14, height: 1.12),
+          ),
+          const SizedBox(height: 16),
+          const Divider(color: Color(0xFFD5B48A)),
+          for (final item in items)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${item.name} x ${item.quantity}',
+                      style: GoogleFonts.ibmPlexSans(fontSize: 15),
+                    ),
+                  ),
+                  Text(
+                    '₹${item.lineTotal}',
+                    style: GoogleFonts.ibmPlexSans(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+          const Divider(color: Color(0xFFD5B48A)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Amount paid',
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: 24,
+                  color: const Color(0xFF5B351A),
+                ),
+              ),
+              Text(
+                '₹${order['amount'] ?? '-'}',
+                style: GoogleFonts.ibmPlexSans(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Payment ID: ${order['razorpay_payment_id'] ?? 'Pending'}',
+            style: GoogleFonts.ibmPlexSans(
+              fontSize: 13,
+              color: const Color(0xFF746D64),
+            ),
           ),
         ],
       ),
     );
   }
 }
+
+class _AddressActionButton extends StatelessWidget {
+  const _AddressActionButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton.icon(
+    onPressed: onPressed,
+    icon: Icon(icon, size: 18),
+    label: Text(label),
+    style: OutlinedButton.styleFrom(
+      foregroundColor: const Color(0xFF5B351A),
+      side: const BorderSide(color: Color(0xFF8C684D), width: 1.2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+      textStyle: GoogleFonts.ibmPlexSans(
+        fontSize: 14,
+        fontWeight: FontWeight.w800,
+        letterSpacing: .4,
+      ),
+    ),
+  );
+}
+
+class _ProfileEditorSheet extends StatefulWidget {
+  const _ProfileEditorSheet({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  State<_ProfileEditorSheet> createState() => _ProfileEditorSheetState();
+}
+
+class _ProfileEditorSheetState extends State<_ProfileEditorSheet> {
+  final _formKey = GlobalKey<FormState>();
+  var _saving = false;
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(data: {'first_name': widget.controller.text.trim()}),
+      );
+      if (mounted) Navigator.pop(context, true);
+    } on AuthException catch (error) {
+      if (mounted) _showError(error.message);
+    } catch (_) {
+      if (mounted) _showError('Could not update your account.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _showError(String message) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFFEF5E6),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(28, 14, 28, 28),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 48,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD4B89C),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  Text(
+                    'Edit account',
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 38,
+                      color: const Color(0xFF5B351A),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _AddressFormField(
+                    controller: widget.controller,
+                    label: 'Name',
+                    textCapitalization: TextCapitalization.words,
+                    required: true,
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: FilledButton(
+                      onPressed: _saving ? null : _save,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFA35710),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              'Save changes',
+                              style: GoogleFonts.ibmPlexSans(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AddressEditorSheet extends StatefulWidget {
+  const _AddressEditorSheet({required this.userId, this.address});
+
+  final String userId;
+  final Map<String, dynamic>? address;
+
+  @override
+  State<_AddressEditorSheet> createState() => _AddressEditorSheetState();
+}
+
+class _AddressEditorSheetState extends State<_AddressEditorSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _name;
+  late final TextEditingController _phone;
+  late final TextEditingController _line1;
+  late final TextEditingController _line2;
+  late final TextEditingController _city;
+  late final TextEditingController _statePincode;
+  var _saving = false;
+
+  bool get _editing => widget.address != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final address = widget.address;
+    _name = TextEditingController(text: address?['receiver_name'] ?? '');
+    _phone = TextEditingController(text: address?['phone_number'] ?? '');
+    _line1 = TextEditingController(text: address?['address_line1'] ?? '');
+    _line2 = TextEditingController(text: address?['address_line2'] ?? '');
+    _city = TextEditingController(text: address?['city'] ?? '');
+    _statePincode = TextEditingController(
+      text: address?['state_pincode'] ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _phone.dispose();
+    _line1.dispose();
+    _line2.dispose();
+    _city.dispose();
+    _statePincode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    final values = {
+      'user_id': widget.userId,
+      'receiver_name': _name.text.trim(),
+      'phone_number': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+      'address_line1': _line1.text.trim(),
+      'address_line2': _line2.text.trim().isEmpty ? null : _line2.text.trim(),
+      'city': _city.text.trim(),
+      'state_pincode': _statePincode.text.trim(),
+      'country': 'India',
+    };
+    try {
+      final table = Supabase.instance.client.from('user_addresses');
+      if (_editing) {
+        await table.update(values).eq('id', widget.address!['id']);
+      } else {
+        await table.insert(values);
+      }
+      if (mounted) Navigator.pop(context, true);
+    } on PostgrestException catch (error) {
+      if (mounted) _showSheetError(error.message);
+    } catch (_) {
+      if (mounted) _showSheetError('Could not save this address.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _showSheetError(String message) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .9,
+        ),
+        decoration: const BoxDecoration(
+          color: Color(0xFFFEF5E6),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(28, 14, 28, 28),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 48,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD4B89C),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  Text(
+                    _editing ? 'Edit address' : 'Add address',
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 38,
+                      color: const Color(0xFF5B351A),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _AddressFormField(
+                    controller: _name,
+                    label: 'Receiver name',
+                    textCapitalization: TextCapitalization.words,
+                    required: true,
+                  ),
+                  _AddressFormField(
+                    controller: _phone,
+                    label: 'Phone number',
+                    keyboardType: TextInputType.phone,
+                  ),
+                  _AddressFormField(
+                    controller: _line1,
+                    label: 'Address line 1',
+                    required: true,
+                  ),
+                  _AddressFormField(
+                    controller: _line2,
+                    label: 'Address line 2',
+                  ),
+                  _AddressFormField(
+                    controller: _city,
+                    label: 'City',
+                    textCapitalization: TextCapitalization.words,
+                    required: true,
+                  ),
+                  _AddressFormField(
+                    controller: _statePincode,
+                    label: 'State with pincode',
+                    textCapitalization: TextCapitalization.words,
+                    required: true,
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: FilledButton(
+                      onPressed: _saving ? null : _save,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFA35710),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              _editing ? 'Save changes' : 'Save address',
+                              style: GoogleFonts.ibmPlexSans(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AddressFormField extends StatelessWidget {
+  const _AddressFormField({
+    required this.controller,
+    required this.label,
+    this.required = false,
+    this.keyboardType,
+    this.textCapitalization = TextCapitalization.none,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final bool required;
+  final TextInputType? keyboardType;
+  final TextCapitalization textCapitalization;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      textCapitalization: textCapitalization,
+      validator: required
+          ? (value) => value == null || value.trim().isEmpty
+                ? '$label is required.'
+                : null
+          : null,
+      style: GoogleFonts.ibmPlexSans(fontSize: 17),
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: const Color(0xFFFFF4E3),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF9A8267)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFFA35710), width: 1.5),
+        ),
+      ),
+    ),
+  );
+}
+
+TextStyle _addressTextStyle() => GoogleFonts.ibmPlexSans(
+  fontSize: 16,
+  height: 1.08,
+  color: const Color(0xFF111111),
+);
+
+ButtonStyle _smallActionStyle() => OutlinedButton.styleFrom(
+  foregroundColor: const Color(0xFF5B351A),
+  side: const BorderSide(color: Color(0xFF8C684D)),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+  minimumSize: const Size.fromHeight(42),
+  textStyle: GoogleFonts.ibmPlexSans(fontSize: 14, fontWeight: FontWeight.w700),
+);
+
+class _InvoiceItem {
+  const _InvoiceItem({
+    required this.name,
+    required this.code,
+    required this.quantity,
+    required this.lineTotal,
+    this.size,
+  });
+
+  final String name;
+  final String code;
+  final int quantity;
+  final int lineTotal;
+  final String? size;
+}
+
+List<_InvoiceItem> _orderItems(Map<String, dynamic> order) {
+  final rawItems = _decodeItems(order['items']);
+  if (rawItems.isEmpty) {
+    return [
+      _InvoiceItem(
+        name: (order['product'] ?? 'Order item').toString(),
+        code: (order['product_code'] ?? '').toString(),
+        quantity: 1,
+        lineTotal: _intValue(order['amount']),
+      ),
+    ];
+  }
+  return rawItems.map((item) {
+    final quantity = _intValue(item['quantity'], fallback: 1);
+    final lineTotal = _intValue(
+      item['line_total'],
+      fallback: _intValue(item['unit_price']) * quantity,
+    );
+    return _InvoiceItem(
+      name: (item['product_name'] ?? item['name'] ?? 'Order item').toString(),
+      code: (item['product_code'] ?? item['code'] ?? '').toString(),
+      quantity: quantity,
+      lineTotal: lineTotal,
+      size: item['size']?.toString(),
+    );
+  }).toList();
+}
+
+List<Map<String, dynamic>> _decodeItems(Object? value) {
+  if (value is List) {
+    return value
+        .whereType<Map>()
+        .map((item) => item.cast<String, dynamic>())
+        .toList();
+  }
+  if (value is String && value.trim().isNotEmpty) {
+    try {
+      final decoded = jsonDecode(value);
+      if (decoded is List) {
+        return decoded
+            .whereType<Map>()
+            .map((item) => item.cast<String, dynamic>())
+            .toList();
+      }
+    } catch (_) {}
+  }
+  return const [];
+}
+
+int _intValue(Object? value, {int fallback = 0}) {
+  if (value is int) return value;
+  if (value is num) return value.round();
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+String _dateLabel(DateTime date) =>
+    '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';

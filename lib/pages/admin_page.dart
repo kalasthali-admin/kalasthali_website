@@ -1,13 +1,20 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/models/product.dart';
+import '../core/models/site_policy.dart';
+import '../core/responsive.dart';
 import '../core/services/admin_service.dart';
+import '../core/services/auth_service.dart';
+import '../core/services/admin_push_service.dart';
 import '../core/services/image_upload_converter.dart';
 import '../widgets/app_scaffold.dart';
+
+part 'admin_policy_section.dart';
+
+const _newArrivalsFilter = '__new_arrivals__';
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
@@ -21,13 +28,20 @@ class _AdminPageState extends State<AdminPage> {
   final _productSearch = TextEditingController();
   bool _loading = false;
   String? _error;
+  String? _ordersError;
+  String? _selectedCategory;
   List<Product> _products = const [];
   List<AdminGallery> _gallery = const [];
+  List<SitePolicy> _policies = const [];
+  List<AdminOrder> _orders = const [];
 
   @override
   void initState() {
     super.initState();
     _productSearch.addListener(_refreshProductSearch);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (AuthService.isAdmin(AuthService.currentUser)) _loadDashboard();
+    });
   }
 
   @override
@@ -52,41 +66,36 @@ class _AdminPageState extends State<AdminPage> {
         _service.getProducts(),
         _service.getGallery(),
       ]);
+      List<SitePolicy> policies = defaultPolicies.values.toList();
+      String? policyError;
+      try {
+        policies = await _service.getPolicies();
+      } on AdminException catch (error) {
+        policyError = error.message;
+      }
+      List<AdminOrder> orders = const [];
+      String? ordersError;
+      try {
+        orders = await _service.getOrders();
+      } on AdminException catch (error) {
+        ordersError = error.message;
+      }
       if (!mounted) return;
       setState(() {
         _products = results[0] as List<Product>;
         _gallery = results[1] as List<AdminGallery>;
+        _policies = policies;
+        _error = policyError == null
+            ? null
+            : '$policyError Run supabase/site_policies.sql to enable policy editing.';
+        _orders = orders;
+        _ordersError = ordersError;
       });
     } on AdminException catch (error) {
       if (!mounted) return;
       setState(() => _error = error.message);
     } finally {
       if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _logIn() async {
-    final password = AdminService.isTestMode
-        ? ''
-        : await showDialog<String>(
-            context: context,
-            builder: (_) => const _AdminLoginDialog(),
-          );
-    if (password == null || (!AdminService.isTestMode && password.isEmpty)) {
-      return;
-    }
-
-    setState(() => _loading = true);
-    try {
-      await _service.login(password);
-      await _loadDashboard();
-    } on AdminException catch (error) {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _error = error.message;
-        });
-      }
     }
   }
 
@@ -146,7 +155,7 @@ class _AdminPageState extends State<AdminPage> {
       builder: (context) => AlertDialog(
         title: const Text('Delete product?'),
         content: Text(
-          'Delete "${product.name}" from the products database? Its storage images will not be deleted.',
+          'Delete "${product.name}" from the products database? Existing orders will retain their product details, and active carts will remove it. Its storage images will not be deleted.',
         ),
         actions: [
           TextButton(
@@ -168,6 +177,117 @@ class _AdminPageState extends State<AdminPage> {
       await _service.delete(product.code);
       await _loadDashboard();
       if (mounted) _showMessage('Product deleted.');
+    } on AdminException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _savePolicy(SitePolicy policy) async {
+    setState(() => _loading = true);
+    try {
+      final updated = await _service.updatePolicy(policy);
+      if (!mounted) return;
+      setState(() {
+        _policies = [
+          for (final current in _policies)
+            if (current.slug != updated.slug) current,
+          updated,
+        ];
+      });
+      _showMessage('${updated.title} saved.');
+    } on AdminException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _submitShippingConfirmation(
+    AdminOrder order,
+    String trackingId,
+  ) async {
+    setState(() => _loading = true);
+    try {
+      final updated = await _service.submitShippingConfirmation(
+        order,
+        trackingId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _orders = [
+          for (final current in _orders)
+            if (current.orderId == updated.orderId) updated else current,
+        ];
+      });
+      _showMessage('Delivery confirmation sent to ${updated.customerEmail}.');
+    } on AdminException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _markDelivered(AdminOrder order) async {
+    await _updateOrder(
+      () => _service.markDelivered(order),
+      'Order ${order.orderId} marked as delivered.',
+    );
+  }
+
+  Future<void> _acceptReturn(AdminOrder order, String trackingId) async {
+    await _updateOrder(
+      () => _service.acceptReturn(order, trackingId),
+      'Return accepted for ${order.orderId}.',
+    );
+  }
+
+  Future<void> _markRefundProcessed(
+    AdminOrder order,
+    AdminRefundDetails refund,
+  ) async {
+    setState(() => _loading = true);
+    try {
+      final updated = await _service.markRefundProcessed(order, refund);
+      if (!mounted) return;
+      setState(() {
+        _orders = [
+          for (final current in _orders)
+            if (current.orderId == updated.orderId) updated else current,
+        ];
+      });
+      _showMessage('Refund marked as processed for ${order.orderId}.');
+    } on AdminException catch (error) {
+      if (mounted) _showMessage(error.message);
+      rethrow;
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _rejectReturn(AdminOrder order, String reason) async {
+    await _updateOrder(
+      () => _service.rejectReturn(order, reason),
+      'Return rejected for ${order.orderId}.',
+    );
+  }
+
+  Future<void> _updateOrder(
+    Future<AdminOrder> Function() operation,
+    String successMessage,
+  ) async {
+    setState(() => _loading = true);
+    try {
+      final updated = await operation();
+      if (!mounted) return;
+      setState(() {
+        _orders = [
+          for (final current in _orders)
+            if (current.orderId == updated.orderId) updated else current,
+        ];
+      });
+      _showMessage(successMessage);
     } on AdminException catch (error) {
       if (mounted) _showMessage(error.message);
     } finally {
@@ -213,7 +333,11 @@ class _AdminPageState extends State<AdminPage> {
         status.value = _ImageUploadStatus.processing(
           'Uploading image ${index + 1} of ${images.length}...',
         );
-        uploadedGallery = await _service.uploadImage(code, webpBytes);
+        uploadedGallery = await _service.uploadImage(
+          code,
+          webpBytes,
+          refreshGallery: index == images.length - 1,
+        );
       }
       if (uploadedGallery != null) {
         status.value = const _ImageUploadStatus.processing(
@@ -272,7 +396,11 @@ class _AdminPageState extends State<AdminPage> {
         status.value = _ImageUploadStatus.processing(
           'Uploading image ${index + 1} of ${files.length}...',
         );
-        gallery = await _service.uploadImage(code, webpBytes);
+        gallery = await _service.uploadImage(
+          code,
+          webpBytes,
+          refreshGallery: index == files.length - 1,
+        );
       }
       if (gallery != null) _replaceGallery(gallery);
       status.value = const _ImageUploadStatus.success();
@@ -320,20 +448,52 @@ class _AdminPageState extends State<AdminPage> {
       title: 'Admin',
       currentRoute: '/admin',
       centerBody: false,
-      body: !_service.isAuthenticated
-          ? _AdminGate(loading: _loading, error: _error, onLogin: _logIn)
-          : _AdminDashboard(
-              loading: _loading,
-              error: _error,
-              products: _products,
-              gallery: _gallery,
-              productSearch: _productSearch,
-              onRefresh: _loadDashboard,
-              onCreate: () => _editProduct(),
-              onEdit: _editProduct,
-              onDelete: _deleteProduct,
-              onSignOut: () => setState(_service.signOut),
-            ),
+      body: StreamBuilder(
+        stream: AuthService.userChanges,
+        initialData: AuthService.currentUser,
+        builder: (context, snapshot) {
+          final user = snapshot.data ?? AuthService.currentUser;
+          if (!AuthService.isAdmin(user)) return const _AdminAccessDenied();
+          return Stack(
+            children: [
+              _AdminDashboard(
+                loading: _loading,
+                error: _error,
+                products: _products,
+                gallery: _gallery,
+                policies: _policies,
+                orders: _orders,
+                ordersError: _ordersError,
+                productSearch: _productSearch,
+                selectedCategory: _selectedCategory,
+                onRefresh: _loadDashboard,
+                onCategorySelected: (category) =>
+                    setState(() => _selectedCategory = category),
+                onCreate: () => _editProduct(),
+                onEdit: _editProduct,
+                onDelete: _deleteProduct,
+                onSavePolicy: _savePolicy,
+                onSubmitShippingConfirmation: _submitShippingConfirmation,
+                onMarkDelivered: _markDelivered,
+                onAcceptReturn: _acceptReturn,
+                onMarkRefundProcessed: _markRefundProcessed,
+                onRejectReturn: _rejectReturn,
+              ),
+              if (_loading)
+                const Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: LinearProgressIndicator(
+                    minHeight: 4,
+                    color: Color(0xFFA35710),
+                    backgroundColor: Color(0xFFE2C7A0),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -378,35 +538,44 @@ class _ImageUploadDialog extends StatelessWidget {
               color: const Color(0xFF5B351A),
             ),
           ),
-          content: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              if (processing)
-                const Padding(
-                  padding: EdgeInsets.only(top: 2),
-                  child: SizedBox.square(
-                    dimension: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
+              if (processing) ...[
+                const LinearProgressIndicator(
+                  color: Color(0xFFA35710),
+                  backgroundColor: Color(0xFFE2C7A0),
+                ),
+                const SizedBox(height: 16),
+              ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    processing
+                        ? Icons.hourglass_top
+                        : success
+                        ? Icons.check_circle_outline
+                        : Icons.error_outline,
+                    color: processing
+                        ? const Color(0xFFA35710)
+                        : success
+                        ? const Color(0xFF477A45)
+                        : Colors.red.shade700,
+                    size: 26,
                   ),
-                )
-              else
-                Icon(
-                  success ? Icons.check_circle_outline : Icons.error_outline,
-                  color: success
-                      ? const Color(0xFF477A45)
-                      : Colors.red.shade700,
-                  size: 26,
-                ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  processing
-                      ? current.message
-                      : success
-                      ? 'Your image was uploaded successfully.'
-                      : current.message,
-                  style: GoogleFonts.blinker(fontSize: 17),
-                ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      processing
+                          ? current.message
+                          : success
+                          ? 'Your image was uploaded successfully.'
+                          : current.message,
+                      style: GoogleFonts.ibmPlexSans(fontSize: 17),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -423,127 +592,19 @@ class _ImageUploadDialog extends StatelessWidget {
   );
 }
 
-class _AdminGate extends StatelessWidget {
-  const _AdminGate({
-    required this.loading,
-    required this.error,
-    required this.onLogin,
-  });
-
-  final bool loading;
-  final String? error;
-  final VoidCallback onLogin;
+class _AdminAccessDenied extends StatelessWidget {
+  const _AdminAccessDenied();
 
   @override
   Widget build(BuildContext context) => Center(
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 440),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Container(
-          padding: const EdgeInsets.all(30),
-          decoration: BoxDecoration(
-            color: const Color(0xFFECE7DD),
-            border: Border.all(color: const Color(0xFFD0A36F)),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x332D1E12),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.admin_panel_settings_outlined,
-                size: 46,
-                color: const Color(0xFF5B351A),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Admin Dashboard',
-                style: GoogleFonts.dmSerifDisplay(
-                  fontSize: 34,
-                  color: const Color(0xFF5B351A),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'For managing listed products and their images',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.blinker(fontSize: 17),
-              ),
-              if (error != null) ...[
-                const SizedBox(height: 14),
-                Text(
-                  error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ],
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: loading ? null : onLogin,
-                  icon: loading
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.lock_open_outlined),
-                  label: const Text('Unlock dashboard'),
-                ),
-              ),
-            ],
-          ),
-        ),
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(
+        'This account is not authorized to access the admin dashboard.',
+        textAlign: TextAlign.center,
+        style: GoogleFonts.ibmPlexSans(fontSize: 19),
       ),
     ),
-  );
-}
-
-class _AdminLoginDialog extends StatefulWidget {
-  const _AdminLoginDialog();
-
-  @override
-  State<_AdminLoginDialog> createState() => _AdminLoginDialogState();
-}
-
-class _AdminLoginDialogState extends State<_AdminLoginDialog> {
-  final password = TextEditingController();
-  @override
-  void dispose() {
-    password.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(
-      'Admin sign in',
-      style: GoogleFonts.dmSerifDisplay(fontSize: 28),
-    ),
-    content: TextField(
-      controller: password,
-      autofocus: true,
-      obscureText: true,
-      onSubmitted: (_) => Navigator.pop(context, password.text),
-      decoration: const InputDecoration(labelText: 'Password'),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: () => Navigator.pop(context, password.text),
-        child: const Text('Continue'),
-      ),
-    ],
   );
 }
 
@@ -553,156 +614,1562 @@ class _AdminDashboard extends StatelessWidget {
     required this.error,
     required this.products,
     required this.gallery,
+    required this.policies,
+    required this.orders,
+    required this.ordersError,
     required this.productSearch,
+    required this.selectedCategory,
     required this.onRefresh,
+    required this.onCategorySelected,
     required this.onCreate,
     required this.onEdit,
     required this.onDelete,
-    required this.onSignOut,
+    required this.onSavePolicy,
+    required this.onSubmitShippingConfirmation,
+    required this.onMarkDelivered,
+    required this.onAcceptReturn,
+    required this.onMarkRefundProcessed,
+    required this.onRejectReturn,
   });
 
   final bool loading;
   final String? error;
   final List<Product> products;
   final List<AdminGallery> gallery;
+  final List<SitePolicy> policies;
+  final List<AdminOrder> orders;
+  final String? ordersError;
   final TextEditingController productSearch;
+  final String? selectedCategory;
   final Future<void> Function() onRefresh;
+  final ValueChanged<String?> onCategorySelected;
   final VoidCallback onCreate;
   final ValueChanged<Product> onEdit;
   final ValueChanged<Product> onDelete;
-  final VoidCallback onSignOut;
+  final Future<void> Function(SitePolicy) onSavePolicy;
+  final Future<void> Function(AdminOrder order, String trackingId)
+  onSubmitShippingConfirmation;
+  final Future<void> Function(AdminOrder order) onMarkDelivered;
+  final Future<void> Function(AdminOrder order, String trackingId)
+  onAcceptReturn;
+  final Future<void> Function(AdminOrder order, AdminRefundDetails refund)
+  onMarkRefundProcessed;
+  final Future<void> Function(AdminOrder order, String reason) onRejectReturn;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final mobile = constraints.maxWidth < 700;
-      final searchQuery = productSearch.text.trim().toLowerCase();
-      final visibleProducts = products.where((product) {
-        if (searchQuery.isEmpty) return true;
-        return '${product.code} ${product.name} ${product.type} '
-                '${product.description} ${product.specifications ?? ''}'
-            .toLowerCase()
-            .contains(searchQuery);
-      }).toList();
-      return SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(
-          mobile ? 18 : 42,
-          mobile ? 34 : 56,
-          mobile ? 18 : 42,
-          80,
-        ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1240),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Product Admin',
-                        style: GoogleFonts.dmSerifDisplay(
-                          fontSize: mobile ? 38 : 52,
-                          color: const Color(0xFF5B351A),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: loading ? null : onRefresh,
-                      tooltip: 'Refresh',
-                      icon: const Icon(Icons.refresh),
-                    ),
-                    IconButton(
-                      onPressed: onSignOut,
-                      tooltip: 'Sign out',
-                      icon: const Icon(Icons.logout),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Add, delete, or edit products and their images from one place.',
-                  style: GoogleFonts.blinker(fontSize: mobile ? 16 : 18),
-                ),
-                if (error != null) ...[
-                  const SizedBox(height: 14),
-                  Text(error!, style: const TextStyle(color: Colors.red)),
-                ],
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 48,
-                        child: TextField(
-                          controller: productSearch,
-                          enabled: !loading,
-                          textInputAction: TextInputAction.search,
-                          style: GoogleFonts.blinker(fontSize: 17),
-                          decoration: const InputDecoration(
-                            hintText: 'Search listed products',
-                            prefixIcon: Icon(Icons.search),
-                            filled: true,
-                            fillColor: Color(0xFFE9E2D6),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.all(
-                                Radius.circular(12),
+  Widget build(BuildContext context) => DefaultTabController(
+    length: 5,
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final tabController = DefaultTabController.of(context);
+        final mobile = useCompactLayout(context, breakpoint: 700);
+        final searchQuery = productSearch.text.trim().toLowerCase();
+        final categories =
+            products
+                .map((product) => product.type.trim())
+                .where((type) => type.isNotEmpty)
+                .toSet()
+                .toList()
+              ..sort(
+                (left, right) =>
+                    left.toLowerCase().compareTo(right.toLowerCase()),
+              );
+        final visibleProducts = products.where((product) {
+          final matchesCategory =
+              selectedCategory == null ||
+              (selectedCategory == _newArrivalsFilter
+                  ? product.isPopular == true
+                  : false) ||
+              _adminCategoryKey(product.type) ==
+                  _adminCategoryKey(selectedCategory!);
+          final matchesSearch =
+              searchQuery.isEmpty ||
+              '${product.code} ${product.name} ${product.type} '
+                      '${product.description} ${product.specifications ?? ''}'
+                  .toLowerCase()
+                  .contains(searchQuery);
+          return matchesCategory && matchesSearch;
+        }).toList();
+        return AnimatedBuilder(
+          animation: tabController,
+          builder: (context, _) {
+            final showOrders = tabController.index == 1;
+            final showOrderHistory = tabController.index == 2;
+            final showPolicies = tabController.index == 3;
+            final showReturnRequests = tabController.index == 4;
+            final ordersToPrepare = orders
+                .where((order) => !order.isDelivered && !order.isCancelled)
+                .toList();
+            final orderHistory = orders
+                .where((order) => order.isDelivered || order.isCancelled)
+                .toList();
+            final returnRequests = orders
+                .where((order) => order.hasReturnRequest)
+                .toList();
+            return SingleChildScrollView(
+              primary: true,
+              padding: EdgeInsets.fromLTRB(
+                mobile ? 16 : 24,
+                mobile ? 34 : 56,
+                mobile ? 16 : 24,
+                80,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1240),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Admin Panel',
+                              style: GoogleFonts.dmSerifDisplay(
+                                fontSize: mobile ? 38 : 52,
+                                color: const Color(0xFF5B351A),
                               ),
                             ),
                           ),
+                          IconButton(
+                            onPressed: loading ? null : onRefresh,
+                            tooltip: 'Refresh',
+                            icon: const Icon(Icons.refresh),
+                          ),
+                        ],
+                      ),
+                      if (error != null) ...[
+                        const SizedBox(height: 14),
+                        Text(error!, style: const TextStyle(color: Colors.red)),
+                      ],
+                      const SizedBox(height: 24),
+                      const _OrderNotificationsSetting(),
+                      const SizedBox(height: 18),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE9E2D6),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFD5B48A)),
+                        ),
+                        child: TabBar(
+                          isScrollable: mobile || constraints.maxWidth < 900,
+                          labelColor: const Color(0xFF5B351A),
+                          unselectedLabelColor: const Color(0xFF765F4B),
+                          indicatorColor: const Color(0xFFA35710),
+                          labelStyle: GoogleFonts.ibmPlexSans(
+                            fontSize: mobile ? 15 : 17,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          tabs: const [
+                            Tab(text: 'Store Management'),
+                            Tab(text: 'Orders'),
+                            Tab(text: 'Order History'),
+                            Tab(text: 'Site Policies'),
+                            Tab(text: 'Return Requests'),
+                          ],
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      height: 48,
-                      child: FilledButton.icon(
-                        onPressed: loading ? null : onCreate,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add product'),
-                      ),
-                    ),
-                  ],
+                      const SizedBox(height: 28),
+                      if (showOrders)
+                        _OrdersTab(
+                          orders: ordersToPrepare,
+                          loading: loading,
+                          error: ordersError,
+                          onSubmitShippingConfirmation:
+                              onSubmitShippingConfirmation,
+                          onMarkDelivered: onMarkDelivered,
+                          onMarkRefundProcessed: onMarkRefundProcessed,
+                        )
+                      else if (showOrderHistory)
+                        _OrdersTab(
+                          orders: orderHistory,
+                          loading: loading,
+                          error: ordersError,
+                          onSubmitShippingConfirmation:
+                              onSubmitShippingConfirmation,
+                          onMarkDelivered: onMarkDelivered,
+                          onMarkRefundProcessed: onMarkRefundProcessed,
+                          history: true,
+                        )
+                      else if (showPolicies)
+                        _PolicyAdminSection(
+                          policies: policies,
+                          loading: loading,
+                          onSave: onSavePolicy,
+                        )
+                      else if (showReturnRequests)
+                        _ReturnRequestsTab(
+                          orders: returnRequests,
+                          loading: loading,
+                          error: ordersError,
+                          onAcceptReturn: onAcceptReturn,
+                          onMarkRefundProcessed: onMarkRefundProcessed,
+                          onRejectReturn: onRejectReturn,
+                        )
+                      else ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 48,
+                                child: TextField(
+                                  controller: productSearch,
+                                  enabled: !loading,
+                                  textInputAction: TextInputAction.search,
+                                  style: GoogleFonts.ibmPlexSans(fontSize: 17),
+                                  decoration: const InputDecoration(
+                                    hintText: 'Search listed products',
+                                    prefixIcon: Icon(Icons.search),
+                                    filled: true,
+                                    fillColor: Color(0xFFE9E2D6),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.all(
+                                        Radius.circular(12),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              height: 48,
+                              child: FilledButton.icon(
+                                onPressed: loading ? null : onCreate,
+                                icon: const Icon(Icons.add),
+                                label: const Text('Add product'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 22),
+                        if (categories.isNotEmpty) ...[
+                          Wrap(
+                            spacing: mobile ? 12 : 16,
+                            runSpacing: mobile ? 14 : 12,
+                            children: [
+                              ChoiceChip(
+                                label: Text(
+                                  'ALL PRODUCTS',
+                                  style: GoogleFonts.ibmPlexSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: mobile ? 1.4 : 2,
+                                  ),
+                                ),
+                                selected: selectedCategory == null,
+                                onSelected: (_) => onCategorySelected(null),
+                                selectedColor: const Color(0xFFE2C7A0),
+                                backgroundColor: const Color(0xFFE9E2D6),
+                                side: const BorderSide(
+                                  color: Color(0xFFA85C18),
+                                  width: 1.5,
+                                ),
+                                shape: const StadiumBorder(),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                              ),
+                              ChoiceChip(
+                                label: Text(
+                                  'NEW ARRIVALS',
+                                  style: GoogleFonts.ibmPlexSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: mobile ? 1.4 : 2,
+                                  ),
+                                ),
+                                selected:
+                                    selectedCategory == _newArrivalsFilter,
+                                onSelected: (selected) => onCategorySelected(
+                                  selected ? _newArrivalsFilter : null,
+                                ),
+                                selectedColor: const Color(0xFFE2C7A0),
+                                backgroundColor: const Color(0xFFE9E2D6),
+                                side: const BorderSide(
+                                  color: Color(0xFFA85C18),
+                                  width: 1.5,
+                                ),
+                                shape: const StadiumBorder(),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                              ),
+                              for (final category in categories)
+                                ChoiceChip(
+                                  label: Text(
+                                    category.replaceAll('-', ' ').toUpperCase(),
+                                    style: GoogleFonts.ibmPlexSans(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: mobile ? 1.4 : 2,
+                                    ),
+                                  ),
+                                  selected:
+                                      _adminCategoryKey(
+                                        selectedCategory ?? '',
+                                      ) ==
+                                      _adminCategoryKey(category),
+                                  onSelected: (selected) => onCategorySelected(
+                                    selected ? category : null,
+                                  ),
+                                  selectedColor: const Color(0xFFE2C7A0),
+                                  backgroundColor: const Color(0xFFE9E2D6),
+                                  side: const BorderSide(
+                                    color: Color(0xFFA85C18),
+                                    width: 1.5,
+                                  ),
+                                  shape: const StadiumBorder(),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 7,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 22),
+                        ],
+                        if (loading && visibleProducts.isEmpty)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(40),
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        else if (visibleProducts.isEmpty)
+                          Text(
+                            searchQuery.isEmpty
+                                ? 'No products found.'
+                                : 'No matching products found.',
+                            style: GoogleFonts.ibmPlexSans(fontSize: 18),
+                          )
+                        else
+                          ...visibleProducts.map((product) {
+                            final productGallery = gallery
+                                .where((entry) => entry.code == product.code)
+                                .firstOrNull;
+                            return Padding(
+                              key: ValueKey('admin-product-${product.code}'),
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _ProductAdminCard(
+                                key: ValueKey(product.code),
+                                product: product,
+                                gallery: productGallery,
+                                onEdit: () => onEdit(product),
+                                onDelete: () => onDelete(product),
+                              ),
+                            );
+                          }),
+                      ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 22),
-                if (loading && visibleProducts.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(40),
-                      child: CircularProgressIndicator(),
-                    ),
-                  )
-                else if (visibleProducts.isEmpty)
-                  Text(
-                    searchQuery.isEmpty
-                        ? 'No products found.'
-                        : 'No matching products found.',
-                    style: GoogleFonts.blinker(fontSize: 18),
-                  )
-                else
-                  ...visibleProducts.map((product) {
-                    final productGallery = gallery
-                        .where((entry) => entry.code == product.code)
-                        .firstOrNull;
-                    return Padding(
-                      key: ValueKey('admin-product-${product.code}'),
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _ProductAdminCard(
-                        key: ValueKey(product.code),
-                        product: product,
-                        gallery: productGallery,
-                        onEdit: () => onEdit(product),
-                        onDelete: () => onDelete(product),
-                      ),
-                    );
-                  }),
-              ],
-            ),
+              ),
+            );
+          },
+        );
+      },
+    ),
+  );
+}
+
+class _OrderNotificationsSetting extends StatefulWidget {
+  const _OrderNotificationsSetting();
+
+  @override
+  State<_OrderNotificationsSetting> createState() =>
+      _OrderNotificationsSettingState();
+}
+
+class _OrderNotificationsSettingState
+    extends State<_OrderNotificationsSetting> {
+  final _push = AdminPushService();
+  bool _loading = false;
+  bool _enabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (AdminPushService.isSupported) _readState();
+  }
+
+  Future<void> _readState() async {
+    final enabled = await _push.isEnabled();
+    if (mounted) setState(() => _enabled = enabled);
+  }
+
+  Future<void> _update() async {
+    setState(() => _loading = true);
+    try {
+      if (_enabled) {
+        await _push.disable();
+      } else {
+        await _push.enable();
+      }
+      if (!mounted) return;
+      setState(() => _enabled = !_enabled);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _enabled
+                ? 'Order notifications enabled on this device.'
+                : 'Order notifications disabled on this device.',
           ),
         ),
       );
-    },
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', '')),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final supported = AdminPushService.isSupported;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE9E2D6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD5B48A)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_loading) ...[
+            const LinearProgressIndicator(
+              color: Color(0xFFA35710),
+              backgroundColor: Color(0xFFE2C7A0),
+            ),
+            const SizedBox(height: 12),
+          ],
+          Row(
+            children: [
+              const Icon(
+                Icons.notifications_outlined,
+                color: Color(0xFF5B351A),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Order notifications',
+                      style: GoogleFonts.ibmPlexSans(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      supported
+                          ? (_enabled
+                                ? 'Order notifications enabled on this device.'
+                                : 'Receive an alert whenever a new paid order is placed.')
+                          : AdminPushService.unavailableReason,
+                      style: GoogleFonts.ibmPlexSans(fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton(
+                onPressed: !supported || _loading ? null : _update,
+                child: Text(_enabled ? 'DISABLE' : 'ENABLE'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _adminCategoryKey(String value) =>
+    value.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '');
+
+class _OrdersTab extends StatelessWidget {
+  const _OrdersTab({
+    required this.orders,
+    required this.loading,
+    required this.error,
+    required this.onSubmitShippingConfirmation,
+    required this.onMarkDelivered,
+    required this.onMarkRefundProcessed,
+    this.history = false,
+  });
+
+  final List<AdminOrder> orders;
+  final bool loading;
+  final String? error;
+  final Future<void> Function(AdminOrder order, String trackingId)
+  onSubmitShippingConfirmation;
+  final Future<void> Function(AdminOrder order) onMarkDelivered;
+  final Future<void> Function(AdminOrder order, AdminRefundDetails refund)
+  onMarkRefundProcessed;
+  final bool history;
+
+  @override
+  Widget build(BuildContext context) {
+    if (error != null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFFD5B48A)),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Text(
+          '$error\n\nRun supabase/order_fulfillment.sql in the Supabase SQL Editor, then refresh this page.',
+          style: GoogleFonts.ibmPlexSans(fontSize: 17),
+        ),
+      );
+    }
+    if (loading && orders.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(40),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    if (orders.isEmpty) {
+      return Text(
+        history
+            ? 'No completed or cancelled orders yet.'
+            : 'No active orders need fulfillment.',
+        style: GoogleFonts.ibmPlexSans(fontSize: 18),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          history ? 'Order History' : 'Order Preparation',
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: 38,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          history
+              ? 'Delivered and cancelled orders remain available for reference.'
+              : 'Dispatch newly placed orders, then mark them delivered once complete.',
+          style: GoogleFonts.ibmPlexSans(fontSize: 18),
+        ),
+        const SizedBox(height: 20),
+        for (final order in orders)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _OrderCard(
+              order: order,
+              disabled: loading,
+              onOpen: () => _openOrder(context, order),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _openOrder(BuildContext context, AdminOrder order) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Order ${order.orderId}',
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: 30,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: SingleChildScrollView(child: _OrderDetails(order: order)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+          if (order.orderStatus == 'order_placed')
+            FilledButton.icon(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                final trackingId = await _askForTrackingId(context, order);
+                if (trackingId != null) {
+                  await onSubmitShippingConfirmation(order, trackingId);
+                }
+              },
+              icon: const Icon(Icons.local_shipping_outlined),
+              label: const Text('SUBMIT FOR DELIVERY'),
+            ),
+          if (order.isSubmittedForDelivery)
+            FilledButton.icon(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                await onMarkDelivered(order);
+              },
+              icon: const Icon(Icons.task_alt_outlined),
+              label: const Text('MARK AS DELIVERED'),
+            ),
+          if (order.isCancelled && order.refundProcessedAt == null)
+            FilledButton(
+              onPressed: () async {
+                final submitted = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => _RefundDetailsDialog(
+                    order: order,
+                    onSubmit: (refund) => onMarkRefundProcessed(order, refund),
+                  ),
+                );
+                if (submitted == true && dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
+              },
+              child: const Text('MARK REFUND PROCESSED'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _askForTrackingId(BuildContext context, AdminOrder order) =>
+      showDialog<String>(
+        context: context,
+        builder: (_) => _TrackingIdDialog(orderId: order.orderId),
+      );
+}
+
+class _OrderCard extends StatelessWidget {
+  const _OrderCard({
+    required this.order,
+    required this.disabled,
+    required this.onOpen,
+  });
+
+  final AdminOrder order;
+  final bool disabled;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xFFECE7DD),
+    borderRadius: BorderRadius.circular(18),
+    child: InkWell(
+      onTap: disabled ? null : onOpen,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFFD5B48A)),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              order.isDelivered
+                  ? Icons.task_alt_outlined
+                  : order.isCancelled
+                  ? Icons.cancel_outlined
+                  : order.isSubmittedForDelivery
+                  ? Icons.local_shipping_outlined
+                  : Icons.inventory_2_outlined,
+              color: const Color(0xFF914B0D),
+              size: 30,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    order.orderId,
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 25,
+                      color: const Color(0xFF5B351A),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    order.customerEmail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.ibmPlexSans(fontSize: 16),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${order.items.length} item${order.items.length == 1 ? '' : 's'}  •  ₹${order.subtotal}',
+                    style: GoogleFonts.ibmPlexSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            _DeliveryStatus(order: order),
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _DeliveryStatus extends StatelessWidget {
+  const _DeliveryStatus({required this.order});
+
+  final AdminOrder order;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+    decoration: BoxDecoration(
+      color: order.isDelivered
+          ? const Color(0xFFD8E8D0)
+          : order.isCancelled
+          ? const Color(0xFFE8D0D0)
+          : order.isSubmittedForDelivery
+          ? const Color(0xFFE2C7A0)
+          : const Color(0xFFE2C7A0),
+      borderRadius: BorderRadius.circular(99),
+    ),
+    child: Text(
+      order.refundProcessedAt != null
+          ? 'REFUND PROCESSED'
+          : switch (order.returnStatus ?? order.orderStatus) {
+              'requested' => 'RETURN REQUESTED',
+              'accepted_for_return' => 'RETURN ACCEPTED',
+              'refund_processed' => 'REFUND PROCESSED',
+              'rejected' => 'RETURN REJECTED',
+              'out_for_delivery' => 'OUT FOR DELIVERY',
+              'delivered' => 'DELIVERED',
+              'cancelled' => 'CANCELLED',
+              _ => 'ORDER PLACED',
+            },
+      style: GoogleFonts.ibmPlexSans(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1,
+      ),
+    ),
+  );
+}
+
+class _OrderDetails extends StatelessWidget {
+  const _OrderDetails({required this.order});
+
+  final AdminOrder order;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _OrderDetailLabel(label: 'Customer'),
+      SelectableText(
+        order.customerEmail,
+        style: GoogleFonts.ibmPlexSans(fontSize: 17),
+      ),
+      if (order.customerPhone?.isNotEmpty == true) ...[
+        const SizedBox(height: 2),
+        SelectableText(
+          order.customerPhone!,
+          style: GoogleFonts.ibmPlexSans(fontSize: 17),
+        ),
+      ],
+      const SizedBox(height: 18),
+      _OrderDetailLabel(label: 'Delivery address'),
+      SelectableText(
+        order.address?.isNotEmpty == true
+            ? order.address!
+            : 'No delivery address saved.',
+        style: GoogleFonts.ibmPlexSans(fontSize: 17, height: 1.22),
+      ),
+      const SizedBox(height: 18),
+      _OrderDetailLabel(label: 'Items'),
+      for (final item in order.items)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 7),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${item.quantity} × ${item.name}',
+                  style: GoogleFonts.ibmPlexSans(fontSize: 17),
+                ),
+              ),
+              Text(
+                '₹${item.amount}',
+                style: GoogleFonts.ibmPlexSans(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      const Divider(height: 28),
+      Row(
+        children: [
+          Text(
+            'Subtotal',
+            style: GoogleFonts.dmSerifDisplay(
+              fontSize: 25,
+              color: const Color(0xFF5B351A),
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '₹${order.subtotal}',
+            style: GoogleFonts.ibmPlexSans(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+      if (order.isSubmittedForDelivery) ...[
+        const SizedBox(height: 18),
+        _OrderDetailLabel(label: 'Delivery confirmation sent'),
+        Text(
+          'Tracking ID: ${order.trackingId ?? '-'}',
+          style: GoogleFonts.ibmPlexSans(fontSize: 17),
+        ),
+      ],
+    ],
+  );
+}
+
+class _OrderDetailLabel extends StatelessWidget {
+  const _OrderDetailLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 5),
+    child: Text(
+      label.toUpperCase(),
+      style: GoogleFonts.ibmPlexSans(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.2,
+        color: const Color(0xFF765F4B),
+      ),
+    ),
+  );
+}
+
+class _TrackingIdDialog extends StatefulWidget {
+  const _TrackingIdDialog({required this.orderId});
+
+  final String orderId;
+
+  @override
+  State<_TrackingIdDialog> createState() => _TrackingIdDialogState();
+}
+
+class _TrackingIdDialogState extends State<_TrackingIdDialog> {
+  final _trackingId = TextEditingController();
+
+  @override
+  void dispose() {
+    _trackingId.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final trackingId = _trackingId.text.trim();
+    if (trackingId.isEmpty) return;
+    Navigator.pop(context, trackingId);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(
+      'Add tracking ID',
+      style: GoogleFonts.dmSerifDisplay(
+        fontSize: 30,
+        color: const Color(0xFF5B351A),
+      ),
+    ),
+    content: TextField(
+      controller: _trackingId,
+      autofocus: true,
+      textInputAction: TextInputAction.done,
+      onSubmitted: (_) => _submit(),
+      decoration: InputDecoration(
+        labelText: 'Delhivery tracking ID',
+        helperText: 'This will be emailed for order ${widget.orderId}.',
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _submit, child: const Text('Send confirmation')),
+    ],
+  );
+}
+
+class _ReturnRequestsTab extends StatelessWidget {
+  const _ReturnRequestsTab({
+    required this.orders,
+    required this.loading,
+    required this.error,
+    required this.onAcceptReturn,
+    required this.onMarkRefundProcessed,
+    required this.onRejectReturn,
+  });
+
+  final List<AdminOrder> orders;
+  final bool loading;
+  final String? error;
+  final Future<void> Function(AdminOrder order, String trackingId)
+  onAcceptReturn;
+  final Future<void> Function(AdminOrder order, AdminRefundDetails refund)
+  onMarkRefundProcessed;
+  final Future<void> Function(AdminOrder order, String reason) onRejectReturn;
+
+  @override
+  Widget build(BuildContext context) {
+    if (error != null) {
+      return Text(error!, style: GoogleFonts.ibmPlexSans(fontSize: 17));
+    }
+    if (loading && orders.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (orders.isEmpty) {
+      return Text(
+        'No return requests yet.',
+        style: GoogleFonts.ibmPlexSans(fontSize: 18),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Return Requests',
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: 38,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Review customer evidence, accept the return with a tracking ID, then record the refund.',
+          style: GoogleFonts.ibmPlexSans(fontSize: 18),
+        ),
+        const SizedBox(height: 20),
+        for (final order in orders)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _OrderCard(
+              order: order,
+              disabled: loading,
+              onOpen: () => _open(context, order),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _open(BuildContext context, AdminOrder order) async {
+    if (useCompactLayout(context, breakpoint: 700)) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => _ReturnOrderBottomSheet(
+          order: order,
+          onClose: () => Navigator.pop(sheetContext),
+          onReject: () => _reject(context, sheetContext, order),
+          onAccept: () => _accept(context, sheetContext, order),
+          onRefundProcessed: () => _refund(context, sheetContext, order),
+          onImageTap: (url) => _openEvidenceViewer(context, url),
+        ),
+      );
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Return ${order.orderId}',
+          style: GoogleFonts.dmSerifDisplay(
+            fontSize: 30,
+            color: const Color(0xFF5B351A),
+          ),
+        ),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 580),
+          child: SingleChildScrollView(
+            child: _ReturnOrderContent(
+              order: order,
+              onImageTap: (url) => _openEvidenceViewer(context, url),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+          if (order.returnStatus == 'requested')
+            OutlinedButton(
+              onPressed: () async {
+                await _reject(context, dialogContext, order);
+              },
+              child: const Text('REJECT RETURN'),
+            ),
+          if (order.returnStatus == 'requested')
+            FilledButton(
+              onPressed: () async {
+                await _accept(context, dialogContext, order);
+              },
+              child: const Text('ACCEPT FOR RETURN'),
+            ),
+          if (order.returnStatus == 'accepted_for_return')
+            FilledButton(
+              onPressed: () async {
+                await _refund(context, dialogContext, order);
+              },
+              child: const Text('REFUND PROCESSED'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _reject(
+    BuildContext parentContext,
+    BuildContext overlayContext,
+    AdminOrder order,
+  ) async {
+    Navigator.pop(overlayContext);
+    final reason = await showDialog<String>(
+      context: parentContext,
+      builder: (_) => const _ReturnRejectionDialog(),
+    );
+    if (reason != null) await onRejectReturn(order, reason);
+  }
+
+  Future<void> _accept(
+    BuildContext parentContext,
+    BuildContext overlayContext,
+    AdminOrder order,
+  ) async {
+    Navigator.pop(overlayContext);
+    final trackingId = await showDialog<String>(
+      context: parentContext,
+      builder: (_) => const _ReturnTrackingIdDialog(),
+    );
+    if (trackingId != null) await onAcceptReturn(order, trackingId);
+  }
+
+  Future<void> _refund(
+    BuildContext parentContext,
+    BuildContext overlayContext,
+    AdminOrder order,
+  ) async {
+    final submitted = await showDialog<bool>(
+      context: parentContext,
+      builder: (_) => _RefundDetailsDialog(
+        order: order,
+        onSubmit: (refund) => onMarkRefundProcessed(order, refund),
+      ),
+    );
+    if (submitted == true && overlayContext.mounted) {
+      Navigator.pop(overlayContext);
+    }
+  }
+
+  Future<void> _openEvidenceViewer(BuildContext context, String url) =>
+      showDialog<void>(
+        context: context,
+        barrierColor: const Color(0xE6000000),
+        useSafeArea: false,
+        builder: (_) => _ReturnEvidenceViewer(imageUrl: url),
+      );
+}
+
+class _ReturnOrderBottomSheet extends StatelessWidget {
+  const _ReturnOrderBottomSheet({
+    required this.order,
+    required this.onClose,
+    required this.onReject,
+    required this.onAccept,
+    required this.onRefundProcessed,
+    required this.onImageTap,
+  });
+
+  final AdminOrder order;
+  final VoidCallback onClose;
+  final Future<void> Function() onReject;
+  final Future<void> Function() onAccept;
+  final Future<void> Function() onRefundProcessed;
+  final ValueChanged<String> onImageTap;
+
+  @override
+  Widget build(BuildContext context) => DraggableScrollableSheet(
+    initialChildSize: .82,
+    minChildSize: .52,
+    maxChildSize: .94,
+    expand: false,
+    builder: (context, controller) => Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFFEF5E6),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: ListView(
+        controller: controller,
+        padding: const EdgeInsets.fromLTRB(22, 12, 22, 28),
+        children: [
+          Center(
+            child: Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFF9A8267),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Return ${order.orderId}',
+            style: GoogleFonts.dmSerifDisplay(
+              fontSize: 30,
+              color: const Color(0xFF5B351A),
+            ),
+          ),
+          const SizedBox(height: 18),
+          _ReturnOrderContent(order: order, onImageTap: onImageTap),
+          const SizedBox(height: 22),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              TextButton(onPressed: onClose, child: const Text('Close')),
+              if (order.returnStatus == 'requested')
+                OutlinedButton(
+                  onPressed: onReject,
+                  child: const Text('REJECT RETURN'),
+                ),
+              if (order.returnStatus == 'requested')
+                FilledButton(
+                  onPressed: onAccept,
+                  child: const Text('ACCEPT FOR RETURN'),
+                ),
+              if (order.returnStatus == 'accepted_for_return')
+                FilledButton(
+                  onPressed: onRefundProcessed,
+                  child: const Text('REFUND PROCESSED'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ReturnOrderContent extends StatelessWidget {
+  const _ReturnOrderContent({required this.order, required this.onImageTap});
+
+  final AdminOrder order;
+  final ValueChanged<String> onImageTap;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _OrderDetails(order: order),
+      const SizedBox(height: 18),
+      _OrderDetailLabel(label: 'Customer evidence'),
+      if (order.returnEvidenceUrls.isEmpty)
+        Text(
+          'No return images were available.',
+          style: GoogleFonts.ibmPlexSans(fontSize: 16),
+        )
+      else
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final url in order.returnEvidenceUrls)
+              Semantics(
+                button: true,
+                label: 'Open customer evidence image',
+                child: GestureDetector(
+                  onTap: () => onImageTap(url),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.network(
+                      url,
+                      width: 130,
+                      height: 130,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox(
+                        width: 130,
+                        height: 130,
+                        child: ColoredBox(color: Color(0xFFD8D0C3)),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+    ],
+  );
+}
+
+class _ReturnEvidenceViewer extends StatefulWidget {
+  const _ReturnEvidenceViewer({required this.imageUrl});
+
+  final String imageUrl;
+
+  @override
+  State<_ReturnEvidenceViewer> createState() => _ReturnEvidenceViewerState();
+}
+
+class _ReturnEvidenceViewerState extends State<_ReturnEvidenceViewer> {
+  static const _minZoom = 1.0;
+  static const _maxZoom = 4.0;
+  final _controller = TransformationController();
+
+  bool get _supportsTouchPinch =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+  double get _zoom => _controller.value.getMaxScaleOnAxis();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _setZoom(double zoom) {
+    final value = zoom.clamp(_minZoom, _maxZoom).toDouble();
+    _controller.value = Matrix4.diagonal3Values(value, value, 1);
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: SafeArea(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: InteractiveViewer(
+              transformationController: _controller,
+              minScale: _minZoom,
+              maxScale: _maxZoom,
+              panEnabled: _zoom > _minZoom,
+              scaleEnabled: _supportsTouchPinch,
+              onInteractionEnd: (_) => setState(() {}),
+              child: SizedBox.expand(
+                child: Image.network(
+                  widget.imageUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => const Center(
+                    child: Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.white,
+                      size: 48,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 16,
+            right: 16,
+            child: _EvidenceViewerButton(
+              icon: Icons.close,
+              tooltip: 'Close image viewer',
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 24,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _EvidenceViewerButton(
+                  icon: Icons.remove,
+                  tooltip: 'Zoom out',
+                  onPressed: _zoom <= _minZoom
+                      ? null
+                      : () => _setZoom(_zoom - .5),
+                ),
+                const SizedBox(width: 10),
+                _EvidenceViewerButton(
+                  icon: Icons.add,
+                  tooltip: 'Zoom in',
+                  onPressed: _zoom >= _maxZoom
+                      ? null
+                      : () => _setZoom(_zoom + .5),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _EvidenceViewerButton extends StatelessWidget {
+  const _EvidenceViewerButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xE6FEF5E6),
+    borderRadius: BorderRadius.circular(24),
+    child: IconButton(
+      icon: Icon(icon),
+      tooltip: tooltip,
+      onPressed: onPressed,
+      color: const Color(0xFF1F1E25),
+    ),
+  );
+}
+
+class _ReturnTrackingIdDialog extends StatefulWidget {
+  const _ReturnTrackingIdDialog();
+
+  @override
+  State<_ReturnTrackingIdDialog> createState() =>
+      _ReturnTrackingIdDialogState();
+}
+
+class _ReturnRejectionDialog extends StatefulWidget {
+  const _ReturnRejectionDialog();
+
+  @override
+  State<_ReturnRejectionDialog> createState() => _ReturnRejectionDialogState();
+}
+
+class _ReturnRejectionDialogState extends State<_ReturnRejectionDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final reason = _controller.text.trim();
+    if (reason.length >= 3) Navigator.pop(context, reason);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Reject return'),
+    content: TextField(
+      controller: _controller,
+      autofocus: true,
+      maxLines: 3,
+      maxLength: 500,
+      onSubmitted: (_) => _submit(),
+      decoration: const InputDecoration(labelText: 'Reason for rejection'),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _submit, child: const Text('Reject return')),
+    ],
+  );
+}
+
+class _RefundDetailsDialog extends StatefulWidget {
+  const _RefundDetailsDialog({required this.order, required this.onSubmit});
+
+  final AdminOrder order;
+  final Future<void> Function(AdminRefundDetails refund) onSubmit;
+
+  @override
+  State<_RefundDetailsDialog> createState() => _RefundDetailsDialogState();
+}
+
+class _RefundDetailsDialogState extends State<_RefundDetailsDialog> {
+  static const _defaultMessage =
+      'The refund has been processed to your original payment method. Depending on your bank or payment provider, it may take a few business days for the amount to reflect in your account.';
+
+  final _refundId = TextEditingController();
+  late final _amount = TextEditingController(
+    text: widget.order.subtotal.toString(),
+  );
+  final _message = TextEditingController(text: _defaultMessage);
+  var _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _refundId.dispose();
+    _amount.dispose();
+    _message.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final amount = int.tryParse(_amount.text.trim());
+    if (_refundId.text.trim().isEmpty ||
+        amount == null ||
+        amount <= 0 ||
+        _message.text.trim().isEmpty) {
+      setState(
+        () => _error =
+            'Enter a refund ID, a positive refund amount, and a refund message.',
+      );
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await widget.onSubmit(
+        AdminRefundDetails(
+          id: _refundId.text,
+          amount: amount,
+          message: _message.text,
+        ),
+      );
+      if (mounted) Navigator.pop(context, true);
+    } on AdminException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(
+      'Mark refund processed',
+      style: GoogleFonts.dmSerifDisplay(
+        fontSize: 30,
+        color: const Color(0xFF5B351A),
+      ),
+    ),
+    content: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 440),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _refundId,
+              enabled: !_submitting,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(labelText: 'Refund ID'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _amount,
+              enabled: !_submitting,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Refund amount (INR)',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _message,
+              enabled: !_submitting,
+              maxLines: 4,
+              maxLength: 500,
+              decoration: const InputDecoration(labelText: 'Refund message'),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(_error!, style: const TextStyle(color: Colors.red)),
+            ],
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _submitting ? null : () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: _submitting ? null : _submit,
+        child: Text(_submitting ? 'PROCESSING...' : 'MARK REFUND PROCESSED'),
+      ),
+    ],
+  );
+}
+
+class _ReturnTrackingIdDialogState extends State<_ReturnTrackingIdDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final id = _controller.text.trim();
+    if (id.isNotEmpty) Navigator.pop(context, id);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(
+      'Return tracking ID',
+      style: GoogleFonts.dmSerifDisplay(
+        fontSize: 30,
+        color: const Color(0xFF5B351A),
+      ),
+    ),
+    content: TextField(
+      controller: _controller,
+      autofocus: true,
+      onSubmitted: (_) => _submit(),
+      decoration: const InputDecoration(labelText: 'Tracking ID'),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _submit, child: const Text('Accept return')),
+    ],
   );
 }
 
@@ -759,7 +2226,7 @@ class _ProductAdminCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       '${product.code}  •  ${product.type}',
-                      style: GoogleFonts.blinker(
+                      style: GoogleFonts.ibmPlexSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -769,7 +2236,7 @@ class _ProductAdminCard extends StatelessWidget {
                       product.description,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.blinker(fontSize: 16),
+                      style: GoogleFonts.ibmPlexSans(fontSize: 16),
                     ),
                   ],
                 ),
@@ -872,7 +2339,7 @@ class _GallerySheetState extends State<_GallerySheet> {
         ),
         content: Text(
           'This permanently removes $name from Supabase Storage.',
-          style: GoogleFonts.blinker(fontSize: 17),
+          style: GoogleFonts.ibmPlexSans(fontSize: 17),
         ),
         actions: [
           TextButton(
@@ -935,9 +2402,16 @@ class _GallerySheetState extends State<_GallerySheet> {
               ],
             ),
             const SizedBox(height: 8),
+            if (_busy || widget.loading) ...[
+              const LinearProgressIndicator(
+                color: Color(0xFFA35710),
+                backgroundColor: Color(0xFFE2C7A0),
+              ),
+              const SizedBox(height: 12),
+            ],
             Text(
               'Star an image to use it as the storefront thumbnail.',
-              style: GoogleFonts.blinker(fontSize: 16),
+              style: GoogleFonts.ibmPlexSans(fontSize: 16),
             ),
             const SizedBox(height: 18),
             Expanded(
@@ -945,7 +2419,7 @@ class _GallerySheetState extends State<_GallerySheet> {
                   ? Center(
                       child: Text(
                         'No images found. Upload a PNG or JPEG image to begin.',
-                        style: GoogleFonts.blinker(fontSize: 17),
+                        style: GoogleFonts.ibmPlexSans(fontSize: 17),
                       ),
                     )
                   : GridView.builder(
@@ -1026,7 +2500,7 @@ class _GalleryImageTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Text(
               image.isThumbnail ? 'Thumbnail' : image.name,
-              style: GoogleFonts.blinker(
+              style: GoogleFonts.ibmPlexSans(
                 color: Colors.white,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -1111,6 +2585,7 @@ class _ProductEditorState extends State<_ProductEditor> {
   final formKey = GlobalKey<FormState>();
   late final Map<String, TextEditingController> fields;
   late bool isPopular;
+  late bool isSoldOut;
   final List<_PendingImage> pendingImages = [];
   var thumbnailIndex = 0;
 
@@ -1130,6 +2605,7 @@ class _ProductEditorState extends State<_ProductEditor> {
       ),
     };
     isPopular = product?.isPopular ?? false;
+    isSoldOut = product?.isSoldOut ?? false;
   }
 
   @override
@@ -1151,6 +2627,7 @@ class _ProductEditorState extends State<_ProductEditor> {
                 ? null
                 : entry.value.text.trim(),
           'is_popular': isPopular,
+          'is_sold_out': isSoldOut,
         },
         images: List.unmodifiable(pendingImages),
         thumbnailIndex: thumbnailIndex,
@@ -1265,7 +2742,7 @@ class _ProductEditorState extends State<_ProductEditor> {
                 const SizedBox(height: 6),
                 Text(
                   'Choose PNG or JPEG images now, then star one as the storefront thumbnail. They will be converted to WebP and uploaded after this product is created.',
-                  style: GoogleFonts.blinker(fontSize: 15),
+                  style: GoogleFonts.ibmPlexSans(fontSize: 15),
                 ),
                 const SizedBox(height: 10),
                 OutlinedButton.icon(
@@ -1416,10 +2893,17 @@ class _ProductEditorState extends State<_ProductEditor> {
               ),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Show as a popular product'),
+                title: const Text('Show in New Arrivals List'),
                 value: isPopular,
                 activeThumbColor: const Color(0xFFA35710),
                 onChanged: (value) => setState(() => isPopular = value),
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Mark as Sold Out'),
+                value: isSoldOut,
+                activeThumbColor: const Color(0xFFA35710),
+                onChanged: (value) => setState(() => isSoldOut = value),
               ),
               const SizedBox(height: 14),
               SizedBox(

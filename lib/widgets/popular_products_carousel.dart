@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../core/models/product.dart';
+import '../core/responsive.dart';
 import '../core/services/product_service.dart';
-import '../core/services/checkout_navigation.dart';
+import 'cart_quantity_button.dart';
 
 class PopularProductsCarousel extends StatefulWidget {
   const PopularProductsCarousel({super.key});
@@ -32,9 +34,9 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    final viewportFraction = MediaQuery.sizeOf(context).width >= 700
-        ? 0.5
-        : 0.86;
+    final viewportFraction = useCompactLayout(context, breakpoint: 700)
+        ? 0.86
+        : 0.5;
     if (_viewportFraction == viewportFraction) {
       return;
     }
@@ -105,7 +107,8 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= 1200;
-    final showsTwoCards = screenWidth >= 700;
+    final isCompact = useCompactLayout(context, breakpoint: 700);
+    final showsTwoCards = !isCompact;
     final carouselWidth = isDesktop
         ? (screenWidth > 1656 ? 1600.0 : screenWidth - 56)
         : (screenWidth > 0 ? screenWidth : 360.0);
@@ -123,90 +126,58 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
         Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: carouselWidth),
-            child: Row(
-              children: [
-                // Previous button (Desktop only)
-                if (isDesktop)
-                  SizedBox(
-                    width: 70,
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: _previousPage,
-                        child: Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: const [
-                              BoxShadow(color: Colors.black12, blurRadius: 8),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.chevron_left,
-                            color: Color(0xFF914B0D),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                // Carousel
-                Expanded(
-                  child: SizedBox(
-                    height: isDesktop ? 500 : 590,
-                    child: Stack(
-                      children: [
-                        PageView.builder(
-                          controller: _pageController,
-                          onPageChanged: (index) {
-                            setState(() {
-                              _currentPage = index % _products.length;
-                            });
-                          },
-                          itemBuilder: (context, index) {
-                            final product = _products[index % _products.length];
-                            final card = isDesktop
-                                ? _DesktopProductCard(product: product)
-                                : _MobileProductCard(product: product);
+            child: SizedBox(
+              height: isDesktop ? 500 : 635,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  PageView.builder(
+                    controller: _pageController,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentPage = index % _products.length;
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      final product = _products[index % _products.length];
+                      final card = isDesktop
+                          ? _DesktopProductCard(product: product)
+                          : _MobileProductCard(product: product);
 
-                            return Padding(
-                              padding: showsTwoCards
-                                  ? const EdgeInsets.symmetric(horizontal: 15)
-                                  : const EdgeInsets.symmetric(horizontal: 6),
-                              child: card,
-                            );
-                          },
-                        ),
-                      ],
-                    ),
+                      return Padding(
+                        padding: showsTwoCards
+                            ? const EdgeInsets.symmetric(horizontal: 15)
+                            : const EdgeInsets.symmetric(horizontal: 6),
+                        child: card,
+                      );
+                    },
                   ),
-                ),
-                // Next button (Desktop only)
-                if (isDesktop)
-                  SizedBox(
-                    width: 70,
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: _nextPage,
-                        child: Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: const [
-                              BoxShadow(color: Colors.black12, blurRadius: 8),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.chevron_right,
-                            color: Color(0xFF914B0D),
-                          ),
+                  if (!isCompact)
+                    Positioned(
+                      left: 14,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: _CarouselArrow(
+                          icon: Icons.chevron_left,
+                          onTap: _previousPage,
                         ),
                       ),
                     ),
-                  ),
-              ],
+                  if (!isCompact)
+                    Positioned(
+                      right: 14,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: _CarouselArrow(
+                          icon: Icons.chevron_right,
+                          onTap: _nextPage,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -241,6 +212,29 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
       ],
     );
   }
+}
+
+class _CarouselArrow extends StatelessWidget {
+  const _CarouselArrow({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    elevation: 4,
+    shape: const CircleBorder(),
+    child: InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: SizedBox(
+        width: 50,
+        height: 50,
+        child: Icon(icon, color: const Color(0xFF914B0D)),
+      ),
+    ),
+  );
 }
 
 class _DesktopProductCard extends StatelessWidget {
@@ -305,8 +299,12 @@ class _DesktopProductCard extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         height: 48,
-                        child: OutlinedButton(
+                        child: OutlinedButton.icon(
                           onPressed: () => _openProduct(context, product.code),
+                          icon: const Icon(
+                            Icons.info_outline_rounded,
+                            size: 19,
+                          ),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(
                               color: Color(0xFF914B0D),
@@ -316,11 +314,11 @@ class _DesktopProductCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text(
+                          label: Text(
                             'More Info',
-                            style: TextStyle(
-                              color: Color(0xFF914B0D),
-                              fontWeight: FontWeight.w600,
+                            style: GoogleFonts.ibmPlexSans(
+                              color: const Color(0xFF914B0D),
+                              fontWeight: FontWeight.w700,
                               fontSize: 16,
                             ),
                           ),
@@ -330,19 +328,7 @@ class _DesktopProductCard extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         height: 48,
-                        child: ElevatedButton.icon(
-                          onPressed: () =>
-                              CheckoutNavigation.buyNow(context, product),
-                          icon: const Icon(Icons.chat_outlined),
-                          label: const Text('Buy Now'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF914B0D),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
+                        child: CartQuantityButton(product: product, height: 48),
                       ),
                     ],
                   ),
@@ -422,7 +408,7 @@ class _MobileProductCard extends StatelessWidget {
                         ),
                         child: Text(
                           product.type.toUpperCase(),
-                          style: GoogleFonts.blinker(
+                          style: GoogleFonts.ibmPlexSans(
                             color: const Color(0xFF5B351A),
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -449,8 +435,12 @@ class _MobileProductCard extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         height: 40,
-                        child: OutlinedButton(
+                        child: OutlinedButton.icon(
                           onPressed: () => _openProduct(context, product.code),
+                          icon: const Icon(
+                            Icons.info_outline_rounded,
+                            size: 17,
+                          ),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(
                               color: Color(0xFF914B0D),
@@ -460,11 +450,12 @@ class _MobileProductCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          child: const Text(
+                          label: Text(
                             'More Info',
-                            style: TextStyle(
-                              color: Color(0xFF914B0D),
-                              fontWeight: FontWeight.w600,
+                            style: GoogleFonts.ibmPlexSans(
+                              color: const Color(0xFF914B0D),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
                             ),
                           ),
                         ),
@@ -473,18 +464,10 @@ class _MobileProductCard extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         height: 40,
-                        child: ElevatedButton.icon(
-                          onPressed: () =>
-                              CheckoutNavigation.buyNow(context, product),
-                          icon: const Icon(Icons.chat_outlined),
-                          label: const Text('Buy Now'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF914B0D),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
+                        child: CartQuantityButton(
+                          product: product,
+                          height: 40,
+                          compact: true,
                         ),
                       ),
                     ],
@@ -530,7 +513,10 @@ class _ProductImage extends StatelessWidget {
 }
 
 void _openProduct(BuildContext context, String productCode) {
-  Navigator.pushNamed(context, '/product?code=${Uri.encodeComponent(productCode)}');
+  Navigator.pushNamed(
+    context,
+    '/product?code=${Uri.encodeComponent(productCode)}',
+  );
 }
 
 class _ProductImageError extends StatelessWidget {

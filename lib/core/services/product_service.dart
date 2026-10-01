@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/product.dart';
+import '../models/product_review.dart';
 
 class ProductService {
   static final ProductService _instance = ProductService._internal();
@@ -13,6 +14,7 @@ class ProductService {
   final _supabase = Supabase.instance.client;
   final Map<String, Future<String>> _imageUrlRequests = {};
   final Map<String, Future<List<String>>> _imageGalleryRequests = {};
+  final Map<String, Future<List<ProductReview>>> _reviewRequests = {};
 
   Future<List<Product>> getProducts() async {
     try {
@@ -58,6 +60,23 @@ class ProductService {
       productCode,
       () => _resolveProductImageUrl(productCode),
     );
+  }
+
+  Future<List<ProductReview>> getProductReviews(String productCode) =>
+      _reviewRequests.putIfAbsent(productCode, () async {
+        final response =
+            await _supabase.rpc(
+                  'get_product_reviews',
+                  params: {'requested_product_code': productCode},
+                )
+                as List;
+        return response
+            .map((json) => ProductReview.fromJson(json as Map<String, dynamic>))
+            .toList();
+      });
+
+  void invalidateProductReviews(String productCode) {
+    _reviewRequests.remove(productCode);
   }
 
   Future<List<String>> getProductImageUrlsAsync(String productCode) =>

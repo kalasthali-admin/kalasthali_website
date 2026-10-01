@@ -1,8 +1,10 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/product.dart';
+import '../models/site_policy.dart';
 
 class AdminGalleryImage {
   const AdminGalleryImage({
@@ -42,6 +44,163 @@ class AdminGallery {
   );
 }
 
+class AdminOrderItem {
+  const AdminOrderItem({
+    required this.name,
+    required this.quantity,
+    required this.amount,
+  });
+
+  final String name;
+  final int quantity;
+  final int amount;
+
+  factory AdminOrderItem.fromJson(Map<String, dynamic> json) => AdminOrderItem(
+    name: (json['product_name'] ?? json['name'] ?? 'Order item').toString(),
+    quantity: ((json['quantity'] as num?)?.toInt() ?? 1)
+        .clamp(1, 999999)
+        .toInt(),
+    amount:
+        ((json['line_total'] ??
+                    json['amount'] ??
+                    json['unit_price'] ??
+                    json['price'])
+                as num?)
+            ?.toInt() ??
+        0,
+  );
+}
+
+class AdminRefundDetails {
+  const AdminRefundDetails({
+    required this.id,
+    required this.amount,
+    required this.message,
+  });
+
+  final String id;
+  final int amount;
+  final String message;
+}
+
+class AdminOrder {
+  const AdminOrder({
+    required this.orderId,
+    required this.customerEmail,
+    required this.customerPhone,
+    required this.address,
+    required this.subtotal,
+    required this.items,
+    this.paidAt,
+    this.trackingId,
+    this.trackingUrl,
+    this.shippingConfirmationSentAt,
+    this.orderStatus = 'order_placed',
+    this.deliveredAt,
+    this.cancelledAt,
+    this.returnStatus,
+    this.returnRequestedAt,
+    this.returnEvidence = const [],
+    this.returnEvidenceUrls = const [],
+    this.returnTrackingId,
+    this.refundProcessedAt,
+    this.refundId,
+    this.refundAmount,
+    this.refundMessage,
+    this.returnRejectionReason,
+  });
+
+  final String orderId;
+  final String customerEmail;
+  final String? customerPhone;
+  final String? address;
+  final int subtotal;
+  final List<AdminOrderItem> items;
+  final DateTime? paidAt;
+  final String? trackingId;
+  final String? trackingUrl;
+  final DateTime? shippingConfirmationSentAt;
+  final String orderStatus;
+  final DateTime? deliveredAt;
+  final DateTime? cancelledAt;
+  final String? returnStatus;
+  final DateTime? returnRequestedAt;
+  final List<String> returnEvidence;
+  final List<String> returnEvidenceUrls;
+  final String? returnTrackingId;
+  final DateTime? refundProcessedAt;
+  final String? refundId;
+  final int? refundAmount;
+  final String? refundMessage;
+  final String? returnRejectionReason;
+
+  bool get isSubmittedForDelivery => orderStatus == 'out_for_delivery';
+  bool get isDelivered => orderStatus == 'delivered';
+  bool get isCancelled => orderStatus == 'cancelled';
+  bool get hasReturnRequest => returnStatus != null;
+
+  factory AdminOrder.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'];
+    final items = rawItems is List
+        ? rawItems
+              .whereType<Map>()
+              .map(
+                (item) => AdminOrderItem.fromJson(item.cast<String, dynamic>()),
+              )
+              .toList()
+        : <AdminOrderItem>[];
+    final subtotal = (json['amount'] as num?)?.toInt() ?? 0;
+    return AdminOrder(
+      orderId: (json['order_id'] ?? '').toString(),
+      customerEmail: (json['customer_email'] ?? '').toString(),
+      customerPhone: json['customer_phone']?.toString(),
+      address: json['user_address']?.toString(),
+      subtotal: subtotal,
+      items: items.isEmpty
+          ? [
+              AdminOrderItem(
+                name: (json['product'] ?? 'Order item').toString(),
+                quantity: 1,
+                amount: subtotal,
+              ),
+            ]
+          : items,
+      paidAt: DateTime.tryParse((json['paid_at'] ?? '').toString()),
+      trackingId: json['tracking_id']?.toString(),
+      trackingUrl: json['tracking_url']?.toString(),
+      shippingConfirmationSentAt: DateTime.tryParse(
+        (json['shipping_confirmation_sent_at'] ?? '').toString(),
+      ),
+      orderStatus:
+          (json['order_status'] ??
+                  (json['shipping_confirmation_sent_at'] != null
+                      ? 'out_for_delivery'
+                      : 'order_placed'))
+              .toString(),
+      deliveredAt: DateTime.tryParse((json['delivered_at'] ?? '').toString()),
+      cancelledAt: DateTime.tryParse((json['cancelled_at'] ?? '').toString()),
+      returnStatus: json['return_status']?.toString(),
+      returnRequestedAt: DateTime.tryParse(
+        (json['return_requested_at'] ?? '').toString(),
+      ),
+      returnEvidence: (json['return_evidence'] as List<dynamic>? ?? [])
+          .map((entry) => entry.toString())
+          .toList(),
+      returnEvidenceUrls: (json['return_evidence_urls'] as List<dynamic>? ?? [])
+          .map((entry) => entry.toString())
+          .toList(),
+      returnTrackingId: json['return_tracking_id']?.toString(),
+      refundProcessedAt: DateTime.tryParse(
+        (json['refund_processed_at'] ?? '').toString(),
+      ),
+      refundId: json['refund_id']?.toString(),
+      refundAmount: (json['refund_amount'] as num?)?.toInt(),
+      refundMessage: json['refund_message']?.toString(),
+      returnRejectionReason: json['return_rejection_reason']?.toString(),
+    );
+  }
+}
+
 class _ImageUploadTicket {
   const _ImageUploadTicket({required this.path, required this.uploadUrl});
 
@@ -59,40 +218,57 @@ class AdminService {
   AdminService._();
 
   static final instance = AdminService._();
-  static const isTestMode = bool.fromEnvironment('ADMIN_TEST_MODE');
   static const maxImageBytes = 10 * 1024 * 1024;
-  String? _token;
-
-  bool get isAuthenticated => _token != null;
 
   Uri _uri(String action, [Map<String, String>? query]) => Uri.base.replace(
     path: '/api/admin',
     queryParameters: {'action': action, ...?query},
   );
 
-  Map<String, String> get _headers => {
-    'Content-Type': 'application/json',
-    if (_token != null) 'Authorization': 'Bearer $_token',
-  };
-
-  Future<void> login(String password) async {
-    final response = await http.post(
-      _uri('login'),
-      headers: _headers,
-      body: jsonEncode({'password': password}),
-    );
-    final data = _decode(response);
-    final token = data['token'] as String?;
-    if (token == null || token.isEmpty) {
-      throw AdminException('Could not start the admin session.');
+  Future<Map<String, String>> _headers({bool refreshSession = false}) async {
+    final auth = Supabase.instance.client.auth;
+    if (refreshSession) {
+      try {
+        await auth.refreshSession();
+      } catch (_) {
+        throw const AdminException(
+          'Your session expired. Please log in again to continue.',
+        );
+      }
     }
-    _token = token;
+    final token = auth.currentSession?.accessToken;
+    if (token == null || token.isEmpty) {
+      throw const AdminException('Log in with an authorized admin account.');
+    }
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
   }
 
-  void signOut() => _token = null;
+  Future<http.Response> _request(String method, Uri uri, {String? body}) async {
+    Future<http.Response> send({required bool refreshSession}) async {
+      final headers = await _headers(refreshSession: refreshSession);
+      return switch (method) {
+        'GET' => http.get(uri, headers: headers),
+        'POST' => http.post(uri, headers: headers, body: body),
+        'PUT' => http.put(uri, headers: headers, body: body),
+        'PATCH' => http.patch(uri, headers: headers, body: body),
+        'DELETE' => http.delete(uri, headers: headers, body: body),
+        _ => throw ArgumentError.value(method, 'method', 'Unsupported method'),
+      };
+    }
+
+    final response = await send(refreshSession: false);
+    if (response.statusCode != 401) return response;
+
+    // A long-running image conversion can outlive the cached access token.
+    // Refresh once and retry before reporting an authorization failure.
+    return send(refreshSession: true);
+  }
 
   Future<List<Product>> getProducts() async {
-    final response = await http.get(_uri('products'), headers: _headers);
+    final response = await _request('GET', _uri('products'));
     final data = _decode(response);
     if (data is! List<dynamic>) throw AdminException('Invalid products data.');
     return data
@@ -102,7 +278,7 @@ class AdminService {
   }
 
   Future<List<AdminGallery>> getGallery() async {
-    final response = await http.get(_uri('gallery'), headers: _headers);
+    final response = await _request('GET', _uri('gallery'));
     final data = _decode(response);
     if (data is! List<dynamic>) throw AdminException('Invalid gallery data.');
     return data
@@ -111,10 +287,209 @@ class AdminService {
         .toList();
   }
 
+  Future<List<SitePolicy>> getPolicies() async {
+    final response = await _request('GET', _uri('policies'));
+    final data = _decode(response);
+    if (data is! List<dynamic>) throw AdminException('Invalid policies data.');
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(SitePolicy.fromJson)
+        .toList();
+  }
+
+  Future<List<AdminOrder>> getOrders() async {
+    final response = await _request('GET', _uri('orders'));
+    final data = _decode(response);
+    if (data is! List<dynamic>) throw AdminException('Invalid order data.');
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(AdminOrder.fromJson)
+        .toList();
+  }
+
+  Future<AdminOrder> submitShippingConfirmation(
+    AdminOrder order,
+    String trackingId,
+  ) async {
+    final normalizedTrackingId = _validTrackingId(trackingId);
+    final url = _trackingUrl(normalizedTrackingId);
+    await _invokeFunction('send-shipping-confirmation', {
+      'order_id': order.orderId,
+      'tracking_id': normalizedTrackingId,
+      'tracking_url': url,
+    });
+    final response = await _request(
+      'POST',
+      _uri('shipping_confirmation'),
+      body: jsonEncode({
+        'orderId': order.orderId,
+        'trackingId': normalizedTrackingId,
+        'trackingUrl': url,
+      }),
+    );
+    return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<AdminOrder> markDelivered(AdminOrder order) async {
+    await _invokeFunction('send-delivery-confirmation', {
+      'order_id': order.orderId,
+    });
+    final response = await _request(
+      'POST',
+      _uri('mark_delivered'),
+      body: jsonEncode({'orderId': order.orderId}),
+    );
+    return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<AdminOrder> acceptReturn(AdminOrder order, String trackingId) async {
+    final normalizedTrackingId = _validTrackingId(trackingId);
+    final url = _trackingUrl(normalizedTrackingId);
+    await _invokeFunction('send-return-status', {
+      'order_id': order.orderId,
+      'status': 'accepted',
+      'pickup_tracking_id': normalizedTrackingId,
+      'pickup_tracking_url': url,
+    });
+    final response = await _request(
+      'POST',
+      _uri('accept_return'),
+      body: jsonEncode({
+        'orderId': order.orderId,
+        'trackingId': normalizedTrackingId,
+        'trackingUrl': url,
+      }),
+    );
+    return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<AdminOrder> markRefundProcessed(
+    AdminOrder order,
+    AdminRefundDetails refund,
+  ) async {
+    final refundId = refund.id.trim();
+    final message = refund.message.trim();
+    if (order.orderId.isEmpty ||
+        refundId.isEmpty ||
+        refund.amount <= 0 ||
+        message.isEmpty) {
+      throw const AdminException(
+        'Enter a refund ID, a positive refund amount, and a refund message.',
+      );
+    }
+    await _invokeFunction('send-refund-confirmation', {
+      'order_id': order.orderId,
+      'refund_id': refundId,
+      'refund_amount': refund.amount,
+      'refund_message': message,
+    });
+    final response = await _request(
+      'POST',
+      _uri('refund_processed'),
+      body: jsonEncode({
+        'orderId': order.orderId,
+        'refundId': refundId,
+        'refundAmount': refund.amount,
+        'refundMessage': message,
+      }),
+    );
+    return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  Future<AdminOrder> rejectReturn(AdminOrder order, String reason) async {
+    final normalizedReason = reason.trim();
+    if (normalizedReason.length < 3 || normalizedReason.length > 500) {
+      throw const AdminException(
+        'Enter a return rejection reason between 3 and 500 characters.',
+      );
+    }
+    await _invokeFunction('send-return-status', {
+      'order_id': order.orderId,
+      'status': 'rejected',
+      'rejection_reason': normalizedReason,
+    });
+    final response = await _request(
+      'POST',
+      _uri('reject_return'),
+      body: jsonEncode({'orderId': order.orderId, 'reason': normalizedReason}),
+    );
+    return AdminOrder.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
+  String _validTrackingId(String value) {
+    final id = value.trim();
+    if (!RegExp(r'^[A-Za-z0-9_-]{3,100}$').hasMatch(id)) {
+      throw const AdminException(
+        'Enter a valid tracking ID using 3 to 100 letters, numbers, hyphens, or underscores.',
+      );
+    }
+    return id;
+  }
+
+  String _trackingUrl(String trackingId) =>
+      'https://www.delhivery.com/track/package/${Uri.encodeComponent(trackingId)}';
+
+  Future<void> _invokeFunction(String name, Map<String, dynamic> body) async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) {
+      throw const AdminException(
+        'Your admin session has expired. Please sign in again and retry.',
+      );
+    }
+
+    try {
+      await Supabase.instance.client.functions.invoke(
+        name,
+        body: body,
+        // Edge Functions validate the caller with the same user JWT used by
+        // the admin API. Never use a privileged server key in the client.
+        headers: {'Authorization': 'Bearer ${session.accessToken}'},
+      );
+    } on FunctionException catch (error) {
+      throw AdminException(_functionErrorMessage(error));
+    } catch (_) {
+      throw const AdminException(
+        'Could not reach the order notification service. Please try again. '
+        'If this continues, verify the Edge Function CORS settings.',
+      );
+    }
+  }
+
+  String _functionErrorMessage(FunctionException error) {
+    if (error.status == 0) {
+      return 'Could not reach the order notification service. Verify that '
+          'the Edge Function allows requests from this website (CORS), then retry.';
+    }
+    if (error.status == 401 || error.status == 403) {
+      return 'Your account is not authorized to send order notifications.';
+    }
+    final details = error.details;
+    if (details is Map) {
+      for (final key in const ['error', 'message']) {
+        final value = details[key]?.toString().trim();
+        if (value != null && value.isNotEmpty) return value;
+      }
+    }
+    final detailText = details?.toString().trim();
+    if (detailText != null && detailText.isNotEmpty) return detailText;
+    final reason = error.reasonPhrase?.trim();
+    if (reason != null && reason.isNotEmpty) return reason;
+    return 'The order notification service could not complete this request.';
+  }
+
+  Future<SitePolicy> updatePolicy(SitePolicy policy) async {
+    final response = await _request(
+      'PUT',
+      _uri('policy'),
+      body: jsonEncode({'policy': policy.toJson()}),
+    );
+    return SitePolicy.fromJson(_decode(response) as Map<String, dynamic>);
+  }
+
   Future<Product> create(Map<String, dynamic> product) async {
-    final response = await http.post(
+    final response = await _request(
+      'POST',
       _uri('create'),
-      headers: _headers,
       body: jsonEncode({'product': product}),
     );
     final data = _decode(response);
@@ -122,9 +497,9 @@ class AdminService {
   }
 
   Future<Product> update(String code, Map<String, dynamic> product) async {
-    final response = await http.patch(
+    final response = await _request(
+      'PATCH',
       _uri('update'),
-      headers: _headers,
       body: jsonEncode({'code': code, 'product': product}),
     );
     final data = _decode(response);
@@ -132,22 +507,23 @@ class AdminService {
   }
 
   Future<void> delete(String code) async {
-    final response = await http.delete(
-      _uri('delete', {'code': code}),
-      headers: _headers,
-    );
+    final response = await _request('DELETE', _uri('delete', {'code': code}));
     if (response.statusCode >= 400) _decode(response);
   }
 
-  Future<AdminGallery> uploadImage(String code, List<int> bytes) async {
+  Future<AdminGallery?> uploadImage(
+    String code,
+    List<int> bytes, {
+    bool refreshGallery = true,
+  }) async {
     if (bytes.isEmpty || bytes.length > maxImageBytes) {
       throw const AdminException(
         'Converted WebP images must be smaller than 10 MB.',
       );
     }
-    final response = await http.post(
+    final response = await _request(
+      'POST',
       _uri('image_upload_ticket'),
-      headers: _headers,
       body: jsonEncode({'code': code, 'byteLength': bytes.length}),
     );
     final ticket = _ImageUploadTicket.fromJson(
@@ -166,6 +542,7 @@ class AdminService {
       throw AdminException(_uploadError(upload));
     }
 
+    if (!refreshGallery) return null;
     final galleries = await getGallery();
     return galleries.where((gallery) => gallery.code == code).firstOrNull ??
         (throw const AdminException(
@@ -186,18 +563,18 @@ class AdminService {
   }
 
   Future<AdminGallery> setThumbnail(String code, String name) async {
-    final response = await http.post(
+    final response = await _request(
+      'POST',
       _uri('image_thumbnail'),
-      headers: _headers,
       body: jsonEncode({'code': code, 'name': name}),
     );
     return AdminGallery.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
   Future<AdminGallery> deleteImage(String code, String name) async {
-    final response = await http.delete(
+    final response = await _request(
+      'DELETE',
       _uri('image_delete'),
-      headers: _headers,
       body: jsonEncode({'code': code, 'name': name}),
     );
     return AdminGallery.fromJson(_decode(response) as Map<String, dynamic>);
@@ -216,7 +593,6 @@ class AdminService {
       final message = data is Map<String, dynamic>
           ? data['error'] as String?
           : null;
-      if (response.statusCode == 401) _token = null;
       throw AdminException(message ?? 'Admin request failed.');
     }
     return data;

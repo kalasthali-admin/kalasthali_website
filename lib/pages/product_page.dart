@@ -1,14 +1,17 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/models/product.dart';
+import '../core/models/product_review.dart';
+import '../core/responsive.dart';
+import '../core/services/checkout_navigation.dart';
 import '../core/services/product_service.dart';
 import '../core/services/seo_service.dart';
-import '../core/services/checkout_navigation.dart';
-import '../widgets/app_scaffold.dart';
 import '../widgets/app_footer.dart';
+import '../widgets/app_scaffold.dart';
+import '../widgets/cart_quantity_button.dart';
 
 class ProductPage extends StatelessWidget {
   const ProductPage({this.productCode = '', super.key});
@@ -51,11 +54,13 @@ class _ProductDetails extends StatelessWidget {
             screenSize.height > screenSize.width && screenSize.width < 1100;
         // Portrait tablets need the stacked composition too; the two-column
         // layout leaves both the gallery and product copy too narrow there.
-        final mobile = constraints.maxWidth < 800 || tabletPortrait;
-        return SingleChildScrollView(
-          child: Column(
-            children: [
-              Padding(
+        final mobile =
+            useCompactLayout(context, breakpoint: 800) || tabletPortrait;
+        return CustomScrollView(
+          primary: true,
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
                 padding: EdgeInsets.fromLTRB(
                   mobile ? 22 : 54,
                   mobile ? 70 : 72,
@@ -71,13 +76,188 @@ class _ProductDetails extends StatelessWidget {
                   ),
                 ),
               ),
-              const AppFooter(),
-            ],
-          ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  mobile ? 22 : 54,
+                  0,
+                  mobile ? 22 : 54,
+                  100,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1200),
+                    child: _ProductReviewsSection(productCode: product.code),
+                  ),
+                ),
+              ),
+            ),
+            const AppFooterSliver(),
+          ],
         );
       },
     );
   }
+}
+
+class _ProductReviewsSection extends StatelessWidget {
+  const _ProductReviewsSection({required this.productCode});
+
+  final String productCode;
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<ProductReview>>(
+    future: ProductService().getProductReviews(productCode),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      if (snapshot.hasError) {
+        return Text(
+          'Reviews are temporarily unavailable.',
+          style: GoogleFonts.ibmPlexSans(fontSize: 16),
+        );
+      }
+      final reviews = snapshot.data ?? const <ProductReview>[];
+      final average = reviews.isEmpty
+          ? 0.0
+          : reviews.fold<int>(0, (total, review) => total + review.rating) /
+                reviews.length;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(color: Color(0xFF65421F), thickness: 1),
+          const SizedBox(height: 28),
+          Wrap(
+            spacing: 18,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                'Customer Reviews',
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: 38,
+                  color: const Color(0xFF5B351A),
+                ),
+              ),
+              if (reviews.isNotEmpty) ...[
+                _ProductReviewStars(rating: average.round(), size: 22),
+                Text(
+                  '${average.toStringAsFixed(1)} (${reviews.length})',
+                  style: GoogleFonts.ibmPlexSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 24),
+          if (reviews.isEmpty)
+            Text(
+              'No reviews yet. Verified customers can review this product after delivery.',
+              style: GoogleFonts.ibmPlexSans(fontSize: 17, height: 1.35),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final twoColumns = constraints.maxWidth >= 760;
+                final width = twoColumns
+                    ? (constraints.maxWidth - 18) / 2
+                    : constraints.maxWidth;
+                return Wrap(
+                  spacing: 18,
+                  runSpacing: 18,
+                  children: [
+                    for (final review in reviews)
+                      SizedBox(
+                        width: width,
+                        child: _ProductReviewCard(review: review),
+                      ),
+                  ],
+                );
+              },
+            ),
+        ],
+      );
+    },
+  );
+}
+
+class _ProductReviewCard extends StatelessWidget {
+  const _ProductReviewCard({required this.review});
+
+  final ProductReview review;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: const Color(0xFFECE7DD),
+      border: Border.all(color: const Color(0xFFD5B48A)),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                review.reviewerName,
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: 22,
+                  color: const Color(0xFF5B351A),
+                ),
+              ),
+            ),
+            if (review.createdAt != null)
+              Text(
+                _reviewDate(review.createdAt!),
+                style: GoogleFonts.ibmPlexSans(
+                  fontSize: 13,
+                  color: const Color(0xFF746D64),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        _ProductReviewStars(rating: review.rating),
+        const SizedBox(height: 12),
+        Text(
+          review.text,
+          style: GoogleFonts.ibmPlexSans(fontSize: 16, height: 1.35),
+        ),
+      ],
+    ),
+  );
+}
+
+class _ProductReviewStars extends StatelessWidget {
+  const _ProductReviewStars({required this.rating, this.size = 19});
+
+  final int rating;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (var star = 1; star <= 5; star++)
+        Icon(
+          star <= rating ? Icons.star : Icons.star_border,
+          size: size,
+          color: const Color(0xFFA35710),
+        ),
+    ],
+  );
+}
+
+String _reviewDate(DateTime value) {
+  final local = value.toLocal();
+  return '${local.day.toString().padLeft(2, '0')}/'
+      '${local.month.toString().padLeft(2, '0')}/${local.year}';
 }
 
 class _MobileProductLayout extends StatelessWidget {
@@ -205,6 +385,15 @@ class _ProductImagePanelState extends State<_ProductImagePanel> {
     }
   }
 
+  Future<void> _openImageViewer(List<String> imageUrls, int index) =>
+      showDialog<void>(
+        context: context,
+        barrierColor: const Color(0xE6000000),
+        useSafeArea: false,
+        builder: (_) =>
+            _ProductImageViewer(imageUrls: imageUrls, initialImage: index),
+      );
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -230,11 +419,18 @@ class _ProductImagePanelState extends State<_ProductImagePanel> {
             allowImplicitScrolling: true,
             itemCount: imageUrls.length,
             onPageChanged: (index) => setState(() => currentImage = index),
-            itemBuilder: (_, index) => Image.network(
-              imageUrls[index],
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-              errorBuilder: (_, _, _) => const Icon(Icons.broken_image),
+            itemBuilder: (_, index) => Semantics(
+              button: true,
+              label: 'Open product image ${index + 1} in full screen',
+              child: GestureDetector(
+                onTap: () => _openImageViewer(imageUrls, index),
+                child: Image.network(
+                  imageUrls[index],
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, _, _) => const Icon(Icons.broken_image),
+                ),
+              ),
             ),
           ),
         );
@@ -330,6 +526,202 @@ class _GalleryArrow extends StatelessWidget {
   );
 }
 
+class _ProductImageViewer extends StatefulWidget {
+  const _ProductImageViewer({
+    required this.imageUrls,
+    required this.initialImage,
+  });
+
+  final List<String> imageUrls;
+  final int initialImage;
+
+  @override
+  State<_ProductImageViewer> createState() => _ProductImageViewerState();
+}
+
+class _ProductImageViewerState extends State<_ProductImageViewer> {
+  static const _minimumZoom = 1.0;
+  static const _maximumZoom = 4.0;
+
+  late final PageController _pageController = PageController(
+    initialPage: widget.initialImage,
+  );
+  final TransformationController _transformationController =
+      TransformationController();
+  late int _currentImage = widget.initialImage;
+
+  // Android and iOS are the touch-first layouts. Desktop users use the visible
+  // zoom controls instead of a trackpad or mouse-pinch gesture.
+  bool get _supportsTouchPinch =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
+  double get _zoom => _transformationController.value.getMaxScaleOnAxis();
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _transformationController.dispose();
+    super.dispose();
+  }
+
+  void _setZoom(double value) {
+    final zoom = value.clamp(_minimumZoom, _maximumZoom).toDouble();
+    _transformationController.value = Matrix4.diagonal3Values(zoom, zoom, 1);
+    setState(() {});
+  }
+
+  void _resetZoom() {
+    _transformationController.value = Matrix4.identity();
+    setState(() {});
+  }
+
+  void _changeImage(int index) {
+    _resetZoom();
+    setState(() => _currentImage = index);
+  }
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: SafeArea(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: widget.imageUrls.length,
+              onPageChanged: _changeImage,
+              itemBuilder: (_, index) => InteractiveViewer(
+                transformationController: _transformationController,
+                minScale: _minimumZoom,
+                maxScale: _maximumZoom,
+                // Keep the normal gallery swipe available until the image has
+                // actually been magnified.
+                panEnabled: _zoom > _minimumZoom,
+                scaleEnabled: _supportsTouchPinch,
+                onInteractionEnd: (_) => setState(() {}),
+                child: SizedBox.expand(
+                  child: Image.network(
+                    widget.imageUrls[index],
+                    fit: BoxFit.contain,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, _, _) => const Center(
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.white,
+                        size: 48,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 16,
+            right: 16,
+            child: _ImageViewerControl(
+              tooltip: 'Close image viewer',
+              icon: Icons.close,
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 24,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (widget.imageUrls.length > 1)
+                  _ImageViewerControl(
+                    tooltip: 'Previous image',
+                    icon: Icons.chevron_left,
+                    onPressed: _currentImage == 0
+                        ? null
+                        : () => _pageController.previousPage(
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOut,
+                          ),
+                  ),
+                const SizedBox(width: 10),
+                _ImageViewerControl(
+                  tooltip: 'Zoom out',
+                  icon: Icons.remove,
+                  onPressed: _zoom <= _minimumZoom
+                      ? null
+                      : () => _setZoom(_zoom - .5),
+                ),
+                const SizedBox(width: 10),
+                _ImageViewerControl(
+                  tooltip: 'Reset zoom',
+                  icon: Icons.center_focus_strong_outlined,
+                  onPressed: _zoom == _minimumZoom ? null : _resetZoom,
+                ),
+                const SizedBox(width: 10),
+                _ImageViewerControl(
+                  tooltip: 'Zoom in',
+                  icon: Icons.add,
+                  onPressed: _zoom >= _maximumZoom
+                      ? null
+                      : () => _setZoom(_zoom + .5),
+                ),
+                const SizedBox(width: 10),
+                if (widget.imageUrls.length > 1)
+                  _ImageViewerControl(
+                    tooltip: 'Next image',
+                    icon: Icons.chevron_right,
+                    onPressed: _currentImage == widget.imageUrls.length - 1
+                        ? null
+                        : () => _pageController.nextPage(
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOut,
+                          ),
+                  ),
+              ],
+            ),
+          ),
+          if (_supportsTouchPinch)
+            const Positioned(
+              top: 24,
+              left: 24,
+              child: Text(
+                'Pinch to zoom',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ImageViewerControl extends StatelessWidget {
+  const _ImageViewerControl({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xE6FEF5E6),
+    borderRadius: BorderRadius.circular(24),
+    child: IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon),
+      color: const Color(0xFF1F1E25),
+      disabledColor: const Color(0xFF1F1E25).withValues(alpha: .3),
+    ),
+  );
+}
+
 class _ProductCopy extends StatelessWidget {
   const _ProductCopy({required this.product, this.centeredTitle = false});
   final Product product;
@@ -372,14 +764,14 @@ class _CopyBlock extends StatelessWidget {
     children: [
       Text(
         label,
-        style: GoogleFonts.blinker(
+        style: GoogleFonts.ibmPlexSans(
           fontSize: 26,
           color: Colors.grey.shade700,
           fontWeight: FontWeight.bold,
         ),
       ),
       const SizedBox(height: 6),
-      Text(text, style: GoogleFonts.blinker(fontSize: 18, height: 1.35)),
+      Text(text, style: GoogleFonts.ibmPlexSans(fontSize: 18, height: 1.35)),
     ],
   );
 }
@@ -387,46 +779,93 @@ class _CopyBlock extends StatelessWidget {
 class _PurchasePanel extends StatelessWidget {
   const _PurchasePanel({required this.product});
   final Product product;
+
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
-    decoration: BoxDecoration(
-      border: Border.all(color: const Color(0xFFA35710), width: 1.5),
-      borderRadius: BorderRadius.circular(15),
-    ),
-    child: Row(
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              product.price?.startsWith('₹') == true
-                  ? product.price!
-                  : '₹${product.price ?? '-'}',
-              style: GoogleFonts.blinker(fontSize: 35),
-            ),
-            // Text(
-            //   'Price',
-            //   style: GoogleFonts.blinker(
-            //     fontSize: 18,
-            //     color: Colors.grey.shade700,
-            //   ),
-            // ),
-          ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final stack = constraints.maxWidth < 650;
+      final price = Text(
+        product.price?.startsWith('₹') == true
+            ? product.price!
+            : '₹${product.price ?? '-'}',
+        style: GoogleFonts.ibmPlexSans(fontSize: 35),
+      );
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFFA35710), width: 1.5),
+          borderRadius: BorderRadius.circular(15),
         ),
-        Spacer(),
-        Padding(
-          padding: EdgeInsetsGeometry.symmetric(vertical: 5, horizontal: 10),
-          child: Center(
-            child: _PurchaseButton(
-              label: 'Buy Now',
-              icon: Icons.chat_outlined,
-              onPressed: () => CheckoutNavigation.buyNow(context, product),
-            ),
+        child: stack
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  price,
+                  const SizedBox(height: 12),
+                  _PurchaseActions(product: product),
+                ],
+              )
+            : Row(
+                children: [
+                  price,
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 5,
+                      horizontal: 10,
+                    ),
+                    child: Center(child: _PurchaseActions(product: product)),
+                  ),
+                ],
+              ),
+      );
+    },
+  );
+}
+
+class _PurchaseActions extends StatelessWidget {
+  const _PurchaseActions({required this.product});
+
+  final Product product;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 380;
+      final buttons = [
+        SizedBox(
+          width: compact ? double.infinity : 180,
+          child: CartQuantityButton(
+            product: product,
+            height: 56,
+            compact: compact,
+            filled: false,
+            fontSize: 20,
+            iconSize: 18,
           ),
         ),
-      ],
-    ),
+        _PurchaseButton(
+          label: product.isSoldOut ? 'SOLD OUT' : 'Buy Now',
+          icon: product.isSoldOut
+              ? Icons.block_outlined
+              : Icons.shopping_bag_outlined,
+          compact: compact,
+          onPressed: product.isSoldOut
+              ? null
+              : () => CheckoutNavigation.buyNow(context, product),
+        ),
+      ];
+      if (compact) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [buttons[0], const SizedBox(height: 10), buttons[1]],
+        );
+      }
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [buttons[0], const SizedBox(width: 10), buttons[1]],
+      );
+    },
   );
 }
 
@@ -435,30 +874,50 @@ class _PurchaseButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.icon,
+    this.compact = false,
   });
   final String label;
-  final Future<void> Function() onPressed;
+  final Future<void> Function()? onPressed;
   final IconData? icon;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 200,
-    height: 60,
-    child: _button(onPressed: () => onPressed()),
-  );
-
-  Widget _button({required VoidCallback onPressed}) => FilledButton(
-    onPressed: onPressed,
-    style: FilledButton.styleFrom(
-      backgroundColor: const Color(0xFFA35710),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    width: compact ? double.infinity : 180,
+    height: 56,
+    child: FilledButton(
+      onPressed: onPressed == null ? null : () => onPressed!(),
+      style: FilledButton.styleFrom(
+        backgroundColor: const Color(0xFFA35710),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      child: _PurchaseButtonLabel(label: label, icon: icon),
     ),
+  );
+}
+
+class _PurchaseButtonLabel extends StatelessWidget {
+  const _PurchaseButtonLabel({required this.label, this.icon});
+
+  final String label;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+    fit: BoxFit.scaleDown,
     child: Row(
+      mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
-        Text(label, style: GoogleFonts.blinker(fontSize: 20)),
+        Text(
+          label,
+          style: GoogleFonts.ibmPlexSans(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     ),
   );
@@ -470,7 +929,7 @@ class _ProductDisclaimer extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
     'Disclaimer: The model images are for illustrative purposes only and are intended to help you understand the placement and overall look of the hand-painted design on the saree. The actual colours, detailing, brushwork, and design may vary slightly from the images shown.\n\nFor an accurate view of the artwork and its finer details, please refer to the close-up product image.',
-    style: GoogleFonts.blinker(
+    style: GoogleFonts.ibmPlexSans(
       fontSize: 16,
       height: 1.35,
       color: const Color(0xFF4E463E),

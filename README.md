@@ -25,3 +25,10 @@ After deployment, inspect View Source on a product URL: its product title, image
 description, canonical and JSON-LD should appear without running JavaScript.
 Check the interactive page loads too, and submit `/sitemap.xml` to Search Console.
 Prerendering does not guarantee indexing or search rankings.
+
+# Product deletion
+
+Before deleting a product that has appeared in a completed sale, run
+`supabase/product_deletion.sql` once in the Supabase SQL Editor. It preserves
+the sale's stored product details, clears only the obsolete product reference,
+and lets the product be removed from the active catalog.

@@ -54,6 +54,12 @@
   <link
     rel="icon"
     type="image/png"
+    sizes="192x192"
+    href="android-chrome-192x192.png"
+  >
+  <link
+    rel="icon"
+    type="image/png"
     sizes="32x32"
     href="favicon-32x32.png"
   >
@@ -72,6 +78,33 @@
 
   <!-- Page Title -->
   <title>Kalasthali</title>
+  <script src="push-bridge.js"></script>
+  <script>
+    // Flutter Web creates this hidden engine-only node while measuring fonts.
+    // It must not become crawlable page copy or an accessibility announcement.
+    (function () {
+      const measurementLabel = 'flutter typography measurement';
+      function hideMeasurementNode(node) {
+        if (!(node instanceof Element)) return;
+        const label = (node.getAttribute('aria-label') || node.textContent || '')
+          .trim()
+          .toLowerCase();
+        if (label !== measurementLabel) return;
+        node.setAttribute('aria-hidden', 'true');
+        node.style.display = 'none';
+      }
+      function scan(root) {
+        if (root instanceof Element) hideMeasurementNode(root);
+        root.querySelectorAll?.('[aria-label], flt-semantics').forEach(hideMeasurementNode);
+      }
+      new MutationObserver((records) => records.forEach((record) =>
+        record.addedNodes.forEach((node) => {
+          if (node.nodeType === Node.ELEMENT_NODE) scan(node);
+        }),
+      )).observe(document.documentElement, { childList: true, subtree: true });
+      scan(document.documentElement);
+    }());
+  </script>
 
   <script type="application/ld+json">
     {
@@ -345,6 +378,86 @@
       skeleton.classList.add('is-hidden');
       window.setTimeout(function () { skeleton.remove(); }, 200);
     });
+  </script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script>
+    window.KalasthaliPayments = {
+      payWithRazorpay: async function (payload) {
+        if (!window.Razorpay) {
+          throw new Error('Razorpay Checkout could not be loaded.');
+        }
+
+        const orderResponse = await fetch('/api/create-order', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + payload.accessToken
+          },
+          body: JSON.stringify({
+            amount: payload.amount,
+            currency: payload.currency || 'INR',
+            receipt: payload.receipt,
+            notes: payload.notes || {}
+          })
+        });
+        const order = await orderResponse.json().catch(function () { return {}; });
+        if (!orderResponse.ok) {
+          throw new Error(order.error || 'Could not create payment order.');
+        }
+
+        return new Promise(function (resolve, reject) {
+          const checkout = new window.Razorpay({
+            key: order.key_id,
+            amount: order.amount,
+            currency: order.currency,
+            name: 'Kalasthali By Nisha',
+            description: payload.description || 'Kalasthali order',
+            order_id: order.order_id,
+            prefill: {
+              name: payload.customerName || '',
+              email: payload.customerEmail || '',
+              contact: payload.customerContact || ''
+            },
+            theme: { color: '#A35710' },
+            modal: {
+              ondismiss: function () {
+                reject(new Error('Payment was cancelled.'));
+              }
+            },
+            handler: async function (response) {
+              try {
+                const verifyResponse = await fetch('/api/verify-payment', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + payload.accessToken
+                  },
+                  body: JSON.stringify({
+                    ...response,
+                    sale: payload.sale || {}
+                  })
+                });
+                const verification = await verifyResponse.json().catch(function () { return {}; });
+                if (!verifyResponse.ok || !verification.success) {
+                  throw new Error(verification.error || 'Payment verification failed.');
+                }
+                resolve(verification);
+              } catch (error) {
+                reject(error);
+              }
+            }
+          });
+
+          checkout.on('payment.failed', function (response) {
+            const message = response &&
+              response.error &&
+              (response.error.description || response.error.reason);
+            reject(new Error(message || 'Payment failed. Please try again.'));
+          });
+          checkout.open();
+        });
+      }
+    };
   </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

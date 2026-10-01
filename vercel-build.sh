@@ -25,7 +25,8 @@ flutter build web --release --no-wasm-dry-run \
   --dart-define=FACEBOOK_URL="${FACEBOOK_URL:-}" \
   --dart-define=AMAZON_URL="${AMAZON_URL:-}" \
   --dart-define=MYNTRA_URL="${MYNTRA_URL:-}" \
-  --dart-define=ADMIN_TEST_MODE="${ADMIN_TEST_MODE:-false}"
+  --dart-define=ADMIN_TEST_MODE="${ADMIN_TEST_MODE:-false}" \
+  --dart-define=VAPID_PUBLIC_KEY="${VAPID_PUBLIC_KEY}"
 
 # Produce crawlable product HTML after Flutter has emitted its bootstrap assets.
 node scripts/prerender-products.cjs

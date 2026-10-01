@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../core/responsive.dart';
 import '../core/services/seo_service.dart';
 import '../widgets/app_footer.dart';
 import '../widgets/app_scaffold.dart';
@@ -22,30 +23,28 @@ class NotFoundPage extends StatelessWidget {
       centerBody: false,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final mobile = constraints.maxWidth < 700;
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      mobile ? 24 : 54,
-                      mobile ? 74 : 110,
-                      mobile ? 24 : 54,
-                      mobile ? 92 : 140,
-                    ),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 720),
-                        child: _NotFoundContent(mobile: mobile),
-                      ),
+          final mobile = useCompactLayout(context, breakpoint: 700);
+          return CustomScrollView(
+            primary: true,
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    mobile ? 24 : 54,
+                    mobile ? 74 : 110,
+                    mobile ? 24 : 54,
+                    mobile ? 92 : 140,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: _NotFoundContent(mobile: mobile),
                     ),
                   ),
-                  const AppFooter(),
-                ],
+                ),
               ),
-            ),
+              const AppFooterSliver(),
+            ],
           );
         },
       ),
@@ -92,7 +91,7 @@ class _NotFoundContent extends StatelessWidget {
         child: Text(
           'The link may have changed, or this page may no longer be available. Let us guide you back to the handcrafted collection.',
           textAlign: TextAlign.center,
-          style: GoogleFonts.blinker(
+          style: GoogleFonts.ibmPlexSans(
             fontSize: mobile ? 18 : 20,
             height: 1.35,
             color: const Color(0xFF4E463E),
@@ -108,7 +107,7 @@ class _NotFoundContent extends StatelessWidget {
           FilledButton(
             onPressed: () => Navigator.of(
               context,
-            ).pushNamedAndRemoveUntil('/home', (route) => false),
+            ).pushNamedAndRemoveUntil('/', (route) => false),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFA35710),
               minimumSize: const Size(180, 52),
@@ -118,7 +117,7 @@ class _NotFoundContent extends StatelessWidget {
             ),
             child: Text(
               'Back to home',
-              style: GoogleFonts.blinker(fontSize: 18),
+              style: GoogleFonts.ibmPlexSans(fontSize: 18),
             ),
           ),
           OutlinedButton(
@@ -135,7 +134,7 @@ class _NotFoundContent extends StatelessWidget {
             ),
             child: Text(
               'View collection',
-              style: GoogleFonts.blinker(fontSize: 18),
+              style: GoogleFonts.ibmPlexSans(fontSize: 18),
             ),
           ),
         ],

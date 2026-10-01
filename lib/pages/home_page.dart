@@ -3,16 +3,21 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../widgets/popular_products_carousel.dart';
-import '../widgets/app_scaffold.dart';
-import '../widgets/app_footer.dart';
+import '../core/responsive.dart';
+import '../core/services/home_navigation_service.dart';
 import '../core/services/seo_service.dart';
+import '../widgets/app_footer.dart';
+import '../widgets/app_scaffold.dart';
+import '../widgets/popular_products_carousel.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      HomeNavigationService.completePendingRequest();
+    });
     SeoService.setPage(
       title: 'Kalasthali By Nisha | Handpainted Clothing',
       description: 'Handpainted clothing crafted with art and individuality.',
@@ -20,22 +25,18 @@ class HomePage extends StatelessWidget {
     );
     return AppScaffold(
       title: 'Home',
-      currentRoute: '/home',
+      currentRoute: '/',
       centerBody: false,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final isMobile = constraints.maxWidth < 700;
+          final isMobile = useCompactLayout(context, breakpoint: 700);
 
-          return SingleChildScrollView(
-            child: Column(
-              children: [
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    isMobile ? 0 : 28,
-                    isMobile ? 0 : 30,
-                    isMobile ? 0 : 28,
-                    isMobile ? 0 : 40,
-                  ),
+          return CustomScrollView(
+            primary: true,
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(0, 0, 0, isMobile ? 0 : 40),
                   child: Column(
                     children: [
                       SizedBox(
@@ -44,17 +45,30 @@ class HomePage extends StatelessWidget {
                             ? const _MobileHero()
                             : const _DesktopHero(),
                       ),
-                      const SizedBox(height: 100),
-                      PopularProductsCarousel(),
+                      SizedBox(height: isMobile ? 72 : 108),
+                      const _AboutSection(),
+                      SizedBox(height: isMobile ? 88 : 120),
+                      KeyedSubtree(
+                        key: HomeNavigationService.newArrivalsKey,
+                        child: Column(
+                          children: [
+                            const _SectionHeader(title: 'New Arrivals'),
+                            SizedBox(height: isMobile ? 40 : 52),
+                            PopularProductsCarousel(),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: 110),
                       const _ShopByCategory(),
-                      const SizedBox(height: 80),
+                      SizedBox(height: isMobile ? 88 : 120),
+                      const _ContactSection(),
+                      const SizedBox(height: 96),
                     ],
                   ),
                 ),
-                const AppFooter(),
-              ],
-            ),
+              ),
+              const AppFooterSliver(),
+            ],
           );
         },
       ),
@@ -65,36 +79,57 @@ class HomePage extends StatelessWidget {
 class _DesktopHero extends StatelessWidget {
   const _DesktopHero();
 
+  static const _assetWidth = 3796.0;
+  static const _transparentTop = 70.0;
+
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final isTablet = width < 1100;
-          final cardWidth = isTablet ? width * 0.44 : width * 0.43;
-          final leftOffset = isTablet ? 28.0 : 42.0;
-          final bottomOffset = isTablet ? 40.0 : 82.0;
-          final titleSize = isTablet ? 32.0 : 42.0;
-          final subtitleSize = isTablet ? 16.0 : 20.0;
-          final innerPadding = isTablet
-              ? const EdgeInsets.fromLTRB(22, 20, 22, 20)
-              : const EdgeInsets.fromLTRB(30, 28, 30, 24);
-          final minimumHeight = isTablet ? 180.0 : null;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final viewport = MediaQuery.sizeOf(context);
+        final tabletPortrait = width < 1100 && viewport.height > viewport.width;
+        // Keep the desktop landing artwork intentionally immersive.
+        final heroHeight = tabletPortrait
+            ? viewport.height * 0.5
+            : (width < 1100
+                  ? width / 2
+                  : (width / 2).clamp(1080.0, double.infinity));
+        final transparentTop = width * _transparentTop / _assetWidth;
+        final isTablet = width < 1100;
+        final cardWidth = isTablet ? width * 0.44 : width * 0.43;
+        final overlayOffset = isTablet ? 28.0 : 42.0;
+        final overlayTop =
+            heroHeight * (tabletPortrait ? 0.46 : (isTablet ? 0.48 : 0.52));
+        final titleSize = isTablet ? 32.0 : 42.0;
+        final subtitleSize = isTablet ? 16.0 : 22.0;
+        final innerPadding = isTablet
+            ? const EdgeInsets.fromLTRB(22, 20, 22, 22)
+            : const EdgeInsets.fromLTRB(30, 28, 30, 30);
+        final minimumHeight = isTablet ? 180.0 : null;
 
-          return Stack(
+        return SizedBox(
+          height: heroHeight,
+          child: Stack(
             children: [
-              AspectRatio(
-                aspectRatio: 1829 / 852,
-                child: Image.asset(
-                  'lib/assets/homepage_art_large.webp',
-                  fit: BoxFit.cover,
+              ClipRect(
+                child: Transform.translate(
+                  offset: Offset(0, -transparentTop),
+                  child: SizedBox(
+                    width: width,
+                    height: heroHeight + transparentTop,
+                    child: Image.asset(
+                      'lib/assets/homepage_art_large.webp',
+                      fit: BoxFit.cover,
+                      width: width,
+                      height: heroHeight + transparentTop,
+                    ),
+                  ),
                 ),
               ),
               Positioned(
-                left: leftOffset,
-                bottom: bottomOffset,
+                left: overlayOffset,
+                top: overlayTop,
                 width: cardWidth,
                 child: _HeroCard(
                   title: 'Handpainted Art\nAt its finest.',
@@ -112,9 +147,9 @@ class _DesktopHero extends StatelessWidget {
                 ),
               ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -122,38 +157,125 @@ class _DesktopHero extends StatelessWidget {
 class _MobileHero extends StatelessWidget {
   const _MobileHero();
 
+  static const _assetWidth = 786.0;
+  static const _transparentTop = 80.0;
+  static const _heroAspectRatio = 393 / 852;
+
   @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        AspectRatio(
-          aspectRatio: 393 / 852,
-          child: Image.asset(
-            'lib/assets/homepage_art_mobile.webp',
-            fit: BoxFit.cover,
-            width: double.infinity,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = constraints.maxWidth;
+      final heroHeight = width / _heroAspectRatio;
+      final transparentTop = width * _transparentTop / _assetWidth;
+
+      return SizedBox(
+        height: heroHeight,
+        child: Stack(
+          children: [
+            ClipRect(
+              child: Transform.translate(
+                offset: Offset(0, -transparentTop),
+                child: SizedBox(
+                  height: heroHeight + transparentTop,
+                  width: width,
+                  child: Image.asset(
+                    'lib/assets/homepage_art_mobile.webp',
+                    fit: BoxFit.cover,
+                    width: width,
+                    height: heroHeight + transparentTop,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _HeroCard(
+                title: 'Handpainted Art\nAt its finest',
+                subtitle: 'All at your fingertips',
+                titleSize: 36,
+                subtitleSize: 24,
+                buttonCenter: true,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(32),
+                ),
+                outerPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+                innerPadding: const EdgeInsets.fromLTRB(24, 26, 24, 36),
+                minHeight: 450,
+                onExplore: () => _goToCollection(context),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+class _AboutSection extends StatelessWidget {
+  const _AboutSection();
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final mobile = useCompactLayout(context, breakpoint: 700);
+      final viewport = MediaQuery.sizeOf(context);
+      final stacked =
+          mobile || (viewport.height > viewport.width && viewport.width < 1100);
+      final copy = Text(
+        'Over time, the true essence of handmade and hand-painted has slowly been lost. Kalasthali is an attempt to bring it back - by celebrating traditional art forms, forgotten techniques, and the beauty of creating by hand.\n\nInspired by nature, Pichwai, Lippan, textured art, and other traditional Indian crafts, Kalasthali creates home decor and wearable art that blends heritage with contemporary aesthetics. Our pieces are designed to fit effortlessly into modern lifestyles while preserving the charm, character and soul of our artistic heritage.\n\nBecause for us, handmade is more than a technique - it is a way of keeping art and history alive.\n\nKalasthali - where heritage meets contemporary living.',
+        style: GoogleFonts.ibmPlexSans(
+          fontSize: mobile ? 18 : (stacked ? 22 : 25),
+          height: 1.22,
+          color: Colors.black,
+        ),
+      );
+      final portrait = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Semantics(
+            image: true,
+            label: 'Nisha Rohilla, owner of Kalasthali',
+            child: Image.asset('lib/assets/about_pfp.png', fit: BoxFit.contain),
+          ),
+        ],
+      );
+
+      return Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: mobile ? 28 : (stacked ? 42 : 38),
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1580),
+            child: Column(
+              children: [
+                const _SectionHeader(title: 'About'),
+                SizedBox(height: mobile ? 56 : 92),
+                if (stacked) ...[
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: mobile ? 390 : 460),
+                    child: portrait,
+                  ),
+                  SizedBox(height: mobile ? 42 : 56),
+                  copy,
+                ] else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(flex: 6, child: copy),
+                      const SizedBox(width: 84),
+                      Expanded(flex: 4, child: portrait),
+                    ],
+                  ),
+              ],
+            ),
           ),
         ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: _HeroCard(
-            title: 'Handpainted Art\nAt its finest',
-            subtitle: 'All at your fingertips',
-            titleSize: 36,
-            subtitleSize: 18,
-            buttonCenter: true,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-            outerPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-            innerPadding: const EdgeInsets.fromLTRB(24, 26, 24, 36),
-            minHeight: 450,
-            onExplore: () => _goToCollection(context),
-          ),
-        ),
-      ],
-    );
-  }
+      );
+    },
+  );
 }
 
 class _ShopByCategory extends StatelessWidget {
@@ -163,8 +285,9 @@ class _ShopByCategory extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 700;
+        final isMobile = useCompactLayout(context, breakpoint: 700);
         final showThreeColumns = constraints.maxWidth >= 1200;
+        final gridWidth = constraints.maxWidth.clamp(0.0, 1580.0).toDouble();
         final tileWidth = isMobile
             ? constraints.maxWidth - 32
             : (constraints.maxWidth > 560
@@ -180,17 +303,7 @@ class _ShopByCategory extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  Text(
-                    'Shop By Category',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.dmSerifDisplay(
-                      fontSize: isMobile ? 36 : 50,
-                      height: 1.05,
-                      color: const Color(0xFF1F1E25),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  const _CategoryDivider(),
+                  const _SectionHeader(title: 'Shop By Category'),
                   SizedBox(height: isMobile ? 40 : 52),
                   if (isMobile) ...[
                     _CategoryButton(
@@ -210,6 +323,12 @@ class _ShopByCategory extends StatelessWidget {
                       label: 'Dresses',
                       imagePath: 'lib/assets/category_grid/dresses_small.png',
                       onTap: () => _goToCollection(context, 'dresses'),
+                    ),
+                    const SizedBox(height: 30),
+                    _CategoryButton(
+                      label: 'Dupatta',
+                      imagePath: 'lib/assets/category_grid/dupattas_small.png',
+                      onTap: () => _goToCollection(context, 'dupatta'),
                     ),
                   ] else if (showThreeColumns) ...[
                     Row(
@@ -242,6 +361,16 @@ class _ShopByCategory extends StatelessWidget {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 30),
+                    SizedBox(
+                      width: (gridWidth - 60) / 3,
+                      child: _CategoryButton(
+                        label: 'Dupatta',
+                        imagePath:
+                            'lib/assets/category_grid/dupattas_large.png',
+                        onTap: () => _goToCollection(context, 'dupatta'),
+                      ),
+                    ),
                   ] else ...[
                     Row(
                       children: [
@@ -267,13 +396,28 @@ class _ShopByCategory extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 30),
-                    SizedBox(
-                      width: tileWidth,
-                      child: _CategoryButton(
-                        label: 'Dresses',
-                        imagePath: 'lib/assets/category_grid/dresses_large.png',
-                        onTap: () => _goToCollection(context, 'dresses'),
-                      ),
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: tileWidth,
+                          child: _CategoryButton(
+                            label: 'Dresses',
+                            imagePath:
+                                'lib/assets/category_grid/dresses_large.png',
+                            onTap: () => _goToCollection(context, 'dresses'),
+                          ),
+                        ),
+                        const SizedBox(width: 28),
+                        SizedBox(
+                          width: tileWidth,
+                          child: _CategoryButton(
+                            label: 'Dupatta',
+                            imagePath:
+                                'lib/assets/category_grid/dupattas_large.png',
+                            onTap: () => _goToCollection(context, 'dupatta'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                   SizedBox(height: isMobile ? 44 : 50),
@@ -286,6 +430,133 @@ class _ShopByCategory extends StatelessWidget {
       },
     );
   }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = useCompactLayout(context, breakpoint: 700);
+    final wide = MediaQuery.sizeOf(context).width >= 1200;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 0),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: wide ? 1580 : 560),
+          child: Column(
+            children: [
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.dmSerifDisplay(
+                  fontSize: isMobile ? 36 : 50,
+                  height: 1.05,
+                  color: const Color(0xFF1F1E25),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const _CategoryDivider(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactSection extends StatelessWidget {
+  const _ContactSection();
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final mobile = useCompactLayout(context, breakpoint: 700);
+      Widget card(IconData icon, String title, String detail) => Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: mobile ? 22 : 38,
+          vertical: mobile ? 24 : 34,
+        ),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFFA35710), width: 1.5),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x332D1E12),
+              blurRadius: 8,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: mobile ? 44 : 58, color: const Color(0xFF1F1E25)),
+            const SizedBox(width: 22),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: mobile ? 24 : 28,
+                    ),
+                  ),
+                  Text(
+                    detail,
+                    style: GoogleFonts.ibmPlexSans(fontSize: mobile ? 15 : 18),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+      final email = card(
+        Icons.forward_to_inbox_outlined,
+        'Email',
+        'contact@kalasthali.co',
+      );
+      final phone = card(
+        Icons.forum_outlined,
+        'Call or WhatsApp',
+        '+91 95303 24000',
+      );
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: mobile ? 28 : 38),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1180),
+            child: Column(
+              children: [
+                const _SectionHeader(title: 'Get In Touch'),
+                SizedBox(height: mobile ? 20 : 24),
+                Text(
+                  'For queries regarding products, partnerships and business, contact us',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.ibmPlexSans(fontSize: mobile ? 15 : 17),
+                ),
+                SizedBox(height: mobile ? 34 : 58),
+                if (mobile)
+                  Column(children: [email, const SizedBox(height: 18), phone])
+                else
+                  Row(
+                    children: [
+                      Expanded(child: email),
+                      const SizedBox(width: 34),
+                      Expanded(child: phone),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _CategoryDivider extends StatelessWidget {
@@ -396,7 +667,7 @@ class _ExploreMoreButton extends StatelessWidget {
           children: [
             Text(
               'Explore More',
-              style: GoogleFonts.blinker(fontSize: isMobile ? 15 : 21),
+              style: GoogleFonts.ibmPlexSans(fontSize: isMobile ? 15 : 21),
             ),
             const SizedBox(width: 6),
             Icon(Icons.north_east_rounded, size: isMobile ? 21 : 26),
@@ -474,11 +745,11 @@ class _HeroCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     subtitle,
-                    style: TextStyle(
+                    style: GoogleFonts.ibmPlexSans(
                       color: Colors.white,
                       fontSize: subtitleSize,
                       height: 1.15,
-                      fontWeight: FontWeight.w300,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 50),
@@ -506,7 +777,7 @@ class _HeroCard extends StatelessWidget {
                         children: [
                           Text(
                             '  Explore',
-                            style: GoogleFonts.blinker(
+                            style: GoogleFonts.ibmPlexSans(
                               fontSize: buttonTextSize,
                             ),
                           ),

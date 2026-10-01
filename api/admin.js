@@ -1,5 +1,10 @@
 const crypto = require('crypto');
 
+const adminEmails = new Set([
+  'admin.kalasthali@gmail.com',
+  'nisharohilla651@gmail.com',
+]);
+
 const allowedFields = [
   'code',
   'type',
@@ -9,35 +14,14 @@ const allowedFields = [
   'sizes',
   'price',
   'is_popular',
+  'is_sold_out',
 ];
-const sessionLifetimeMs = 8 * 60 * 60 * 1000;
 const imageNamePattern = /^(thumbnail|pimage\d+|\d+)\.webp$/i;
 // Image bytes upload directly to Supabase through a short-lived signed URL,
 // rather than through Vercel's much smaller request-body limit.
 const maxImageBytes = 10 * 1024 * 1024;
 const supabaseUrl =
   process.env.SUPABASE_URL || 'https://dddriininznavwrsrgww.supabase.co';
-
-// This intentionally cannot run on a Vercel production deployment. It is
-// useful with `vercel dev` while building the dashboard locally.
-function isLocalTestMode() {
-  return (
-    process.env.ADMIN_TEST_MODE === 'true' &&
-    process.env.VERCEL_ENV !== 'production'
-  );
-}
-
-function adminSecret() {
-  return process.env.ADMIN_AUTH ||
-    process.env.ADMIN_RECOVERY_AUTH ||
-    (isLocalTestMode() ? 'local-development-admin-secret' : '');
-}
-
-function passwordMatches(password) {
-  const candidates = [process.env.ADMIN_AUTH, process.env.ADMIN_RECOVERY_AUTH]
-    .filter(Boolean);
-  return candidates.some((candidate) => safeEqual(password, candidate));
-}
 
 function json(res, status, value) {
   res.status(status).json(value);
@@ -54,52 +38,33 @@ function readBody(req) {
 }
 
 function configured() {
-  return Boolean(
-    adminSecret() &&
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-  );
+  return Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
-function safeEqual(left, right) {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  return (
-    leftBuffer.length === rightBuffer.length &&
-    crypto.timingSafeEqual(leftBuffer, rightBuffer)
-  );
-}
-
-function sign(payload) {
-  return crypto
-    .createHmac('sha256', adminSecret())
-    .update(payload)
-    .digest('base64url');
-}
-
-function createToken() {
-  const payload = Buffer.from(
-    JSON.stringify({
-      issuedAt: Date.now(),
-      nonce: crypto.randomBytes(16).toString('base64url'),
-    }),
-  ).toString('base64url');
-  return `${payload}.${sign(payload)}`;
-}
-
-function isAuthenticated(req) {
+async function authenticatedAdmin(req) {
   const authorization = req.headers.authorization || '';
   const token = authorization.startsWith('Bearer ')
     ? authorization.slice('Bearer '.length)
     : '';
-  const [payload, signature] = token.split('.');
-  if (!payload || !signature || !safeEqual(signature, sign(payload))) return false;
+  const supabaseKey =
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_API_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!token || !supabaseKey) return null;
 
-  try {
-    const session = JSON.parse(Buffer.from(payload, 'base64url').toString());
-    return Date.now() - session.issuedAt < sessionLifetimeMs;
-  } catch (_) {
-    return false;
-  }
+  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) return null;
+  const user = await response.json();
+  return adminEmails.has(String(user.email || '').toLowerCase()) ? user : null;
+}
+
+function adminConfigurationError() {
+  return 'Admin server is not configured. Set SUPABASE_SERVICE_ROLE_KEY in Vercel.';
 }
 
 async function supabaseFetch(path, options = {}) {
@@ -152,6 +117,9 @@ function productPayload(source, { allowCode }) {
   }
   if (product.is_popular != null && typeof product.is_popular !== 'boolean') {
     throw new Error('is_popular must be true or false.');
+  }
+  if (product.is_sold_out != null && typeof product.is_sold_out !== 'boolean') {
+    throw new Error('is_sold_out must be true or false.');
   }
   return product;
 }
@@ -209,6 +177,71 @@ function validImageName(name) {
 
 function validProductCode(code) {
   return /^[A-Za-z0-9_-]+$/.test(code);
+}
+
+function policyPayload(source) {
+  const allowedSlugs = new Set([
+    'privacy-policy',
+    'terms-of-service',
+    'refund-policy',
+  ]);
+  const slug = typeof source.slug === 'string' ? source.slug.trim() : '';
+  const title = typeof source.title === 'string' ? source.title.trim() : '';
+  const content = typeof source.content === 'string' ? source.content.trim() : '';
+  if (!allowedSlugs.has(slug) || !title || !content) {
+    throw new Error('A valid policy title and content are required.');
+  }
+  return { slug, title, content, updated_at: new Date().toISOString() };
+}
+
+function saleItems(value, fallbackName, fallbackAmount) {
+  let items = value;
+  if (typeof items === 'string') {
+    try {
+      items = JSON.parse(items);
+    } catch (_) {
+      items = null;
+    }
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return [{ name: fallbackName || 'Order item', quantity: 1, amount: fallbackAmount }];
+  }
+  return items.map((item) => ({
+    name: String(item?.product_name || item?.name || 'Order item'),
+    quantity: Math.max(1, Number(item?.quantity) || 1),
+    amount: Math.max(0, Number(item?.line_total ?? item?.amount ?? item?.unit_price ?? item?.price) || 0),
+  }));
+}
+
+function trackingUrl(trackingId) {
+  return `https://www.delhivery.com/track/package/${encodeURIComponent(trackingId)}`;
+}
+
+function orderStatus(order) {
+  return order.order_status || (order.shipping_confirmation_sent_at ? 'out_for_delivery' : 'order_placed');
+}
+
+async function signedReturnEvidence(paths) {
+  if (!Array.isArray(paths) || paths.length === 0) return [];
+  return Promise.all(paths.map(async (path) => {
+    const signed = await supabaseFetch(
+      `/storage/v1/object/sign/return_evidence/${encodeURIComponent(path)}`,
+      { method: 'POST', body: JSON.stringify({ expiresIn: 3600 }) },
+    );
+    return signed.signedURL?.startsWith('http')
+      ? signed.signedURL
+      : `${supabaseUrl}/storage/v1${signed.signedURL}`;
+  }));
+}
+
+async function adminOrders() {
+  const orders = await supabaseFetch(
+    '/rest/v1/sales?select=order_id,customer_email,customer_phone,user_address,product,amount,items,paid_at,razorpay_payment_id,tracking_id,tracking_url,shipping_confirmation_sent_at,order_status,out_for_delivery_at,delivered_at,cancelled_at,return_status,return_requested_at,return_evidence,return_tracking_id,return_tracking_url,return_accepted_at,refund_processed_at,refund_id,refund_amount,refund_message,return_rejected_at,return_rejection_reason&order=paid_at.desc',
+  );
+  return Promise.all(orders.map(async (order) => ({
+    ...order,
+    return_evidence_urls: await signedReturnEvidence(order.return_evidence),
+  })));
 }
 
 async function moveImage(sourceKey, destinationKey) {
@@ -317,27 +350,17 @@ async function deleteImage(code, name) {
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (!configured()) {
-    return json(res, 503, {
-      error:
-        'Admin server is not configured. Set ADMIN_AUTH or ADMIN_RECOVERY_AUTH, plus SUPABASE_SERVICE_ROLE_KEY, in Vercel.',
-    });
+    return json(res, 503, { error: adminConfigurationError() });
   }
 
   const body = readBody(req);
   const action = req.query.action || body.action;
-
-  if (action === 'login' && req.method === 'POST') {
-    if (
-      !isLocalTestMode() &&
-      !passwordMatches(String(body.password || ''))
-    ) {
-      return json(res, 401, { error: 'Incorrect password.' });
-    }
-    return json(res, 200, { token: createToken() });
-  }
-
-  if (!isAuthenticated(req)) {
-    return json(res, 401, { error: 'Your admin session has expired.' });
+  if (!await authenticatedAdmin(req)) {
+    return json(res, 401, {
+      error: (req.headers.authorization || '').startsWith('Bearer ')
+          ? 'Your account is not authorized to access the admin dashboard.'
+          : 'Log in with an authorized admin account to continue.',
+    });
   }
 
   try {
@@ -351,6 +374,157 @@ module.exports = async (req, res) => {
 
     if (action === 'gallery' && req.method === 'GET') {
       return json(res, 200, await gallery());
+    }
+
+    if (action === 'policies' && req.method === 'GET') {
+      return json(
+        res,
+        200,
+        await supabaseFetch('/rest/v1/site_policies?select=*&order=slug.asc'),
+      );
+    }
+
+    if (action === 'orders' && req.method === 'GET') {
+      return json(res, 200, await adminOrders());
+    }
+
+    if (action === 'shipping_confirmation' && req.method === 'POST') {
+      const orderId = String(body.orderId || '').trim();
+      const trackingId = String(body.trackingId || '').trim();
+      const url = String(body.trackingUrl || '').trim();
+      if (!orderId || !trackingId || !url) {
+        return json(res, 400, { error: 'An order ID and tracking ID are required.' });
+      }
+      if (!/^[A-Za-z0-9_-]{3,100}$/.test(trackingId) || !url.startsWith('https://www.delhivery.com/track/package/')) {
+        return json(res, 400, { error: 'A valid tracking ID and tracking URL are required.' });
+      }
+      const orders = await supabaseFetch(
+        `/rest/v1/sales?select=*&order_id=eq.${encodeURIComponent(orderId)}&limit=1`,
+      );
+      const order = orders[0];
+      if (!order) return json(res, 404, { error: 'Order not found.' });
+      if (orderStatus(order) !== 'order_placed') {
+        return json(res, 409, { error: 'Only newly placed orders can be submitted for delivery.' });
+      }
+      if (order.shipping_confirmation_sent_at) {
+        return json(res, 409, { error: 'A delivery confirmation has already been sent for this order.' });
+      }
+      const updated = await supabaseFetch(
+        `/rest/v1/sales?order_id=eq.${encodeURIComponent(orderId)}`,
+        {
+          method: 'PATCH',
+          headers: { Prefer: 'return=representation' },
+          body: JSON.stringify({
+            tracking_id: trackingId,
+            tracking_url: url,
+            shipping_confirmation_sent_at: new Date().toISOString(),
+            order_status: 'out_for_delivery',
+            out_for_delivery_at: new Date().toISOString(),
+          }),
+        },
+      );
+      return json(res, 200, updated[0]);
+    }
+
+    if (action === 'mark_delivered' && req.method === 'POST') {
+      const orderId = String(body.orderId || '').trim();
+      const orders = await supabaseFetch(`/rest/v1/sales?select=*&order_id=eq.${encodeURIComponent(orderId)}&limit=1`);
+      const order = orders[0];
+      if (!order) return json(res, 404, { error: 'Order not found.' });
+      if (orderStatus(order) !== 'out_for_delivery') {
+        return json(res, 409, { error: 'Only orders out for delivery can be marked delivered.' });
+      }
+      const updated = await supabaseFetch(`/rest/v1/sales?order_id=eq.${encodeURIComponent(orderId)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ order_status: 'delivered', delivered_at: new Date().toISOString() }),
+      });
+      return json(res, 200, updated[0]);
+    }
+
+    if (action === 'accept_return' && req.method === 'POST') {
+      const orderId = String(body.orderId || '').trim();
+      const trackingId = String(body.trackingId || '').trim();
+      const trackingUrl = String(body.trackingUrl || '').trim();
+      if (!orderId || !/^[A-Za-z0-9_-]{3,100}$/.test(trackingId) || !trackingUrl.startsWith('https://www.delhivery.com/track/package/')) {
+        return json(res, 400, { error: 'A valid return tracking ID is required.' });
+      }
+      const orders = await supabaseFetch(`/rest/v1/sales?select=*&order_id=eq.${encodeURIComponent(orderId)}&limit=1`);
+      const order = orders[0];
+      if (!order) return json(res, 404, { error: 'Order not found.' });
+      if (order.return_status !== 'requested') return json(res, 409, { error: 'This return request has already been processed.' });
+      const updated = await supabaseFetch(`/rest/v1/sales?order_id=eq.${encodeURIComponent(orderId)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          return_status: 'accepted_for_return',
+          return_tracking_id: trackingId,
+          return_tracking_url: trackingUrl,
+          return_accepted_at: new Date().toISOString(),
+        }),
+      });
+      return json(res, 200, updated[0]);
+    }
+
+    if (action === 'refund_processed' && req.method === 'POST') {
+      const orderId = String(body.orderId || '').trim();
+      const refundId = String(body.refundId || '').trim();
+      const refundAmount = Number(body.refundAmount);
+      const refundMessage = String(body.refundMessage || '').trim();
+      if (!orderId || !refundId || !Number.isSafeInteger(refundAmount) || refundAmount <= 0 || !refundMessage) {
+        return json(res, 400, { error: 'A refund ID, positive refund amount, and refund message are required.' });
+      }
+      const orders = await supabaseFetch(`/rest/v1/sales?select=*&order_id=eq.${encodeURIComponent(orderId)}&limit=1`);
+      const order = orders[0];
+      if (!order) return json(res, 404, { error: 'Order not found.' });
+      if (order.refund_processed_at) {
+        return json(res, 409, { error: 'A refund has already been recorded for this order.' });
+      }
+      if (order.return_status !== 'accepted_for_return' && orderStatus(order) !== 'cancelled') {
+        return json(res, 409, { error: 'Only accepted returns or cancelled orders can be refunded.' });
+      }
+      const updated = await supabaseFetch(`/rest/v1/sales?order_id=eq.${encodeURIComponent(orderId)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          ...(order.return_status === 'accepted_for_return' ? { return_status: 'refund_processed' } : {}),
+          refund_processed_at: new Date().toISOString(),
+          refund_id: refundId,
+          refund_amount: refundAmount,
+          refund_message: refundMessage,
+        }),
+      });
+      return json(res, 200, updated[0]);
+    }
+
+    if (action === 'reject_return' && req.method === 'POST') {
+      const orderId = String(body.orderId || '').trim();
+      const reason = String(body.reason || '').trim();
+      if (!orderId || reason.length < 3 || reason.length > 500) {
+        return json(res, 400, { error: 'A return rejection reason between 3 and 500 characters is required.' });
+      }
+      const orders = await supabaseFetch(`/rest/v1/sales?select=*&order_id=eq.${encodeURIComponent(orderId)}&limit=1`);
+      const order = orders[0];
+      if (!order) return json(res, 404, { error: 'Order not found.' });
+      if (order.return_status !== 'requested') return json(res, 409, { error: 'This return request has already been processed.' });
+      const updated = await supabaseFetch(`/rest/v1/sales?order_id=eq.${encodeURIComponent(orderId)}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({
+          return_status: 'rejected',
+          return_rejection_reason: reason,
+          return_rejected_at: new Date().toISOString(),
+        }),
+      });
+      return json(res, 200, updated[0]);
+    }
+
+    if (action === 'policy' && req.method === 'PUT') {
+      const policy = policyPayload(body.policy || {});
+      const updated = await supabaseFetch('/rest/v1/site_policies', {
+        method: 'POST',
+        headers: {
+          Prefer: 'resolution=merge-duplicates,return=representation',
+        },
+        body: JSON.stringify(policy),
+      });
+      return json(res, 200, updated[0]);
     }
 
     if (action === 'image_upload' && req.method === 'POST') {
@@ -436,6 +610,11 @@ module.exports = async (req, res) => {
     if (action === 'delete' && req.method === 'DELETE') {
       const code = String(req.query.code || body.code || '');
       if (!code) return json(res, 400, { error: 'Product code is required.' });
+      // A removed product must not remain purchasable from an active cart.
+      await supabaseFetch(
+        `/rest/v1/user_cart?code=eq.${encodeURIComponent(code)}`,
+        { method: 'DELETE' },
+      );
       await supabaseFetch(
         `/rest/v1/products?code=eq.${encodeURIComponent(code)}`,
         { method: 'DELETE' },
