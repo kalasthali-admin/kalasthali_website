@@ -518,7 +518,7 @@ class _ContactSection extends StatelessWidget {
       final email = card(
         Icons.forward_to_inbox_outlined,
         'Email',
-        'contact@kalasthali.co',
+        'kalasthali@gmail.com',
       );
       final phone = card(
         Icons.forum_outlined,
