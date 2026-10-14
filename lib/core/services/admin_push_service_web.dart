@@ -31,18 +31,50 @@ class AdminPushService {
     final subscription = jsonDecode(
       (await _enable(_vapidPublicKey.toJS).toDart).toDart,
     );
-    await Supabase.instance.client.functions.invoke(
-      'register-admin-push-subscription',
-      body: {'subscription': subscription},
-    );
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'register-admin-push-subscription',
+        body: {'subscription': subscription},
+      );
+    } on FunctionException catch (error) {
+      await _disable().toDart;
+      throw Exception(
+        _functionError(error, 'Could not register order notifications.'),
+      );
+    } catch (_) {
+      await _disable().toDart;
+      throw Exception(
+        'Could not contact the notification service. Please try again.',
+      );
+    }
   }
 
   Future<void> disable() async {
     final endpoint = (await _disable().toDart).toDart;
     if (endpoint.isEmpty) return;
-    await Supabase.instance.client.functions.invoke(
-      'unregister-admin-push-subscription',
-      body: {'endpoint': endpoint},
-    );
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'unregister-admin-push-subscription',
+        body: {'endpoint': endpoint},
+      );
+    } on FunctionException catch (error) {
+      throw Exception(
+        _functionError(error, 'Could not disable order notifications.'),
+      );
+    } catch (_) {
+      throw Exception(
+        'Could not contact the notification service. Please try again.',
+      );
+    }
+  }
+
+  String _functionError(FunctionException error, String fallback) {
+    final details = error.details;
+    if (details is Map && details['error'] != null) {
+      return details['error'].toString();
+    }
+    return error.reasonPhrase?.trim().isNotEmpty == true
+        ? error.reasonPhrase!.trim()
+        : fallback;
   }
 }

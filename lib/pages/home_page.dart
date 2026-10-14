@@ -622,6 +622,12 @@ class _CategoryButtonState extends State<_CategoryButton> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOut,
+            transform: Matrix4.diagonal3Values(
+              _isHovered ? 1.025 : 1,
+              _isHovered ? 1.025 : 1,
+              1,
+            ),
+            transformAlignment: Alignment.center,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               boxShadow: _isHovered
