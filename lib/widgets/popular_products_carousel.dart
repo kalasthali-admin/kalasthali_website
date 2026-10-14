@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -21,6 +23,7 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
   List<Product> _products = [];
   bool _isLoading = true;
   late ProductService _productService;
+  Timer? _autoScrollTimer;
 
   @override
   void initState() {
@@ -55,12 +58,15 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
   Future<void> _loadProducts() async {
     try {
       final products = await _productService.getPopularProducts();
+      if (!mounted) return;
       setState(() {
         _products = products;
         _isLoading = false;
       });
+      _startAutoScroll();
       _precacheProductThumbnails(products);
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
@@ -81,8 +87,23 @@ class _PopularProductsCarouselState extends State<PopularProductsCarousel> {
 
   @override
   void dispose() {
+    _autoScrollTimer?.cancel();
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _startAutoScroll() {
+    _autoScrollTimer?.cancel();
+    if (_products.length < 2) return;
+    _autoScrollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!mounted || !_pageController.hasClients) return;
+      final current = _pageController.page?.round() ?? _currentPage;
+      _pageController.animateToPage(
+        current + 1,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeInOutCubic,
+      );
+    });
   }
 
   void _nextPage() {

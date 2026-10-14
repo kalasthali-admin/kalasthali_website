@@ -46,8 +46,6 @@ class HomePage extends StatelessWidget {
                             : const _DesktopHero(),
                       ),
                       SizedBox(height: isMobile ? 72 : 108),
-                      const _AboutSection(),
-                      SizedBox(height: isMobile ? 88 : 120),
                       KeyedSubtree(
                         key: HomeNavigationService.newArrivalsKey,
                         child: Column(
@@ -60,6 +58,10 @@ class HomePage extends StatelessWidget {
                       ),
                       const SizedBox(height: 110),
                       const _ShopByCategory(),
+                      SizedBox(height: isMobile ? 88 : 120),
+                      const _AboutSection(),
+                      SizedBox(height: isMobile ? 88 : 120),
+                      const _CustomerReviewsSection(),
                       SizedBox(height: isMobile ? 88 : 120),
                       const _ContactSection(),
                       const SizedBox(height: 96),
@@ -465,6 +467,113 @@ class _SectionHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CustomerReviewsSection extends StatelessWidget {
+  const _CustomerReviewsSection();
+
+  static const _reviews = [
+    'Absolutely gorgeous. A true piece of art! It instantly becomes the focal point of any room.',
+    'A stunning piece! The deep midnight tones of the petals look so elegant, and when a tea light is lit, the glow against the lotus design is pure magic.',
+    'Beautiful hand painting. I liked the work very much. Thank you for the kurta and shirt.',
+  ];
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final mobile = useCompactLayout(context, breakpoint: 700);
+      const gap = 28.0;
+      final horizontalPadding = mobile ? 28.0 : 38.0;
+      final availableWidth = (constraints.maxWidth - horizontalPadding * 2)
+          .clamp(0.0, 1180.0)
+          .toDouble();
+      final cardWidth = mobile ? availableWidth : (availableWidth - gap) / 2;
+
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1180),
+            child: Column(
+              children: [
+                const _SectionHeader(title: 'What Customers Say'),
+                SizedBox(height: mobile ? 38 : 58),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    for (final review in _reviews)
+                      SizedBox(
+                        width: cardWidth,
+                        child: _CustomerReviewCard(review: review),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _CustomerReviewCard extends StatelessWidget {
+  const _CustomerReviewCard({required this.review});
+
+  final String review;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: 'Five out of five stars. $review',
+    child: Container(
+      constraints: const BoxConstraints(minHeight: 230),
+      padding: const EdgeInsets.fromLTRB(28, 26, 28, 28),
+      decoration: BoxDecoration(
+        color: const Color(0xFFECE7DD),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFA35710), width: 1.4),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1F2D1E12),
+            blurRadius: 12,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ExcludeSemantics(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(
+                5,
+                (_) => const Padding(
+                  padding: EdgeInsets.only(right: 4),
+                  child: Icon(
+                    Icons.star_rounded,
+                    size: 25,
+                    color: Color(0xFFA35710),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            '"$review"',
+            style: GoogleFonts.ibmPlexSans(
+              fontSize: 18,
+              height: 1.5,
+              color: const Color(0xFF2D241D),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ContactSection extends StatelessWidget {
