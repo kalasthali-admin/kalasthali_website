@@ -473,9 +473,27 @@ class _CustomerReviewsSection extends StatelessWidget {
   const _CustomerReviewsSection();
 
   static const _reviews = [
-    'Absolutely gorgeous. A true piece of art! It instantly becomes the focal point of any room.',
-    'A stunning piece! The deep midnight tones of the petals look so elegant, and when a tea light is lit, the glow against the lotus design is pure magic.',
-    'Beautiful hand painting. I liked the work very much. Thank you for the kurta and shirt.',
+    _CustomerReviewData(
+      review:
+          'Absolutely gorgeous. A true piece of art! It instantly becomes the focal point of any room.',
+      imageUrl:
+          'https://dddriininznavwrsrgww.supabase.co/storage/v1/object/public/product_images/DGW/thumbnail.webp',
+      productCode: 'DGW',
+    ),
+    _CustomerReviewData(
+      review:
+          'A stunning piece! The deep midnight tones of the petals look so elegant, and when a tea light is lit, the glow against the lotus design is pure magic.',
+      imageUrl:
+          'https://dddriininznavwrsrgww.supabase.co/storage/v1/object/public/product_images/DML/thumbnail.webp',
+      productCode: 'DML',
+    ),
+    _CustomerReviewData(
+      review:
+          'Beautiful hand painting. I liked the work very much. Thank you for the kurta and shirt.',
+      imageUrl:
+          'https://dddriininznavwrsrgww.supabase.co/storage/v1/object/public/product_images/CBS/thumbnail.webp',
+      productCode: 'CBS',
+    ),
   ];
 
   @override
@@ -506,7 +524,7 @@ class _CustomerReviewsSection extends StatelessWidget {
                     for (final review in _reviews)
                       SizedBox(
                         width: cardWidth,
-                        child: _CustomerReviewCard(review: review),
+                        child: _CustomerReviewCard(data: review),
                       ),
                   ],
                 ),
@@ -519,60 +537,128 @@ class _CustomerReviewsSection extends StatelessWidget {
   );
 }
 
-class _CustomerReviewCard extends StatelessWidget {
-  const _CustomerReviewCard({required this.review});
+class _CustomerReviewData {
+  const _CustomerReviewData({
+    required this.review,
+    required this.imageUrl,
+    required this.productCode,
+  });
 
   final String review;
+  final String imageUrl;
+  final String productCode;
+}
 
-  @override
-  Widget build(BuildContext context) => Semantics(
-    label: 'Five out of five stars. $review',
-    child: Container(
-      constraints: const BoxConstraints(minHeight: 230),
-      padding: const EdgeInsets.fromLTRB(28, 26, 28, 28),
-      decoration: BoxDecoration(
-        color: const Color(0xFFECE7DD),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFA35710), width: 1.4),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1F2D1E12),
-            blurRadius: 12,
-            offset: Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ExcludeSemantics(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(
-                5,
-                (_) => const Padding(
-                  padding: EdgeInsets.only(right: 4),
-                  child: Icon(
-                    Icons.star_rounded,
-                    size: 25,
-                    color: Color(0xFFA35710),
-                  ),
+class _CustomerReviewCard extends StatelessWidget {
+  const _CustomerReviewCard({required this.data});
+
+  final _CustomerReviewData data;
+
+  Widget _reviewContent({required bool mobile}) => Padding(
+    padding: EdgeInsets.fromLTRB(
+      mobile ? 22 : 24,
+      mobile ? 22 : 24,
+      mobile ? 22 : 24,
+      mobile ? 24 : 26,
+    ),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ExcludeSemantics(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(
+              5,
+              (_) => const Padding(
+                padding: EdgeInsets.only(right: 4),
+                child: Icon(
+                  Icons.star_rounded,
+                  size: 25,
+                  color: Color(0xFFA35710),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 20),
-          Text(
-            '"$review"',
-            style: GoogleFonts.ibmPlexSans(
-              fontSize: 18,
-              height: 1.5,
-              color: const Color(0xFF2D241D),
+        ),
+        const SizedBox(height: 18),
+        Text(
+          '"${data.review}"',
+          style: GoogleFonts.ibmPlexSans(
+            fontSize: mobile ? 17 : 16,
+            height: 1.5,
+            color: const Color(0xFF2D241D),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _productImage({required double width, required double height}) =>
+      SizedBox(
+        width: width,
+        height: height,
+        child: Image.network(
+          data.imageUrl,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.medium,
+          semanticLabel: 'Product ${data.productCode}',
+          webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+          errorBuilder: (context, error, stackTrace) => const ColoredBox(
+            color: Color(0xFFE2D9CB),
+            child: Center(
+              child: Icon(
+                Icons.image_not_supported_outlined,
+                color: Color(0xFF765D47),
+              ),
             ),
           ),
-        ],
-      ),
-    ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final mobile = constraints.maxWidth < 520;
+
+      return Semantics(
+        label: 'Five out of five stars. ${data.review}',
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 250),
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: const Color(0xFFECE7DD),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFA35710), width: 1.4),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1F2D1E12),
+                blurRadius: 12,
+                offset: Offset(0, 5),
+              ),
+            ],
+          ),
+          child: mobile
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _productImage(width: double.infinity, height: 210),
+                    _reviewContent(mobile: true),
+                  ],
+                )
+              : SizedBox(
+                  height: 270,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _productImage(width: 180, height: 270),
+                      Expanded(child: _reviewContent(mobile: false)),
+                    ],
+                  ),
+                ),
+        ),
+      );
+    },
   );
 }
 
