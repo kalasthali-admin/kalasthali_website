@@ -318,13 +318,13 @@ class _ShopByCategory extends StatelessWidget {
                     _CategoryButton(
                       label: 'Sarees',
                       imagePath: 'lib/assets/category_grid/sarees_small.png',
-                      onTap: () => _goToCollection(context, 'sarees'),
+                      onTap: () => _goToCollection(context, 'saree'),
                     ),
                     const SizedBox(height: 30),
                     _CategoryButton(
                       label: 'Dresses',
                       imagePath: 'lib/assets/category_grid/dresses_small.png',
-                      onTap: () => _goToCollection(context, 'dresses'),
+                      onTap: () => _goToCollection(context, 'dress'),
                     ),
                     const SizedBox(height: 30),
                     _CategoryButton(
@@ -349,7 +349,7 @@ class _ShopByCategory extends StatelessWidget {
                             label: 'Sarees',
                             imagePath:
                                 'lib/assets/category_grid/sarees_large.png',
-                            onTap: () => _goToCollection(context, 'sarees'),
+                            onTap: () => _goToCollection(context, 'saree'),
                           ),
                         ),
                         const SizedBox(width: 30),
@@ -358,7 +358,7 @@ class _ShopByCategory extends StatelessWidget {
                             label: 'Dresses',
                             imagePath:
                                 'lib/assets/category_grid/dresses_large.png',
-                            onTap: () => _goToCollection(context, 'dresses'),
+                            onTap: () => _goToCollection(context, 'dress'),
                           ),
                         ),
                       ],
@@ -392,7 +392,7 @@ class _ShopByCategory extends StatelessWidget {
                             label: 'Sarees',
                             imagePath:
                                 'lib/assets/category_grid/sarees_large.png',
-                            onTap: () => _goToCollection(context, 'sarees'),
+                            onTap: () => _goToCollection(context, 'saree'),
                           ),
                         ),
                       ],
@@ -406,7 +406,7 @@ class _ShopByCategory extends StatelessWidget {
                             label: 'Dresses',
                             imagePath:
                                 'lib/assets/category_grid/dresses_large.png',
-                            onTap: () => _goToCollection(context, 'dresses'),
+                            onTap: () => _goToCollection(context, 'dress'),
                           ),
                         ),
                         const SizedBox(width: 28),
