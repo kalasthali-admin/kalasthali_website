@@ -20,6 +20,7 @@ jobs:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      GITHUB_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
     steps:
       - uses: actions/checkout@v4
 

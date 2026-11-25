@@ -22,6 +22,11 @@ export PATH="$FLUTTER_ROOT/bin:$PATH"
 
 flutter config --enable-web
 flutter pub get
+vapid_public_key="${GITHUB_VAPID_PUBLIC_KEY:-${VAPID_PUBLIC_KEY:-}}"
+if [ -z "$vapid_public_key" ] || [ "$vapid_public_key" = '[SENSITIVE]' ]; then
+  echo 'VAPID_PUBLIC_KEY is unavailable to the prebuilt build. Set the GitHub Actions VAPID_PUBLIC_KEY secret or change the Vercel variable to a pullable Config value.' >&2
+  exit 1
+fi
 flutter build web --release --no-wasm-dry-run \
   --dart-define=WHATSAPP_BUSINESS_NUMBER="${WHATSAPP_BUSINESS_NUMBER:-}" \
   --dart-define=INSTAGRAM_URL="${INSTAGRAM_URL:-}" \
@@ -29,7 +34,7 @@ flutter build web --release --no-wasm-dry-run \
   --dart-define=AMAZON_URL="${AMAZON_URL:-}" \
   --dart-define=MYNTRA_URL="${MYNTRA_URL:-}" \
   --dart-define=ADMIN_TEST_MODE="${ADMIN_TEST_MODE:-false}" \
-  --dart-define=VAPID_PUBLIC_KEY="${VAPID_PUBLIC_KEY}"
+  --dart-define=VAPID_PUBLIC_KEY="$vapid_public_key"
 
 # Keep Flutter's entrypoint for commerce routes, then generate the public pages.
 mv build/web/index.html build/web/flutter.html
