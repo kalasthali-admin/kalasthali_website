@@ -9,11 +9,15 @@
   const setMenuOpen = (open) => {
     menu.toggleAttribute('hidden', !open);
     menuBackdrop.toggleAttribute('hidden', !open);
+    document.body.classList.toggle('mobile-menu-open', open);
     menuButton.setAttribute('aria-expanded', String(open));
     menuButton.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
   };
   menuButton?.addEventListener('click', () => setMenuOpen(menu.hasAttribute('hidden')));
   menuBackdrop?.addEventListener('click', () => setMenuOpen(false));
+  matchMedia('(min-width: 850px)').addEventListener('change', (event) => {
+    if (event.matches) setMenuOpen(false);
+  });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !menu.hasAttribute('hidden')) setMenuOpen(false);
   });

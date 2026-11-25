@@ -14,7 +14,7 @@ void main() {
         link(rel: 'icon', href: '/favicon.ico'),
         link(rel: 'apple-touch-icon', href: '/apple-touch-icon.png'),
         script(src: '/public-config.js', defer: true),
-        script(src: '/public.js', defer: true),
+        script(src: '/public.js?v=2', defer: true),
       ],
       body: const App(),
     ),
