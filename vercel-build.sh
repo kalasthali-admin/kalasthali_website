@@ -54,3 +54,4 @@ cp -R public_site/build/jaspr/about public_site/build/jaspr/contact \
   public_site/build/jaspr/refund-policy build/web/
 cp public_site/build/jaspr/404/index.html build/web/404.html
 cp public_site/build/jaspr/public.css public_site/build/jaspr/public.js build/web/
+cp public_site/web/index.md build/web/index.md
