@@ -92,8 +92,8 @@ class _CollectionPageState extends State<CollectionPage> {
                 padding: EdgeInsets.fromLTRB(
                   mobile ? 20 : 44,
                   mobile ? 66 : 88,
-                  mobile ? 20 : 44,
-                  100,
+                  mobile ? 20 : 14,
+                  0,
                 ),
                 child: Center(
                   child: ConstrainedBox(
@@ -176,45 +176,40 @@ class _CollectionPageState extends State<CollectionPage> {
                               .toList(),
                         ),
                         SizedBox(height: mobile ? 120 : 110),
-                        if (filtered.isEmpty)
-                          const Text('No products found.')
-                        else
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 900),
-                            child: GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: mobile ? 2 : 3,
-                                    crossAxisSpacing: mobile ? 28 : 10,
-                                    mainAxisSpacing: mobile ? 28 : 10,
-                                    childAspectRatio: mobile ? .58 : .64,
-                                  ),
-                              itemCount: filtered.length,
-                              itemBuilder: (_, i) =>
-                                  _Card(product: filtered[i]),
-                            ),
-                          ),
+                        if (filtered.isEmpty) const Text('No products found.'),
                       ],
                     ),
                   ),
                 ),
               );
 
-              if (filtered.isEmpty) {
-                return Column(
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(child: productContent),
+              return CustomScrollView(
+                primary: true,
+                slivers: [
+                  SliverToBoxAdapter(child: productContent),
+                  if (filtered.isNotEmpty)
+                    SliverPadding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: box.maxWidth > 1280
+                            ? (box.maxWidth - 1280) / 2
+                            : (mobile ? 20 : 14),
+                      ),
+                      sliver: SliverGrid.builder(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: mobile ? 2 : (tabletPortrait ? 3 : 4),
+                          crossAxisSpacing: 14,
+                          mainAxisSpacing: mobile ? 20 : 18,
+                          childAspectRatio: mobile
+                              ? .486
+                              : (tabletPortrait ? .46 : .52),
+                        ),
+                        itemCount: filtered.length,
+                        itemBuilder: (_, i) => _Card(product: filtered[i]),
+                      ),
                     ),
-                    const AppFooter(),
-                  ],
-                );
-              }
-
-              return SingleChildScrollView(
-                child: Column(children: [productContent, const AppFooter()]),
+                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                  const AppFooterSliver(),
+                ],
               );
             },
           );
