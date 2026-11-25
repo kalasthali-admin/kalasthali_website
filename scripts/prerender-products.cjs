@@ -3,8 +3,7 @@ const path = require('node:path');
 
 const origin = 'https://kalasthali.co';
 const escape = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const firstEnv = (names) => names.map(name => process.env[name]).find(value => value && value.trim());
-const visibleEnvNames = (names) => names.filter(name => Boolean(process.env[name]));
+const firstEnv = (names) => names.map(name => process.env[name]?.trim()).find(value => value && value !== '[SENSITIVE]');
 
 function render(template, product, storageUrl) {
   if (!/^[A-Za-z0-9_-]+$/.test(product.code)) throw new Error('Unsupported product code');
@@ -34,16 +33,9 @@ async function main() {
     'SUPABASE_ANON_KEY',
     'NEXT_PUBLIC_SUPABASE_ANON_KEY',
     'VITE_SUPABASE_ANON_KEY',
-    'SUPABASE_SERVICE_ROLE_KEY',
-    'SUPABASE_SERVICE_KEY',
-    'SUPABASE_API_KEY',
   ];
   const storageUrl = (firstEnv(urlEnvNames) || 'https://dddriininznavwrsrgww.supabase.co').replace(/\/$/, '');
-  const key = firstEnv(keyEnvNames);
-  if (!key) {
-    const visibleNames = visibleEnvNames([...urlEnvNames, ...keyEnvNames]);
-    throw new Error(`Set one Supabase key for product prerendering. Checked: ${keyEnvNames.join(', ')}. Visible Supabase env names: ${visibleNames.length ? visibleNames.join(', ') : 'none'}.`);
-  }
+  const key = firstEnv(keyEnvNames) || 'sb_publishable_4azID8YOd0M1UcjqdIi_cw_sdnTi39E';
   const products = [];
   for (let offset = 0; ; ) {
     const response = await fetch(`${storageUrl}/rest/v1/products?select=code,name,description,specifications,price,type&order=code.asc&limit=500&offset=${offset}`, {
@@ -57,12 +49,12 @@ async function main() {
     offset += rows.length;
   }
   const output = path.resolve('build/web');
-  const template = await fs.readFile(path.join(output, 'index.html'), 'utf8');
+  const template = await fs.readFile(path.join(output, 'flutter.html'), 'utf8');
   await fs.mkdir(path.join(output, 'prerendered'), {recursive:true});
   for (const product of products) {
     await fs.writeFile(path.join(output, 'prerendered', `${product.code}.html`), render(template, product, storageUrl));
   }
-  const urls = [origin + '/', origin + '/collections', ...products.map(p => `${origin}/product?code=${encodeURIComponent(p.code)}`)];
+  const urls = [origin + '/', origin + '/about', origin + '/contact', origin + '/privacy-policy', origin + '/terms-of-service', origin + '/refund-policy', origin + '/collections', ...products.map(p => `${origin}/product?code=${encodeURIComponent(p.code)}`)];
   await fs.writeFile(path.join(output, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(url=>`<url><loc>${escape(url)}</loc></url>`).join('')}</urlset>`);
   console.log(`Prerendered ${products.length} product pages and sitemap.xml`);
 }

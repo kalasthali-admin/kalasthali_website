@@ -2,6 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "bash vercel-build.sh",
   "outputDirectory": "build/web",
+  "git": {
+    "deploymentEnabled": false
+  },
   "redirects": [
     {
       "source": "/home",
@@ -38,13 +41,23 @@
       "has": [{"type": "query", "key": "code", "value": "(?<productCode>[A-Za-z0-9_-]+)"}],
       "destination": "/prerendered/:productCode.html"
     },
+    { "source": "/about", "destination": "/about/index.html" },
+    { "source": "/contact", "destination": "/contact/index.html" },
+    { "source": "/privacy-policy", "destination": "/privacy-policy/index.html" },
+    { "source": "/terms-of-service", "destination": "/terms-of-service/index.html" },
+    { "source": "/refund-policy", "destination": "/refund-policy/index.html" },
+    { "source": "/collections", "destination": "/flutter.html" },
+    { "source": "/collection", "destination": "/flutter.html" },
+    { "source": "/product", "destination": "/flutter.html" },
+    { "source": "/cart", "destination": "/flutter.html" },
+    { "source": "/checkout", "destination": "/flutter.html" },
+    { "source": "/account", "destination": "/flutter.html" },
+    { "source": "/admin", "destination": "/flutter.html" },
+    { "source": "/settings", "destination": "/flutter.html" },
+    { "source": "/reset-password", "destination": "/flutter.html" },
     {
       "source": "/api/sitemap",
       "destination": "/sitemap.xml"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
     }
   ]
 }

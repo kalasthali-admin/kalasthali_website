@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../core/responsive.dart';
 import '../core/services/auth_service.dart';
 import '../core/services/home_navigation_service.dart';
+import '../core/services/public_page_navigation.dart';
 
 const double _desktopHeaderBreakpoint = 850;
 const double _desktopHeaderControlHeight = 34;
@@ -708,7 +709,11 @@ void _goTo(BuildContext context, String route) {
     return;
   }
 
-  Navigator.pushReplacementNamed(context, route);
+  if (route == '/') {
+    openPublicPage(context, route);
+  } else {
+    Navigator.pushReplacementNamed(context, route);
+  }
 }
 
 void _goToCart(BuildContext context) {

@@ -8,15 +8,61 @@ import '../core/models/product_review.dart';
 import '../core/responsive.dart';
 import '../core/services/checkout_navigation.dart';
 import '../core/services/product_service.dart';
+import '../core/services/cart_service.dart';
+import '../core/services/public_page_navigation.dart';
 import '../core/services/seo_service.dart';
 import '../widgets/app_footer.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/cart_quantity_button.dart';
 
-class ProductPage extends StatelessWidget {
+class ProductPage extends StatefulWidget {
   const ProductPage({this.productCode = '', super.key});
 
   final String productCode;
+
+  @override
+  State<ProductPage> createState() => _ProductPageState();
+}
+
+class _ProductPageState extends State<ProductPage> {
+  late Future<Product?> _product;
+  bool _handledAddIntent = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _product = ProductService().getProductByCode(widget.productCode);
+  }
+
+  @override
+  void didUpdateWidget(covariant ProductPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.productCode != widget.productCode) {
+      _product = ProductService().getProductByCode(widget.productCode);
+      _handledAddIntent = false;
+    }
+  }
+
+  Future<void> _addFromPublicPage(Product product) async {
+    try {
+      if (!CartService.instance.isSignedIn) {
+        if (mounted) Navigator.pushNamed(context, '/account');
+        return;
+      }
+      await CartService.instance.add(product);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Added to cart.')));
+      }
+    } on CartQuantityException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,14 +71,24 @@ class ProductPage extends StatelessWidget {
       currentRoute: '/product',
       centerBody: false,
       body: FutureBuilder<Product?>(
-        future: ProductService().getProductByCode(productCode),
+        future: _product,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
           }
           final product = snapshot.data;
-          if (product == null)
+          if (product == null) {
             return const Center(child: Text('Product not found.'));
+          }
+          if (!_handledAddIntent && Uri.base.queryParameters['add'] == '1') {
+            _handledAddIntent = true;
+            clearProductAddIntent();
+            if (!product.isSoldOut) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _addFromPublicPage(product);
+              });
+            }
+          }
           SeoService.setProduct(product);
           return _ProductDetails(product: product);
         },

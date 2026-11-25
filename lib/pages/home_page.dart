@@ -46,8 +46,6 @@ class HomePage extends StatelessWidget {
                             : const _DesktopHero(),
                       ),
                       SizedBox(height: isMobile ? 72 : 108),
-                      const _AboutSection(),
-                      SizedBox(height: isMobile ? 88 : 120),
                       KeyedSubtree(
                         key: HomeNavigationService.newArrivalsKey,
                         child: Column(
@@ -60,6 +58,10 @@ class HomePage extends StatelessWidget {
                       ),
                       const SizedBox(height: 110),
                       const _ShopByCategory(),
+                      SizedBox(height: isMobile ? 88 : 120),
+                      const _AboutSection(),
+                      SizedBox(height: isMobile ? 88 : 120),
+                      const _CustomerReviewsSection(),
                       SizedBox(height: isMobile ? 88 : 120),
                       const _ContactSection(),
                       const SizedBox(height: 96),
@@ -316,13 +318,13 @@ class _ShopByCategory extends StatelessWidget {
                     _CategoryButton(
                       label: 'Sarees',
                       imagePath: 'lib/assets/category_grid/sarees_small.png',
-                      onTap: () => _goToCollection(context, 'sarees'),
+                      onTap: () => _goToCollection(context, 'saree'),
                     ),
                     const SizedBox(height: 30),
                     _CategoryButton(
                       label: 'Dresses',
                       imagePath: 'lib/assets/category_grid/dresses_small.png',
-                      onTap: () => _goToCollection(context, 'dresses'),
+                      onTap: () => _goToCollection(context, 'dress'),
                     ),
                     const SizedBox(height: 30),
                     _CategoryButton(
@@ -347,7 +349,7 @@ class _ShopByCategory extends StatelessWidget {
                             label: 'Sarees',
                             imagePath:
                                 'lib/assets/category_grid/sarees_large.png',
-                            onTap: () => _goToCollection(context, 'sarees'),
+                            onTap: () => _goToCollection(context, 'saree'),
                           ),
                         ),
                         const SizedBox(width: 30),
@@ -356,7 +358,7 @@ class _ShopByCategory extends StatelessWidget {
                             label: 'Dresses',
                             imagePath:
                                 'lib/assets/category_grid/dresses_large.png',
-                            onTap: () => _goToCollection(context, 'dresses'),
+                            onTap: () => _goToCollection(context, 'dress'),
                           ),
                         ),
                       ],
@@ -390,7 +392,7 @@ class _ShopByCategory extends StatelessWidget {
                             label: 'Sarees',
                             imagePath:
                                 'lib/assets/category_grid/sarees_large.png',
-                            onTap: () => _goToCollection(context, 'sarees'),
+                            onTap: () => _goToCollection(context, 'saree'),
                           ),
                         ),
                       ],
@@ -404,7 +406,7 @@ class _ShopByCategory extends StatelessWidget {
                             label: 'Dresses',
                             imagePath:
                                 'lib/assets/category_grid/dresses_large.png',
-                            onTap: () => _goToCollection(context, 'dresses'),
+                            onTap: () => _goToCollection(context, 'dress'),
                           ),
                         ),
                         const SizedBox(width: 28),
@@ -467,6 +469,199 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+class _CustomerReviewsSection extends StatelessWidget {
+  const _CustomerReviewsSection();
+
+  static const _reviews = [
+    _CustomerReviewData(
+      review:
+          'Absolutely gorgeous. A true piece of art! It instantly becomes the focal point of any room.',
+      imageUrl:
+          'https://dddriininznavwrsrgww.supabase.co/storage/v1/object/public/product_images/DGW/thumbnail.webp',
+      productCode: 'DGW',
+    ),
+    _CustomerReviewData(
+      review:
+          'A stunning piece! The deep midnight tones of the petals look so elegant, and when a tea light is lit, the glow against the lotus design is pure magic.',
+      imageUrl:
+          'https://dddriininznavwrsrgww.supabase.co/storage/v1/object/public/product_images/DML/thumbnail.webp',
+      productCode: 'DML',
+    ),
+    _CustomerReviewData(
+      review:
+          'Beautiful hand painting. I liked the work very much. Thank you for the kurta and shirt.',
+      imageUrl:
+          'https://dddriininznavwrsrgww.supabase.co/storage/v1/object/public/product_images/CBS/thumbnail.webp',
+      productCode: 'CBS',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final mobile = useCompactLayout(context, breakpoint: 700);
+      const gap = 28.0;
+      final horizontalPadding = mobile ? 28.0 : 38.0;
+      final availableWidth = (constraints.maxWidth - horizontalPadding * 2)
+          .clamp(0.0, 1180.0)
+          .toDouble();
+      final cardWidth = mobile ? availableWidth : (availableWidth - gap) / 2;
+
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1180),
+            child: Column(
+              children: [
+                const _SectionHeader(title: 'What Customers Say'),
+                SizedBox(height: mobile ? 38 : 58),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    for (final review in _reviews)
+                      SizedBox(
+                        width: cardWidth,
+                        child: _CustomerReviewCard(data: review),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _CustomerReviewData {
+  const _CustomerReviewData({
+    required this.review,
+    required this.imageUrl,
+    required this.productCode,
+  });
+
+  final String review;
+  final String imageUrl;
+  final String productCode;
+}
+
+class _CustomerReviewCard extends StatelessWidget {
+  const _CustomerReviewCard({required this.data});
+
+  final _CustomerReviewData data;
+
+  Widget _reviewContent({required bool mobile}) => Padding(
+    padding: EdgeInsets.fromLTRB(
+      mobile ? 22 : 24,
+      mobile ? 22 : 24,
+      mobile ? 22 : 24,
+      mobile ? 24 : 26,
+    ),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ExcludeSemantics(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(
+              5,
+              (_) => const Padding(
+                padding: EdgeInsets.only(right: 4),
+                child: Icon(
+                  Icons.star_rounded,
+                  size: 25,
+                  color: Color(0xFFA35710),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Text(
+          '"${data.review}"',
+          style: GoogleFonts.ibmPlexSans(
+            fontSize: mobile ? 17 : 16,
+            height: 1.5,
+            color: const Color(0xFF2D241D),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _productImage({required double width, required double height}) =>
+      SizedBox(
+        width: width,
+        height: height,
+        child: Image.network(
+          data.imageUrl,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.medium,
+          semanticLabel: 'Product ${data.productCode}',
+          webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+          errorBuilder: (context, error, stackTrace) => const ColoredBox(
+            color: Color(0xFFE2D9CB),
+            child: Center(
+              child: Icon(
+                Icons.image_not_supported_outlined,
+                color: Color(0xFF765D47),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final mobile = constraints.maxWidth < 520;
+
+      return Semantics(
+        label: 'Five out of five stars. ${data.review}',
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 250),
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: const Color(0xFFECE7DD),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFA35710), width: 1.4),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1F2D1E12),
+                blurRadius: 12,
+                offset: Offset(0, 5),
+              ),
+            ],
+          ),
+          child: mobile
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _productImage(width: double.infinity, height: 210),
+                    _reviewContent(mobile: true),
+                  ],
+                )
+              : SizedBox(
+                  height: 270,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _productImage(width: 180, height: 270),
+                      Expanded(child: _reviewContent(mobile: false)),
+                    ],
+                  ),
+                ),
+        ),
+      );
+    },
+  );
+}
+
 class _ContactSection extends StatelessWidget {
   const _ContactSection();
 
@@ -518,7 +713,7 @@ class _ContactSection extends StatelessWidget {
       final email = card(
         Icons.forward_to_inbox_outlined,
         'Email',
-        'contact@kalasthali.co',
+        'kalasthali@gmail.com',
       );
       final phone = card(
         Icons.forum_outlined,
@@ -622,6 +817,12 @@ class _CategoryButtonState extends State<_CategoryButton> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOut,
+            transform: Matrix4.diagonal3Values(
+              _isHovered ? 1.025 : 1,
+              _isHovered ? 1.025 : 1,
+              1,
+            ),
+            transformAlignment: Alignment.center,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               boxShadow: _isHovered

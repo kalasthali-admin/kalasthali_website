@@ -106,7 +106,41 @@ function normaliseItems(value, amount, productCode) {
   return items;
 }
 
-async function insertSale({ userId, userEmail, orderId, paymentId, sale }) {
+function publicOrderId(items) {
+  const prefix =
+    items.length > 1 ? 'KGR' : `K${items[0].product_code.toUpperCase()}`;
+  const suffix = crypto.randomInt(0, 10000).toString().padStart(4, '0');
+  return `${prefix}${suffix}`;
+}
+
+async function existingSaleOrderId(razorpayOrderId) {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/sales?select=order_id&razorpay_order_id=eq.${encodeURIComponent(razorpayOrderId)}&limit=1`,
+    {
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+    },
+  );
+  if (!response.ok) {
+    const error = new Error(
+      'Could not check the payment record. Run supabase/order_id_format.sql first.',
+    );
+    error.status = 500;
+    throw error;
+  }
+  const rows = await response.json();
+  return rows[0]?.order_id || null;
+}
+
+async function insertSale({
+  userId,
+  userEmail,
+  razorpayOrderId,
+  paymentId,
+  sale,
+}) {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('Supabase service role key is not configured.');
   }
@@ -114,7 +148,10 @@ async function insertSale({ userId, userEmail, orderId, paymentId, sale }) {
   const product = compactText(sale.product);
   const productCode = compactText(sale.product_code);
   const userAddress = compactText(sale.user_address);
-  const customerEmail = compactText(sale.customer_email, compactText(userEmail, null));
+  const customerEmail = compactText(
+    sale.customer_email,
+    compactText(userEmail, null),
+  );
   const customerPhone = compactText(sale.customer_phone, null);
   const amount = Number(sale.amount);
 
@@ -131,32 +168,54 @@ async function insertSale({ userId, userEmail, orderId, paymentId, sale }) {
     throw error;
   }
   const items = normaliseItems(sale.items, amount, productCode);
+  const existingOrderId = await existingSaleOrderId(razorpayOrderId);
+  if (existingOrderId) {
+    console.info('Verified sale already exists.', {
+      orderId: existingOrderId,
+      razorpayOrderId,
+    });
+    return existingOrderId;
+  }
 
-  const response = await fetch(`${supabaseUrl}/rest/v1/sales`, {
-    method: 'POST',
-    headers: {
-      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-    },
-    body: JSON.stringify({
-      user: userId,
-      product,
-      amount,
-      product_code: productCode,
-      order_id: orderId,
-      user_address: userAddress,
-      razorpay_payment_id: paymentId,
-      customer_email: customerEmail,
-      customer_phone: customerPhone,
-      items,
-      invoice_sent_at: null,
-    }),
-  });
+  // A four-digit suffix has a finite collision space. Let the database's
+  // unique order_id index arbitrate races and retry with a new suffix.
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const orderId = publicOrderId(items);
+    const response = await fetch(`${supabaseUrl}/rest/v1/sales`, {
+      method: 'POST',
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify({
+        user: userId,
+        product,
+        amount,
+        product_code: productCode,
+        order_id: orderId,
+        razorpay_order_id: razorpayOrderId,
+        user_address: userAddress,
+        razorpay_payment_id: paymentId,
+        customer_email: customerEmail,
+        customer_phone: customerPhone,
+        items,
+        invoice_sent_at: null,
+      }),
+    });
 
-  const text = await response.text();
-  if (!response.ok && response.status !== 409) {
+    const text = await response.text();
+    if (response.ok) {
+      console.info('Recorded verified sale.', { orderId, razorpayOrderId });
+      return orderId;
+    }
+    if (response.status === 409) {
+      const duplicateOrderId = await existingSaleOrderId(razorpayOrderId);
+      if (duplicateOrderId) return duplicateOrderId;
+      continue;
+    }
+
     let message = 'Could not record the sale.';
     try {
       message = JSON.parse(text).message || message;
@@ -164,11 +223,11 @@ async function insertSale({ userId, userEmail, orderId, paymentId, sale }) {
     throw new Error(message);
   }
 
-  if (response.status === 409) {
-    console.info('Verified sale already exists.', { orderId });
-  } else {
-    console.info('Recorded verified sale.', { orderId });
-  }
+  const error = new Error(
+    'Could not generate a unique order ID. Please try again.',
+  );
+  error.status = 503;
+  throw error;
 }
 
 module.exports = async function handler(req, res) {
@@ -179,11 +238,11 @@ module.exports = async function handler(req, res) {
 
   const {
     razorpay_payment_id: paymentId,
-    razorpay_order_id: orderId,
+    razorpay_order_id: razorpayOrderId,
     razorpay_signature: signature,
   } = readBody(req);
 
-  if (!paymentId || !orderId || !signature) {
+  if (!paymentId || !razorpayOrderId || !signature) {
     return json(res, 400, { error: 'Missing Razorpay payment fields.' });
   }
   if (!process.env.RAZORPAY_KEY_SECRET) {
@@ -194,7 +253,7 @@ module.exports = async function handler(req, res) {
 
   const expected = crypto
     .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-    .update(`${orderId}|${paymentId}`)
+    .update(`${razorpayOrderId}|${paymentId}`)
     .digest('hex');
 
   if (!safeEqual(expected, signature)) {
@@ -202,22 +261,21 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    await insertSale({
+    const orderId = await insertSale({
       userId: user.id,
       userEmail: user.email,
-      orderId,
+      razorpayOrderId,
       paymentId,
       sale: readBody(req).sale || {},
+    });
+    return json(res, 200, {
+      success: true,
+      payment_id: paymentId,
+      order_id: orderId,
     });
   } catch (error) {
     return json(res, error.status || 500, {
       error: error.message || 'Could not record the sale.',
     });
   }
-
-  return json(res, 200, {
-    success: true,
-    payment_id: paymentId,
-    order_id: orderId,
-  });
 };

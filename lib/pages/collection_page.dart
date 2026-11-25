@@ -43,7 +43,8 @@ class _CollectionPageState extends State<CollectionPage> {
     Uri(
       path: '/collections',
       queryParameters: {
-        if (category != value) 'category': value,
+        if (_categoryKey(category ?? '') != _categoryKey(value))
+          'category': value,
         if (search.text.trim().isNotEmpty) 'search': search.text.trim(),
       },
     ).toString(),
@@ -74,23 +75,21 @@ class _CollectionPageState extends State<CollectionPage> {
                   viewport.height > viewport.width &&
                   viewport.width < 1100;
               final query = search.text.toLowerCase();
-              final categories =
-                  snap.data!
-                      .map((product) => product.type.trim())
-                      .where((type) => type.isNotEmpty)
-                      .toSet()
-                      .toList()
-                    ..sort(
-                      (left, right) =>
-                          left.toLowerCase().compareTo(right.toLowerCase()),
-                    );
-              final selectedCategory =
-                  category == _newArrivalsFilter ||
-                      categories.any(
-                        (value) => _key(value) == _key(category ?? ''),
-                      )
+              final categoriesByKey = <String, String>{};
+              for (final product in snap.data!) {
+                final type = product.type.trim();
+                if (type.isNotEmpty) {
+                  categoriesByKey.putIfAbsent(_categoryKey(type), () => type);
+                }
+              }
+              final categories = categoriesByKey.values.toList()
+                ..sort(
+                  (left, right) =>
+                      left.toLowerCase().compareTo(right.toLowerCase()),
+                );
+              final selectedCategory = category == _newArrivalsFilter
                   ? category
-                  : null;
+                  : categoriesByKey[_categoryKey(category ?? '')];
               final filtered = snap.data!
                   .where(
                     (p) =>
@@ -198,8 +197,8 @@ class _CollectionPageState extends State<CollectionPage> {
                                   ),
                                 ),
                                 selected:
-                                    _key(selectedCategory ?? '') ==
-                                    _key(category),
+                                    _categoryKey(selectedCategory ?? '') ==
+                                    _categoryKey(category),
                                 onSelected: (_) => select(category),
                                 selectedColor: const Color(0xFFE2C7A0),
                                 backgroundColor: const Color(0xFFE9E2D6),
@@ -265,8 +264,15 @@ class _CollectionPageState extends State<CollectionPage> {
 
 String _key(String v) => v.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '');
 
+String _categoryKey(String value) => switch (_key(value)) {
+  'sarees' => 'saree',
+  'dresses' => 'dress',
+  'dupattas' => 'dupatta',
+  final key => key,
+};
+
 bool _matchesCategory(String productType, String category) {
-  return _key(productType) == _key(category);
+  return _categoryKey(productType) == _categoryKey(category);
 }
 
 class _Card extends StatefulWidget {

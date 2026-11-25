@@ -9,6 +9,7 @@ import '../core/responsive.dart';
 import '../core/services/auth_service.dart';
 import '../core/services/product_service.dart';
 import '../core/services/order_service.dart';
+import '../core/services/public_page_navigation.dart';
 import '../core/services/seo_service.dart';
 import '../widgets/app_footer.dart';
 import '../widgets/app_scaffold.dart';
@@ -1964,7 +1965,7 @@ class _ReturnRequestSheetState extends State<_ReturnRequestSheet> {
             style: GoogleFonts.ibmPlexSans(fontSize: 16),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pushNamed('/refund-policy'),
+            onPressed: () => openPublicPage(context, '/refund-policy'),
             child: const Text('Read the return and refund policy'),
           ),
           const SizedBox(height: 10),
