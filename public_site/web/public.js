@@ -89,7 +89,7 @@
 
   const carousel = document.querySelector('#popular-products');
   if (!carousel) return;
-  fetch(`${supabase}/rest/v1/products?is_popular=eq.true&select=code,name,description,is_sold_out&order=code.asc`,
+  fetch(`${supabase}/rest/v1/products?is_popular=eq.true&select=code,name,description,type,is_sold_out&order=code.asc`,
     { headers })
     .then((response) => {
       if (!response.ok) throw new Error(`Products request failed: ${response.status}`);
@@ -102,6 +102,10 @@
       }
       const dots = document.querySelector('#carousel-dots');
       let index = 0;
+      let autoTimer;
+      let resumeTimer;
+      let scrollEndTimer;
+      let manualScroll = false;
       const cards = products.map((product) => {
         const card = document.createElement('article');
         card.className = 'carousel-card';
@@ -117,6 +121,9 @@
         copy.className = 'carousel-copy';
         const name = document.createElement('h3');
         name.textContent = product.name;
+        const type = document.createElement('span');
+        type.className = 'carousel-type';
+        type.textContent = product.type || '';
         const description = document.createElement('p');
         description.textContent = product.description;
         const details = document.createElement('a');
@@ -124,42 +131,85 @@
         details.textContent = 'ⓘ  More Info';
         const cart = document.createElement('a');
         cart.className = 'add-cart';
-        cart.textContent = product.is_sold_out ? 'SOLD OUT' : '🛒  Add to Cart';
+        cart.textContent = product.is_sold_out ? 'SOLD OUT' : 'Add to Cart';
         if (product.is_sold_out) {
           cart.setAttribute('aria-disabled', 'true');
           cart.removeAttribute('href');
         } else {
           cart.href = `/product?code=${encodeURIComponent(product.code)}&add=1`;
         }
-        copy.append(name, description, details, cart);
+        copy.append(name, type, description, details, cart);
         card.append(imageLink, copy);
         return card;
       });
       carousel.replaceChildren(...cards);
       const update = () => {
-        dots.replaceChildren(...cards.map((_, number) => {
+        const first = Math.max(0, Math.min(index - 2, cards.length - 5));
+        const visible = Array.from({ length: Math.min(cards.length, 5) }, (_, offset) => first + offset);
+        dots.replaceChildren(...visible.map((number) => {
           const dot = document.createElement('button');
           dot.type = 'button';
           dot.setAttribute('aria-label', `Go to product ${number + 1}`);
           dot.className = number === index ? 'active' : '';
-          dot.addEventListener('click', () => move(number));
+          if (number === index) dot.setAttribute('aria-current', 'true');
+          dot.addEventListener('click', () => move(number, true));
           return dot;
         }));
       };
-      const move = (number) => {
+      const scheduleAuto = (delay = 30000) => {
+        clearTimeout(autoTimer);
+        if (cards.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        autoTimer = setTimeout(() => {
+          if (!document.hidden) move(index + 1);
+          scheduleAuto();
+        }, delay);
+      };
+      const pauseForManualScroll = () => {
+        manualScroll = true;
+        clearTimeout(autoTimer);
+        clearTimeout(resumeTimer);
+        clearTimeout(scrollEndTimer);
+        scrollEndTimer = setTimeout(() => {
+          manualScroll = false;
+          resumeTimer = setTimeout(() => scheduleAuto(0), 15000);
+        }, 200);
+      };
+      const move = (number, manual = false) => {
+        if (manual) pauseForManualScroll();
         index = (number + cards.length) % cards.length;
-        carousel.scrollTo({ left: cards[index].offsetLeft - cards[0].offsetLeft,
-          behavior: 'smooth' });
+        carousel.scrollTo({
+          left: cards[index].offsetLeft - cards[0].offsetLeft +
+            cards[index].offsetWidth / 2 - carousel.clientWidth / 2 +
+            parseFloat(getComputedStyle(carousel).paddingLeft),
+          behavior: 'smooth',
+        });
         update();
       };
       document.querySelector('.carousel-arrow.prev')?.addEventListener('click',
-        () => move(index - 1));
+        () => move(index - 1, true));
       document.querySelector('.carousel-arrow.next')?.addEventListener('click',
-        () => move(index + 1));
+        () => move(index + 1, true));
+      const updateFromScroll = () => {
+        const center = carousel.scrollLeft + carousel.clientWidth / 2;
+        let nearest = 0;
+        let distance = Infinity;
+        cards.forEach((card, number) => {
+          const cardCenter = card.offsetLeft - cards[0].offsetLeft +
+            parseFloat(getComputedStyle(carousel).paddingLeft) + card.offsetWidth / 2;
+          const nextDistance = Math.abs(cardCenter - center);
+          if (nextDistance < distance) { distance = nextDistance; nearest = number; }
+        });
+        if (nearest !== index) { index = nearest; update(); }
+        if (manualScroll) pauseForManualScroll();
+      };
+      carousel.addEventListener('scroll', updateFromScroll, { passive: true });
+      carousel.addEventListener('pointerdown', pauseForManualScroll, { passive: true });
+      carousel.addEventListener('wheel', pauseForManualScroll, { passive: true });
+      carousel.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') pauseForManualScroll();
+      });
       update();
-      if (cards.length > 1 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        setInterval(() => { if (!document.hidden) move(index + 1); }, 2000);
-      }
+      scheduleAuto();
     })
     .catch(() => { carousel.textContent = 'New arrivals are temporarily unavailable.'; });
 })();

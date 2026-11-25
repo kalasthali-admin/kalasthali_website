@@ -2,6 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "bash vercel-build.sh",
   "outputDirectory": "build/web",
+  "git": {
+    "deploymentEnabled": false
+  },
   "redirects": [
     {
       "source": "/home",
