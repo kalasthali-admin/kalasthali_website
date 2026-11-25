@@ -109,7 +109,7 @@ class _CollectionPageState extends State<CollectionPage> {
                   mobile ? 20 : 14,
                   mobile ? 66 : 88,
                   mobile ? 20 : 14,
-                  100,
+                  0,
                 ),
                 child: Center(
                   child: ConstrainedBox(
@@ -215,32 +215,7 @@ class _CollectionPageState extends State<CollectionPage> {
                           ],
                         ),
                         SizedBox(height: mobile ? 120 : 110),
-                        if (filtered.isEmpty)
-                          const Text('No products found.')
-                        else
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 1280),
-                            child: GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: mobile
-                                        ? 2
-                                        : (tabletPortrait ? 3 : 4),
-                                    crossAxisSpacing: mobile ? 14 : 14,
-                                    mainAxisSpacing: mobile ? 20 : 18,
-                                    childAspectRatio: mobile
-                                        // Adds approximately 10px to the
-                                        // expandable mobile image area.
-                                        ? .486
-                                        : (tabletPortrait ? .46 : .52),
-                                  ),
-                              itemCount: filtered.length,
-                              itemBuilder: (_, i) =>
-                                  _Card(product: filtered[i]),
-                            ),
-                          ),
+                        if (filtered.isEmpty) const Text('No products found.'),
                       ],
                     ),
                   ),
@@ -251,6 +226,27 @@ class _CollectionPageState extends State<CollectionPage> {
                 primary: true,
                 slivers: [
                   SliverToBoxAdapter(child: productContent),
+                  if (filtered.isNotEmpty)
+                    SliverPadding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: box.maxWidth > 1280
+                            ? (box.maxWidth - 1280) / 2
+                            : (mobile ? 20 : 14),
+                      ),
+                      sliver: SliverGrid.builder(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: mobile ? 2 : (tabletPortrait ? 3 : 4),
+                          crossAxisSpacing: 14,
+                          mainAxisSpacing: mobile ? 20 : 18,
+                          childAspectRatio: mobile
+                              ? .486
+                              : (tabletPortrait ? .46 : .52),
+                        ),
+                        itemCount: filtered.length,
+                        itemBuilder: (_, i) => _Card(product: filtered[i]),
+                      ),
+                    ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
                   const AppFooterSliver(),
                 ],
               );
