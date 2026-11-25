@@ -5,19 +5,30 @@
 
   const menuButton = document.querySelector('.menu-toggle');
   const menu = document.querySelector('#mobile-menu');
-  menuButton?.addEventListener('click', () => {
-    const open = menu.hasAttribute('hidden');
+  const menuBackdrop = document.querySelector('.mobile-menu-backdrop');
+  const setMenuOpen = (open) => {
     menu.toggleAttribute('hidden', !open);
+    menuBackdrop.toggleAttribute('hidden', !open);
     menuButton.setAttribute('aria-expanded', String(open));
     menuButton.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+  };
+  menuButton?.addEventListener('click', () => setMenuOpen(menu.hasAttribute('hidden')));
+  menuBackdrop?.addEventListener('click', () => setMenuOpen(false));
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !menu.hasAttribute('hidden')) setMenuOpen(false);
   });
   const searchButton = document.querySelector('.search-control');
   const searchForm = document.querySelector('.header-search');
   searchButton?.addEventListener('click', () => {
-    const opening = searchForm.hasAttribute('hidden');
-    searchForm.toggleAttribute('hidden', !opening);
-    document.querySelector('.desktop-nav').hidden = opening;
+    const opening = !document.querySelector('.site-header').classList.contains('search-open');
+    document.querySelector('.site-header').classList.toggle('search-open', opening);
+    searchForm.inert = !opening;
+    searchForm.setAttribute('aria-hidden', String(!opening));
+    document.querySelector('.desktop-nav').inert = opening;
     searchButton.setAttribute('aria-label', opening ? 'Close search' : 'Search products');
+    searchButton.querySelector('path').setAttribute('d', opening
+      ? 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'
+      : 'M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 9.5 5a4.5 4.5 0 0 1 0 9z');
     if (opening) searchForm.querySelector('input').focus();
   });
 

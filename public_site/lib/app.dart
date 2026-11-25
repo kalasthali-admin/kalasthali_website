@@ -63,6 +63,16 @@ Component siteIcon(String path) => Component.element(
   children: [Component.element(tag: 'path', attributes: {'d': path})],
 );
 
+Component materialIcon(String path) => Component.element(
+  tag: 'svg',
+  attributes: {'viewBox': '0 0 24 24', 'fill': 'currentColor', 'aria-hidden': 'true'},
+  children: [Component.element(tag: 'path', attributes: {'d': path})],
+);
+
+const searchIconPath = 'M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 9.5 5a4.5 4.5 0 0 1 0 9z';
+const cartIconPath = 'M15.55 13c.75 0 1.41-.41 1.75-1.03L20.88 5H5.21l-.94-2H1v2h2l3.6 7.59-1.35 2.44C4.52 16.37 5.48 18 7 18h12v-2H7l1.1-2h7.45zM6.16 7h11.3l-2.76 5H8.53L6.16 7zM7 19c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm10 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z';
+const accountIconPath = 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-2 4-3.1 6-3.1s5.97 1.1 6 3.1c-1.29 1.94-3.5 3.22-6 3.22z';
+
 class SiteHeader extends StatelessComponent {
   const SiteHeader({super.key});
 
@@ -83,8 +93,9 @@ class SiteHeader extends StatelessComponent {
     form(
       classes: 'header-search',
       action: '/collections',
-      attributes: {'hidden': ''},
+      attributes: {'inert': '', 'aria-hidden': 'true'},
       [
+        span(classes: 'search-inline-icon', [materialIcon(searchIconPath)]),
         input<String>(
           name: 'search',
           attributes: {'type': 'search', 'placeholder': 'SEARCH FOR PRODUCTS', 'aria-label': 'Search for products'},
@@ -95,14 +106,14 @@ class SiteHeader extends StatelessComponent {
       button(
         classes: 'header-control search-control',
         attributes: {'type': 'button', 'aria-label': 'Search products'},
-        [siteIcon('M21 21l-4.35-4.35 M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0z')],
+        [materialIcon(searchIconPath)],
       ),
       a(href: '/admin', classes: 'header-control admin-control', attributes: {'hidden': ''}, [.text('ADMIN')]),
       a(href: '/cart', classes: 'header-control cart-control', attributes: {'aria-label': 'Cart'}, [
-        siteIcon('M2 3h2l2.4 11.4a2 2 0 0 0 2 1.6H19a2 2 0 0 0 2-1.6L22 7H5 M9 21h.01 M18 21h.01'),
+        materialIcon(cartIconPath),
       ]),
       a(href: '/account', classes: 'header-control account-control', [
-        span(classes: 'account-icon', [siteIcon('M20 21a8 8 0 0 0-16 0 M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z')]),
+        span(classes: 'account-icon', [materialIcon(accountIconPath)]),
         span(classes: 'account-label', [.text('LOG IN')]),
       ]),
     ]),
@@ -116,6 +127,7 @@ class SiteHeader extends StatelessComponent {
       },
       [siteIcon('M4 6h16 M4 12h16 M4 18h16')],
     ),
+    div(classes: 'mobile-menu-backdrop', attributes: {'hidden': ''}, []),
     nav(
       id: 'mobile-menu',
       classes: 'mobile-menu',
