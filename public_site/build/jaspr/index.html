@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <base href="/"/>
+    <meta charset="utf-8"/>
+    <link href="/public.css" rel="stylesheet"/>
+    <link href="/favicon.ico" rel="icon"/>
+    <link href="/apple-touch-icon.png" rel="apple-touch-icon"/>
+    <script src="/public-config.js" defer></script>
+    <script src="/public.js" defer></script>
+    <!--$-->
+    <title>Kalasthali By Nisha | Handpainted Clothing</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="description" content="Handpainted clothing crafted with art and individuality."/>
+    <meta name="robots" content="index, follow"/>
+    <link href="https://kalasthali.co/" rel="canonical"/>
+    <meta property="og:title" content="Kalasthali By Nisha | Handpainted Clothing"/>
+    <meta property="og:description" content="Handpainted clothing crafted with art and individuality."/>
+    <meta property="og:url" content="https://kalasthali.co/"/>
+    <meta property="og:image" content="https://kalasthali.co/assets/lib/assets/icon_logo.png"/>
+    <!--/-->
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="site-header">
+        <a class="brand-link" href="/"><img alt="Kalasthali By Nisha" src="/assets/lib/assets/logo_text.png"/></a>
+        <nav class="desktop-nav" aria-label="Main navigation">
+          <a class="home-nav" href="/">HOME</a>
+          <a href="/#new-arrivals">NEW ARRIVALS</a>
+          <a href="/collections">COLLECTIONS</a>
+        </nav>
+        <form class="header-search" hidden action="/collections">
+          <input type="search" placeholder="SEARCH FOR PRODUCTS" aria-label="Search for products" name="search"/>
+        </form>
+        <div class="header-actions">
+          <button class="header-control search-control" type="button" aria-label="Search products">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 21l-4.35-4.35 M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0z"></path></svg>
+          </button>
+          <a class="header-control admin-control" hidden href="/admin">ADMIN</a>
+          <a class="header-control cart-control" aria-label="Cart" href="/cart">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h2l2.4 11.4a2 2 0 0 0 2 1.6H19a2 2 0 0 0 2-1.6L22 7H5 M9 21h.01 M18 21h.01"></path></svg>
+          </a>
+          <a class="header-control account-control" href="/account">
+            <span class="account-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0 M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"></path></svg></span>
+            <span class="account-label">LOG IN</span>
+          </a>
+        </div>
+        <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16 M4 12h16 M4 18h16"></path></svg>
+        </button>
+        <nav id="mobile-menu" class="mobile-menu" aria-label="Mobile navigation" hidden>
+          <a href="/">HOME</a>
+          <a href="/#new-arrivals">NEW ARRIVALS</a>
+          <a href="/collections">COLLECTIONS</a>
+          <a href="/cart">CART</a>
+          <a class="mobile-account" href="/account">LOG IN / SIGN UP</a>
+          <a class="mobile-admin" hidden href="/admin">ADMIN</a>
+        </nav>
+      </header>
+      <main class="home-main">
+        <section class="hero">
+          <picture>
+            <source media="(max-width: 699px)" srcset="/assets/lib/assets/homepage_art_mobile.webp"/>
+            <img alt="Handpainted art and clothing by Kalasthali" src="/assets/lib/assets/homepage_art_large.webp"/>
+          </picture>
+          <div class="hero-card">
+            <h1>Handpainted Art<br/>At its finest.</h1>
+            <p>All at your fingertips</p>
+            <a class="hero-explore" href="/collections">Explore<span aria-hidden="true">›</span></a>
+          </div>
+        </section>
+        <section id="new-arrivals" class="home-section arrivals-section">
+          <div class="section-title"><h2>New Arrivals</h2><div class="ornament-rule"></div></div>
+          <div class="carousel-shell">
+            <button class="carousel-arrow prev" type="button" aria-label="Previous product">‹</button>
+            <div id="popular-products" class="carousel-track" aria-live="polite"><p class="carousel-loading">Loading new arrivals...</p></div>
+            <button class="carousel-arrow next" type="button" aria-label="Next product">›</button>
+          </div>
+          <div id="carousel-dots" class="carousel-dots"></div>
+        </section>
+        <section class="home-section categories-section">
+          <div class="section-title"><h2>Shop By Category</h2><div class="ornament-rule"></div></div>
+          <div class="category-grid">
+            <a class="category-card" href="/collections?category=home-decor">
+              <picture>
+                <source media="(max-width: 699px)" srcset="/assets/lib/assets/category_grid/home_decor_small.png"/>
+                <img alt="Home Decor" src="/assets/lib/assets/category_grid/home_decor_large.png"/>
+              </picture>
+              <span>HOME DECOR</span>
+            </a>
+            <a class="category-card" href="/collections?category=saree">
+              <picture>
+                <source media="(max-width: 699px)" srcset="/assets/lib/assets/category_grid/sarees_small.png"/>
+                <img alt="Sarees" src="/assets/lib/assets/category_grid/sarees_large.png"/>
+              </picture>
+              <span>SAREES</span>
+            </a>
+            <a class="category-card" href="/collections?category=dress">
+              <picture>
+                <source media="(max-width: 699px)" srcset="/assets/lib/assets/category_grid/dresses_small.png"/>
+                <img alt="Dresses" src="/assets/lib/assets/category_grid/dresses_large.png"/>
+              </picture>
+              <span>DRESSES</span>
+            </a>
+            <a class="category-card" href="/collections?category=dupatta">
+              <picture>
+                <source media="(max-width: 699px)" srcset="/assets/lib/assets/category_grid/dupattas_small.png"/>
+                <img alt="Dupatta" src="/assets/lib/assets/category_grid/dupattas_large.png"/>
+              </picture>
+              <span>DUPATTA</span>
+            </a>
+          </div>
+          <a class="explore-more" href="/collections">Explore More<span>↗</span></a>
+        </section>
+        <section class="home-section about-section">
+          <div class="section-title"><h2>About</h2><div class="ornament-rule"></div></div>
+          <div class="about-body">
+            <p class="about-copy">
+              Over time, the true essence of handmade and hand-painted has slowly been lost. Kalasthali is an attempt to bring it back - by celebrating traditional art forms, forgotten techniques, and the beauty of creating by hand.
+              
+              Inspired by nature, Pichwai, Lippan, textured art, and other traditional Indian crafts, Kalasthali creates home decor and wearable art that blends heritage with contemporary aesthetics. Our pieces are designed to fit effortlessly into modern lifestyles while preserving the charm, character and soul of our artistic heritage.
+              
+              Because for us, handmade is more than a technique - it is a way of keeping art and history alive.
+              
+              Kalasthali - where heritage meets contemporary living.
+            </p>
+            <img alt="Nisha Rohilla, owner of Kalasthali" src="/assets/lib/assets/about_pfp.png"/>
+          </div>
+        </section>
+        <section class="home-section reviews-section">
+          <div class="section-title"><h2>What Customers Say</h2><div class="ornament-rule"></div></div>
+          <div class="review-grid">
+            <article class="review-card">
+              <img alt="Kalasthali product DGW" src="https://dddriininznavwrsrgww.supabase.co/storage/v1/object/public/product_images/DGW/thumbnail.webp"/>
+              <div class="review-copy">
+                <div class="review-stars" aria-label="Five out of five stars">★★★★★</div>
+                <p>"Absolutely gorgeous. A true piece of art! It instantly becomes the focal point of any room."</p>
+              </div>
+            </article>
+            <article class="review-card">
+              <img alt="Kalasthali product DML" src="https://dddriininznavwrsrgww.supabase.co/storage/v1/object/public/product_images/DML/thumbnail.webp"/>
+              <div class="review-copy">
+                <div class="review-stars" aria-label="Five out of five stars">★★★★★</div>
+                <p>
+                  "A stunning piece! The deep midnight tones of the petals look so elegant, and when a tea light is lit, the glow against the lotus design is pure magic."
+                </p>
+              </div>
+            </article>
+            <article class="review-card">
+              <img alt="Kalasthali product CBS" src="https://dddriininznavwrsrgww.supabase.co/storage/v1/object/public/product_images/CBS/thumbnail.webp"/>
+              <div class="review-copy">
+                <div class="review-stars" aria-label="Five out of five stars">★★★★★</div>
+                <p>"Beautiful hand painting. I liked the work very much. Thank you for the kurta and shirt."</p>
+              </div>
+            </article>
+          </div>
+        </section>
+        <section class="home-section contact-section">
+          <div class="contact-body">
+            <div class="section-title"><h2>Get In Touch</h2><div class="ornament-rule"></div></div>
+            <p class="contact-intro">For queries regarding products, partnerships and business, contact us</p>
+            <div class="contact-cards">
+              <a class="contact-card" href="mailto:kalasthali@gmail.com">
+                <span class="contact-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18v14H3z M3 6l9 7 9-7"></path></svg></span>
+                <span><strong>Email</strong>kalasthali@gmail.com</span>
+              </a>
+              <a class="contact-card" href="https://wa.me/919530324000">
+                <span class="contact-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v12H8l-4 4V4z M8 8h8 M8 12h6"></path></svg></span>
+                <span><strong>Call or WhatsApp</strong>+91 95303 24000</span>
+              </a>
+            </div>
+          </div>
+        </section>
+      </main>
+      <footer class="site-footer">
+        <div class="footer-top">
+          <img class="footer-logo" alt="Kalasthali By Nisha" src="/assets/lib/assets/footer_icons/text.png"/>
+          <div class="social-links">
+            <a class="social-link" data-social-key="INSTAGRAM_URL" aria-label="Instagram" href="#"><img alt="Instagram" src="/assets/lib/assets/footer_icons/instagram.png"/></a>
+            <a class="social-link" data-social-key="FACEBOOK_URL" aria-label="Facebook" href="#"><img alt="Facebook" src="/assets/lib/assets/footer_icons/facebook.png"/></a>
+            <a class="social-link" data-social-key="AMAZON_URL" aria-label="Amazon" href="#"><img alt="Amazon" src="/assets/lib/assets/footer_icons/amazon.png"/></a>
+            <a class="social-link" data-social-key="MYNTRA_URL" aria-label="Myntra" href="#"><img alt="Myntra" src="/assets/lib/assets/footer_icons/myntra.png"/></a>
+          </div>
+        </div>
+        <nav class="footer-nav" aria-label="Footer">
+          <a href="/about">ABOUT</a>
+          <a href="/collections">COLLECTIONS</a>
+          <a href="/privacy-policy">PRIVACY POLICY</a>
+          <a href="/terms-of-service">TERMS OF SERVICE</a>
+          <a href="/refund-policy">REFUND POLICY</a>
+        </nav>
+        <p>Copyright © 2026 Kalasthali By Nisha</p>
+      </footer>
+    </div>
+  </body>
+</html>
