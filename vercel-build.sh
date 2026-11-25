@@ -28,5 +28,21 @@ flutter build web --release --no-wasm-dry-run \
   --dart-define=ADMIN_TEST_MODE="${ADMIN_TEST_MODE:-false}" \
   --dart-define=VAPID_PUBLIC_KEY="${VAPID_PUBLIC_KEY}"
 
-# Produce crawlable product HTML after Flutter has emitted its bootstrap assets.
+# Keep Flutter's entrypoint for commerce routes, then generate the public pages.
+mv build/web/index.html build/web/flutter.html
 node scripts/prerender-products.cjs
+node scripts/build-public-config.cjs
+
+dart pub global activate jaspr_cli 0.23.5
+(
+  cd public_site
+  dart pub get
+  "$HOME/.pub-cache/bin/jaspr" build
+)
+
+cp public_site/build/jaspr/index.html build/web/index.html
+cp -R public_site/build/jaspr/about public_site/build/jaspr/contact \
+  public_site/build/jaspr/privacy-policy public_site/build/jaspr/terms-of-service \
+  public_site/build/jaspr/refund-policy build/web/
+cp public_site/build/jaspr/404/index.html build/web/404.html
+cp public_site/build/jaspr/public.css public_site/build/jaspr/public.js build/web/

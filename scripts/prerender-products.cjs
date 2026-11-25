@@ -57,12 +57,12 @@ async function main() {
     offset += rows.length;
   }
   const output = path.resolve('build/web');
-  const template = await fs.readFile(path.join(output, 'index.html'), 'utf8');
+  const template = await fs.readFile(path.join(output, 'flutter.html'), 'utf8');
   await fs.mkdir(path.join(output, 'prerendered'), {recursive:true});
   for (const product of products) {
     await fs.writeFile(path.join(output, 'prerendered', `${product.code}.html`), render(template, product, storageUrl));
   }
-  const urls = [origin + '/', origin + '/collections', ...products.map(p => `${origin}/product?code=${encodeURIComponent(p.code)}`)];
+  const urls = [origin + '/', origin + '/about', origin + '/contact', origin + '/privacy-policy', origin + '/terms-of-service', origin + '/refund-policy', origin + '/collections', ...products.map(p => `${origin}/product?code=${encodeURIComponent(p.code)}`)];
   await fs.writeFile(path.join(output, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(url=>`<url><loc>${escape(url)}</loc></url>`).join('')}</urlset>`);
   console.log(`Prerendered ${products.length} product pages and sitemap.xml`);
 }

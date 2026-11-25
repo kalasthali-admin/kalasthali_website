@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/services/public_page_navigation.dart';
+
 class AppFooter extends StatelessWidget {
   const AppFooter({super.key});
 
@@ -172,7 +174,14 @@ class _FooterRouteLink extends StatelessWidget {
         borderRadius: BorderRadius.circular(5),
         onTap: () {
           if (ModalRoute.of(context)?.settings.name != route) {
-            Navigator.pushReplacementNamed(context, route);
+            if (route == '/about' ||
+                route == '/privacy-policy' ||
+                route == '/terms-of-service' ||
+                route == '/refund-policy') {
+              openPublicPage(context, route);
+            } else {
+              Navigator.pushReplacementNamed(context, route);
+            }
           }
         },
         child: Padding(

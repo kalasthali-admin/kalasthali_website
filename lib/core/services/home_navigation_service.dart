@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import 'public_page_navigation.dart';
+
 /// Coordinates navigation to named sections on the home page.
 class HomeNavigationService {
   HomeNavigationService._();
@@ -8,6 +10,10 @@ class HomeNavigationService {
   static var _scrollToNewArrivalsWhenReady = false;
 
   static void requestNewArrivals(BuildContext context) {
+    if (Uri.base.path != '/') {
+      openPublicPage(context, '/#new-arrivals');
+      return;
+    }
     if (ModalRoute.of(context)?.settings.name == '/') {
       _scrollToNewArrivals();
       return;
